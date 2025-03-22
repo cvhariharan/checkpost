@@ -2,17 +2,21 @@
 <div x-data="{ 
     machines: {{ .Machines | toJSON }},
     filteredMachines: {{ .Machines | toJSON }},
-    filterMachines(search) {
-        if (!search) {
-            this.filteredMachines = this.machines;
-            return;
-        }
-        search = search.toLowerCase();
-        this.filteredMachines = this.machines.filter(machine => 
-            machine.Hostname.toLowerCase().includes(search) ||
-            machine.Platform.toLowerCase().includes(search) ||
-            machine.Status.toLowerCase().includes(search)
-        );
+    filterMachines(searchData) {
+        const search = searchData.term ? searchData.term.toLowerCase() : '';
+        const tag = searchData.tag;
+        
+        this.filteredMachines = this.machines.filter(machine => {
+            const matchesSearch = !search || 
+                machine.Hostname.toLowerCase().includes(search) ||
+                machine.Platform.toLowerCase().includes(search) ||
+                machine.Status.toLowerCase().includes(search);
+            
+            const matchesTag = !tag || 
+                (machine.Tags && machine.Tags.includes(tag));
+            
+            return matchesSearch && matchesTag;
+        });
     }
 }" @search.window="filterMachines($event.detail)">
     <!-- Page Header -->
@@ -21,8 +25,11 @@
         <p class="mt-1 text-sm text-primary-500">View and manage all connected osquery endpoints</p>
     </div>
 
-    <!-- Search Component -->
-    {{ template "search" "Search machines..." }}
+    <!-- Search Bar -->
+    <div class="mb-4 flex gap-4">
+        {{ template "search" "Search machines..." }}
+        {{ template "tag_selector" .AllTags }}
+    </div>
 
     <!-- Machines Table -->
     <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden">
@@ -41,6 +48,9 @@
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
                                 Last Seen
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
+                                Tags
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
                                 Version
@@ -69,6 +79,13 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-primary-600" x-text="machine.LastSeen"></div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="tag in machine.Tags || []" :key="tag">
+                                            <span class="px-2 py-1 text-xs font-medium bg-primary-100 text-primary-700 rounded-full" x-text="tag"></span>
+                                        </template>
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-primary-600">4.9.0</div>

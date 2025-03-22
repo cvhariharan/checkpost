@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -27,6 +28,7 @@ type Machine struct {
 	Platform string
 	Status   string
 	LastSeen string
+	Tags     []string
 }
 
 type Query struct {
@@ -61,6 +63,7 @@ type PageData struct {
 	Queries   []Query
 	Packs     []Pack
 	Schedules []Schedule
+	AllTags   []string
 }
 
 // Convert any value to a JSON string
@@ -75,7 +78,11 @@ func toJSON(v interface{}) string {
 func main() {
 	// Create a custom template function map
 	funcMap := template.FuncMap{
-		"toJSON": toJSON,
+		"toJSON":    toJSON,
+		"splitList": strings.Split,
+		"safeHTML": func(s string) template.HTML {
+			return template.HTML(s)
+		},
 	}
 
 	e := echo.New()
@@ -99,15 +106,28 @@ func main() {
 
 	e.GET("/machines", func(c echo.Context) error {
 		machines := []Machine{
-			{ID: "m1", Hostname: "web-server-01", Platform: "ubuntu 22.04", Status: "active", LastSeen: "2 minutes ago"},
-			{ID: "m2", Hostname: "db-server-01", Platform: "debian 11", Status: "active", LastSeen: "5 minutes ago"},
-			{ID: "m3", Hostname: "worker-01", Platform: "centos 8", Status: "offline", LastSeen: "2 days ago"},
-			{ID: "m4", Hostname: "cache-01", Platform: "ubuntu 20.04", Status: "active", LastSeen: "1 minute ago"},
+			{ID: "m1", Hostname: "web-server-01", Platform: "ubuntu 22.04", Status: "active", LastSeen: "2 minutes ago", Tags: []string{"production", "web"}},
+			{ID: "m2", Hostname: "db-server-01", Platform: "debian 11", Status: "active", LastSeen: "5 minutes ago", Tags: []string{"production", "database"}},
+			{ID: "m3", Hostname: "worker-01", Platform: "centos 8", Status: "offline", LastSeen: "2 days ago", Tags: []string{"staging", "worker"}},
+			{ID: "m4", Hostname: "cache-01", Platform: "ubuntu 20.04", Status: "active", LastSeen: "1 minute ago", Tags: []string{"production", "cache"}},
 		}
+		// Get unique tags from machines
+		allTags := make(map[string]bool)
+		for _, m := range machines {
+			for _, t := range m.Tags {
+				allTags[t] = true
+			}
+		}
+		uniqueTags := make([]string, 0, len(allTags))
+		for t := range allTags {
+			uniqueTags = append(uniqueTags, t)
+		}
+
 		return c.Render(200, "base.html", PageData{
 			Title:    "Machines",
 			Active:   "machines",
 			Machines: machines,
+			AllTags:  uniqueTags,
 		})
 	})
 
