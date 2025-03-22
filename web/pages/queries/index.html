@@ -1,0 +1,40 @@
+{{ define "queries_index" }}
+<div>
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-primary-900">Stored Queries</h1>
+                <p class="mt-1 text-sm text-primary-500">Manage and organize your osquery queries</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Queries Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {{ range .Queries }}
+            <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden hover:border-primary-300 transition-colors">
+                <div class="px-6 py-4 border-b border-primary-200">
+                    <h3 class="text-lg font-medium text-primary-900">{{ .Name }}</h3>
+                    <p class="mt-1 text-sm text-primary-500">{{ if .Description }}{{ .Description }}{{ else }}No description{{ end }}</p>
+                </div>
+                <div class="px-6 py-4">
+                    <pre class="text-sm font-mono bg-primary-50 rounded-md p-3 overflow-x-auto">{{ .SQL }}</pre>
+                </div>
+                <div class="px-6 py-4 bg-primary-50 border-t border-primary-200">
+                    <div class="flex justify-between items-center">
+                        <button 
+                            class="text-sm text-indigo-600 hover:text-indigo-900 font-medium copy-button"
+                            data-clipboard-text="{{ .SQL }}"
+                        >
+                            Copy Query
+                        </button>
+                        <span class="text-sm text-primary-500">{{ .LastRun }}</span>
+                    </div>
+                </div>
+            </div>
+        {{ end }}
+    </div>
+
+</div>
+{{ end }}

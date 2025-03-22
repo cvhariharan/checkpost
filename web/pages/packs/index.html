@@ -1,0 +1,37 @@
+{{ define "packs_index" }}
+<div>
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-primary-900">Query Packs</h1>
+                <p class="mt-1 text-sm text-primary-500">Manage osquery packs and their queries</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Packs Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {{ range .Packs }}
+            <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden hover:border-primary-300 transition-colors"
+            >
+                <div class="px-6 py-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-medium text-primary-900">{{ .Name }}</h3>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                            {{ .Queries }} queries
+                        </span>
+                    </div>
+                    <p class="mt-1 text-sm text-primary-500">{{ if .Description }}{{ .Description }}{{ else }}No description{{ end }}</p>
+                    <div class="mt-2">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                            {{ .Targets }} targets
+                        </span>
+                    </div>
+                </div>
+            </div>
+        {{ end }}
+    </div>
+
+</div>
+{{ end }}

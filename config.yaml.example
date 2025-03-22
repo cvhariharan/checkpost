@@ -1,0 +1,102 @@
+# Query Definitions
+# Define reusable queries that can be referenced in schedules and packs
+queries:
+  process_list:
+    query: "SELECT pid, name, path, cmdline FROM processes"
+    description: "Lists all running processes"
+    references:
+      - "https://example.com/process-monitoring"
+
+  listening_ports:
+    query: "SELECT address, port, process_id FROM listening_ports"
+    description: "Shows all listening network ports"
+
+  privileged_users:
+    query: "SELECT * FROM users WHERE uid < 500 AND uid > 0 AND username != 'nobody';"
+    description: "Identify unusual users with UID in privileged range"
+    platform: "linux"
+
+  kernel_modules:
+    query: "SELECT * FROM kernel_modules WHERE name NOT IN ('kernel', 'vboxdrv');"
+    description: "Lists non-standard kernel modules"
+
+# Schedule Configuration
+# Defines when and how queries should be run
+schedule:
+  hourly_process_check:
+    query_ref: "process_list"  # References query defined above
+    interval: 3600  # seconds
+    platform: "all"  # all, darwin, linux, windows
+    version: ">=4.0.0"  # osquery version requirement
+    shard: 100  # percentage of endpoints that should run this query
+    description: "Hourly process inventory"
+
+  network_monitoring:
+    query_ref: "listening_ports"  # References query defined above
+    interval: 300  # 5 minutes
+    platform: "linux,darwin"
+    snapshot: true  # store point-in-time results instead of differential
+
+  # Custom query defined inline
+  memory_info:
+    query: "SELECT * FROM memory_info;"
+    interval: 1800
+    description: "Check system memory usage"
+
+# Packs allow for grouping queries into reusable sets
+packs:
+  security_monitoring:
+    platform: "linux,darwin"
+    version: ">=4.2.0"
+    shard: 90
+    discovery: [
+      "SELECT 1 FROM osquery_info WHERE platform = 'darwin'",
+      "SELECT 1 FROM osquery_info WHERE platform = 'linux'"
+    ]
+    queries:
+      unexpected_users:
+        query_ref: "privileged_users"  # References query defined above
+        interval: 7200
+        description: "Monitors for unusual privileged users"
+
+      rootkit_checks:
+        query_ref: "kernel_modules"  # References query defined above
+        interval: 3600
+
+      # Custom query defined inline
+      usb_devices:
+        query: "SELECT * FROM usb_devices;"
+        interval: 900
+        description: "Monitor USB device connections"
+        platform: "all"
+
+  # You can also reference external pack files
+  external_packs:
+    # Reference by file path
+    vuln_management: "/opt/osquery/packs/vuln_management.conf"
+    # Reference by HTTPS URL (will be fetched at runtime)
+    malware_detection: "https://example.com/osquery/packs/malware.conf"
+
+# Decorators add additional context to query results
+decorators:
+  # Decorators run for every query
+  always:
+    - "SELECT hostname FROM system_info"
+    - "SELECT uuid AS host_uuid FROM system_info"
+
+  # Run on specific intervals (seconds)
+  interval:
+    "3600":
+      - "SELECT user FROM logged_in_users WHERE user != ''"
+    "86400":
+      - "SELECT version FROM os_version"
+
+# File monitoring paths
+file_paths:
+  system_binaries:
+    - "/usr/bin/%"
+    - "/usr/sbin/%"
+  etc:
+    - "/etc/%"
+  user_homes:
+    - "/home/%/.ssh/%%"

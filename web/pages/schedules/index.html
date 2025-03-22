@@ -1,0 +1,41 @@
+{{ define "schedules_index" }}
+<div>
+    <!-- Page Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-primary-900">Query Schedules</h1>
+                <p class="mt-1 text-sm text-primary-500">Schedule queries to run on specific machines</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedules List -->
+    <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden">
+        <ul role="list" class="divide-y divide-primary-200">
+            {{ range .Schedules }}
+                <li class="p-6 hover:bg-primary-50">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-medium text-primary-900">{{ .Name }}</h3>
+                            <p class="mt-1 text-sm text-primary-500">Queries: {{ .Query }}</p>
+                        </div>
+                        <div class="ml-6 flex items-center space-x-4">
+                            <div class="flex flex-col items-end space-y-1">
+                                <span class="text-sm font-medium text-primary-900">{{ .Interval }}</span>
+                                <span class="text-sm text-primary-500">Last run: {{ .LastRun }}</span>
+                                <span class="text-sm text-green-600">Next run: {{ .NextRun }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </li>
+            {{ else }}
+                <li class="p-6 text-center text-primary-500">
+                    No schedules created yet
+                </li>
+            {{ end }}
+        </ul>
+    </div>
+
+</div>
+{{ end }}

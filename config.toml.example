@@ -1,9 +1,0 @@
-[schedule.query1]
-query = "select * from processes"
-interval = 10
-description = "List all processes"
-
-[schedule.query2]
-query = "select * from files"
-interval = 20
-description = "List all files"
