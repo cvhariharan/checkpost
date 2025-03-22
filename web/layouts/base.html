@@ -6,6 +6,7 @@
     <title>{{ .Title }} - Watcher</title>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.11/clipboard.min.js"></script>
     <link rel="stylesheet" href="/static/css/main.css">
     <script>
         tailwind.config = {
@@ -28,6 +29,19 @@
                 }
             }
         }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            new ClipboardJS('.copy-button').on('success', function(e) {
+                const button = e.trigger;
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+                e.clearSelection();
+            });
+        });
     </script>
 </head>
 <body class="bg-primary-50">
