@@ -1,7 +1,22 @@
 {{ define "schedules_index" }}
-<div>
+<div x-data="{ 
+    schedules: {{ .Schedules | toJSON }},
+    filteredSchedules: {{ .Schedules | toJSON }},
+    filterSchedules(search) {
+        if (!search) {
+            this.filteredSchedules = this.schedules;
+            return;
+        }
+        search = search.toLowerCase();
+        this.filteredSchedules = this.schedules.filter(schedule => 
+            schedule.Name.toLowerCase().includes(search) ||
+            schedule.Query.toLowerCase().includes(search) ||
+            schedule.Interval.toLowerCase().includes(search)
+        );
+    }
+}" @search.window="filterSchedules($event.detail)">
     <!-- Page Header -->
-    <div class="mb-6">
+    <div class="mb-4">
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-semibold text-primary-900">Query Schedules</h1>
@@ -10,30 +25,40 @@
         </div>
     </div>
 
+    <!-- Search Component -->
+    {{ template "search" "Search schedules..." }}
+
     <!-- Schedules List -->
     <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden">
         <ul role="list" class="divide-y divide-primary-200">
-            {{ range .Schedules }}
+            <template x-for="schedule in filteredSchedules" :key="schedule.Name">
                 <li class="p-6 hover:bg-primary-50">
                     <div class="flex items-center justify-between">
                         <div class="flex-1 min-w-0">
-                            <h3 class="text-lg font-medium text-primary-900">{{ .Name }}</h3>
-                            <p class="mt-1 text-sm text-primary-500">Queries: {{ .Query }}</p>
+                            <h3 class="text-lg font-medium text-primary-900" x-text="schedule.Name"></h3>
+                            <p class="mt-1 text-sm text-primary-500">
+                                Queries: <span x-text="schedule.Query"></span>
+                            </p>
                         </div>
                         <div class="ml-6 flex items-center space-x-4">
                             <div class="flex flex-col items-end space-y-1">
-                                <span class="text-sm font-medium text-primary-900">{{ .Interval }}</span>
-                                <span class="text-sm text-primary-500">Last run: {{ .LastRun }}</span>
-                                <span class="text-sm text-green-600">Next run: {{ .NextRun }}</span>
+                                <span class="text-sm font-medium text-primary-900" x-text="schedule.Interval"></span>
+                                <span class="text-sm text-primary-500">
+                                    Last run: <span x-text="schedule.LastRun"></span>
+                                </span>
+                                <span class="text-sm text-green-600">
+                                    Next run: <span x-text="schedule.NextRun"></span>
+                                </span>
                             </div>
                         </div>
                     </div>
                 </li>
-            {{ else }}
+            </template>
+            <template x-if="filteredSchedules.length === 0">
                 <li class="p-6 text-center text-primary-500">
-                    No schedules created yet
+                    No matching schedules found
                 </li>
-            {{ end }}
+            </template>
         </ul>
     </div>
 

@@ -1,10 +1,28 @@
 {{ define "machines_index" }}
-<div>
+<div x-data="{ 
+    machines: {{ .Machines | toJSON }},
+    filteredMachines: {{ .Machines | toJSON }},
+    filterMachines(search) {
+        if (!search) {
+            this.filteredMachines = this.machines;
+            return;
+        }
+        search = search.toLowerCase();
+        this.filteredMachines = this.machines.filter(machine => 
+            machine.Hostname.toLowerCase().includes(search) ||
+            machine.Platform.toLowerCase().includes(search) ||
+            machine.Status.toLowerCase().includes(search)
+        );
+    }
+}" @search.window="filterMachines($event.detail)">
     <!-- Page Header -->
-    <div class="mb-6">
+    <div class="mb-4">
         <h1 class="text-2xl font-semibold text-primary-900">Connected Machines</h1>
         <p class="mt-1 text-sm text-primary-500">View and manage all connected osquery endpoints</p>
     </div>
+
+    <!-- Search Component -->
+    {{ template "search" "Search machines..." }}
 
     <!-- Machines Table -->
     <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden">
@@ -33,37 +51,36 @@
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-primary-200">
-                        {{ range .Machines }}
+                        <template x-for="machine in filteredMachines" :key="machine.ID">
                             <tr class="hover:bg-primary-50 transition-colors">
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
-                                        <div class="h-2.5 w-2.5 rounded-full mr-2 {{ if eq .Status "active" }}bg-green-500{{ else }}bg-red-500{{ end }}">
+                                        <div class="h-2.5 w-2.5 rounded-full mr-2" :class="machine.Status === 'active' ? 'bg-green-500' : 'bg-red-500'">
                                         </div>
-                                        <span class="text-sm text-primary-600">
-                                            {{ .Status }}
+                                        <span class="text-sm text-primary-600" x-text="machine.Status">
                                         </span>
                                     </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-primary-900">{{ .Hostname }}</div>
+                                    <div class="text-sm font-medium text-primary-900" x-text="machine.Hostname"></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-primary-600">{{ .Platform }}</div>
+                                    <div class="text-sm text-primary-600" x-text="machine.Platform"></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-primary-600">{{ .LastSeen }}</div>
+                                    <div class="text-sm text-primary-600" x-text="machine.LastSeen"></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm text-primary-600">4.9.0</div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    <a href="/machines/{{ .ID }}/query" 
+                                    <a :href="'/machines/' + machine.ID + '/query'" 
                                        class="text-indigo-600 hover:text-indigo-900">
                                         Query
                                     </a>
                                 </td>
                             </tr>
-                        {{ end }}
+                        </template>
                     </tbody>
                 </table>
             </div>

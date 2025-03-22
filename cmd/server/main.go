@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"html/template"
 	"io"
 	"log"
@@ -62,14 +63,29 @@ type PageData struct {
 	Schedules []Schedule
 }
 
+// Convert any value to a JSON string
+func toJSON(v interface{}) string {
+	jsonBytes, err := json.Marshal(v)
+	if err != nil {
+		return "[]"
+	}
+	return string(jsonBytes)
+}
+
 func main() {
+	// Create a custom template function map
+	funcMap := template.FuncMap{
+		"toJSON": toJSON,
+	}
+
 	e := echo.New()
 
-	// Initialize templates with base layout
+	// Initialize templates with base layout and function map
 	t := &Template{
-		templates: template.Must(template.ParseGlob("web/layouts/*.html")),
+		templates: template.Must(template.New("").Funcs(funcMap).ParseGlob("web/layouts/*.html")),
 	}
 	// Load all page templates in pages subdirectories
+	template.Must(t.templates.ParseGlob("web/components/*.html"))
 	template.Must(t.templates.ParseGlob("web/pages/**/*.html"))
 	e.Renderer = t
 
