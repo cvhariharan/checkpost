@@ -1,184 +1,111 @@
 package main
 
 import (
-	"encoding/json"
-	"html/template"
-	"io"
+	"crypto/rand"
+	"encoding/hex"
+	"flag"
+	"fmt"
 	"log"
-	"strings"
+	"os"
 
+	"github.com/cvhariharan/watcher/internal/config"
+	"github.com/cvhariharan/watcher/internal/handlers"
+	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/providers/confmap"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
 	"github.com/labstack/echo/v4"
 )
 
-type Template struct {
-	templates *template.Template
-}
-
-func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
-	err := t.templates.ExecuteTemplate(w, name, data)
-	if err != nil {
-		log.Println(err)
-	}
-	return err
-}
-
-type Machine struct {
-	ID       string
-	Hostname string
-	Platform string
-	Status   string
-	LastSeen string
-	Tags     []string
-}
-
-type Query struct {
-	ID          string
-	Name        string
-	Description string
-	SQL         string
-	LastRun     string
-}
-
-type Pack struct {
-	ID          string
-	Name        string
-	Description string
-	Queries     int
-	Targets     int
-}
-
-type Schedule struct {
-	ID       string
-	Name     string
-	Query    string
-	Interval string
-	LastRun  string
-	NextRun  string
-}
-
-type PageData struct {
-	Title     string
-	Active    string
-	Machines  []Machine
-	Queries   []Query
-	Packs     []Pack
-	Schedules []Schedule
-	AllTags   []string
-}
-
-// Convert any value to a JSON string
-func toJSON(v interface{}) string {
-	jsonBytes, err := json.Marshal(v)
-	if err != nil {
-		return "[]"
-	}
-	return string(jsonBytes)
-}
+var k = koanf.New(".")
 
 func main() {
-	// Create a custom template function map
-	funcMap := template.FuncMap{
-		"toJSON":    toJSON,
-		"splitList": strings.Split,
-		"safeHTML": func(s string) template.HTML {
-			return template.HTML(s)
-		},
+	var configFile string
+	flag.StringVar(&configFile, "config", "config.toml", "Path to the config file. If the file doesn't exist, a default file will be generated")
+	flag.Parse()
+
+	if err := setDefaultConfig(); err != nil {
+		log.Fatalf("error creating default config: %v", err)
+	}
+
+	if err := loadOrCreateConfigFile(configFile); err != nil {
+		log.Fatalf("could not load config: %v", err)
+	}
+
+	var cfg config.Config
+	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf", FlatPaths: true}); err != nil {
+		log.Fatal(err)
 	}
 
 	e := echo.New()
 
-	// Initialize templates with base layout and function map
-	t := &Template{
-		templates: template.Must(template.New("").Funcs(funcMap).ParseGlob("web/layouts/*.html")),
-	}
-	// Load all page templates in pages subdirectories
-	template.Must(t.templates.ParseGlob("web/components/*.html"))
-	template.Must(t.templates.ParseGlob("web/pages/**/*.html"))
-	e.Renderer = t
+	h := handlers.NewHandler()
+	e.Renderer = handlers.NewTemplateRenderer()
+	e.HTTPErrorHandler = handlers.ErrorHandler
 
-	// Serve static files
 	e.Static("/static", "web/static")
 
-	// Routes
 	e.GET("/", func(c echo.Context) error {
 		return c.Redirect(301, "/machines")
 	})
 
-	e.GET("/machines", func(c echo.Context) error {
-		machines := []Machine{
-			{ID: "m1", Hostname: "web-server-01", Platform: "ubuntu 22.04", Status: "active", LastSeen: "2 minutes ago", Tags: []string{"production", "web"}},
-			{ID: "m2", Hostname: "db-server-01", Platform: "debian 11", Status: "active", LastSeen: "5 minutes ago", Tags: []string{"production", "database"}},
-			{ID: "m3", Hostname: "worker-01", Platform: "centos 8", Status: "offline", LastSeen: "2 days ago", Tags: []string{"staging", "worker"}},
-			{ID: "m4", Hostname: "cache-01", Platform: "ubuntu 20.04", Status: "active", LastSeen: "1 minute ago", Tags: []string{"production", "cache"}},
-		}
-		// Get unique tags from machines
-		allTags := make(map[string]bool)
-		for _, m := range machines {
-			for _, t := range m.Tags {
-				allTags[t] = true
-			}
-		}
-		uniqueTags := make([]string, 0, len(allTags))
-		for t := range allTags {
-			uniqueTags = append(uniqueTags, t)
-		}
-
-		return c.Render(200, "base.html", PageData{
-			Title:    "Machines",
-			Active:   "machines",
-			Machines: machines,
-			AllTags:  uniqueTags,
-		})
-	})
-
-	e.GET("/machines/query", func(c echo.Context) error {
-		return c.Render(200, "base.html", PageData{
-			Title:  "Query Machine",
-			Active: "machines",
-		})
-	})
-
-	e.GET("/queries", func(c echo.Context) error {
-		queries := []Query{
-			{ID: "q1", Name: "Running Processes", Description: "Lists all running processes", SQL: "SELECT * FROM processes", LastRun: "1 hour ago"},
-			{ID: "q2", Name: "Open Ports", Description: "Shows open network ports", SQL: "SELECT * FROM listening_ports", LastRun: "30 minutes ago"},
-			{ID: "q3", Name: "User Accounts", Description: "Lists user accounts", SQL: "SELECT * FROM users", LastRun: "2 hours ago"},
-			{ID: "q4", Name: "System Info", Description: "Basic system information", SQL: "SELECT * FROM system_info", LastRun: "15 minutes ago"},
-		}
-		return c.Render(200, "base.html", PageData{
-			Title:   "Queries",
-			Active:  "queries",
-			Queries: queries,
-		})
-	})
-
-	e.GET("/packs", func(c echo.Context) error {
-		packs := []Pack{
-			{ID: "p1", Name: "Security Essentials", Description: "Basic security checks", Queries: 5, Targets: 10},
-			{ID: "p2", Name: "Performance Monitoring", Description: "System performance metrics", Queries: 3, Targets: 8},
-			{ID: "p3", Name: "Compliance Checks", Description: "Compliance related queries", Queries: 7, Targets: 15},
-			{ID: "p4", Name: "Network Analysis", Description: "Network related checks", Queries: 4, Targets: 12},
-		}
-		return c.Render(200, "base.html", PageData{
-			Title:  "Packs",
-			Active: "packs",
-			Packs:  packs,
-		})
-	})
-
-	e.GET("/schedules", func(c echo.Context) error {
-		schedules := []Schedule{
-			{ID: "s1", Name: "Daily Security Scan", Query: "Security Essentials", Interval: "24h", LastRun: "12 hours ago", NextRun: "in 12 hours"},
-			{ID: "s2", Name: "Hourly Performance Check", Query: "Performance Monitoring", Interval: "1h", LastRun: "45 minutes ago", NextRun: "in 15 minutes"},
-			{ID: "s3", Name: "Weekly Compliance", Query: "Compliance Checks", Interval: "168h", LastRun: "3 days ago", NextRun: "in 4 days"},
-			{ID: "s4", Name: "Network Status", Query: "Network Analysis", Interval: "6h", LastRun: "2 hours ago", NextRun: "in 4 hours"},
-		}
-		return c.Render(200, "base.html", PageData{
-			Title:     "Schedules",
-			Active:    "schedules",
-			Schedules: schedules,
-		})
-	})
+	e.GET("/machines", h.HandleMachines)
+	e.GET("/queries", h.HandleQueries)
+	e.GET("/packs", h.HandlePacks)
+	e.GET("/schedules", h.HandleSchedules)
 
 	e.Logger.Fatal(e.Start(":1323"))
+}
+
+func loadOrCreateConfigFile(configFile string) error {
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		log.Println("config file not found, creating default config file")
+
+		// Write the default config to file
+		f, err := os.Create(configFile)
+		if err != nil {
+			return fmt.Errorf("error creating config file: %v", err)
+		}
+		defer f.Close()
+
+		cfgBytes, err := k.Marshal(toml.Parser())
+		if err != nil {
+			return fmt.Errorf("could not marshal default config: %v", err)
+		}
+
+		if _, err := f.Write(cfgBytes); err != nil {
+			return fmt.Errorf("could not write default config file: %v", err)
+		}
+
+		return nil
+	}
+
+	if err := k.Load(file.Provider(configFile), toml.Parser()); err != nil {
+		log.Fatalf("error loading config: %v", err)
+	}
+	return nil
+}
+
+func setDefaultConfig() error {
+	key := make([]byte, 16)
+	if _, err := rand.Read(key); err != nil {
+		return fmt.Errorf("could not generate random key for securecookie encryption: %w", err)
+	}
+	return k.Load(confmap.Provider(map[string]any{
+		"app.admin_username":    "watcher_admin",
+		"app.admin_password":    "watcher_password",
+		"app.http_tls_cert":     "server_cert.pem",
+		"app.http_tls_key":      "server_key.pem",
+		"app.root_url":          "http://localhost:1323",
+		"app.secure_cookie_key": hex.EncodeToString(key),
+
+		"db.dbname":   "watcher",
+		"db.host":     "localhost",
+		"db.port":     5432,
+		"db.password": "watcher",
+		"db.user":     "watcher",
+
+		"valkey.host": "localhost",
+		"valkey.port": 6379,
+	}, "."), nil)
 }

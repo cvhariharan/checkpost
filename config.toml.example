@@ -1,0 +1,25 @@
+[app]
+admin_password = 'watcher_password'
+admin_username = 'watcher_admin'
+http_tls_cert = 'server_cert.pem'
+http_tls_key = 'server_key.pem'
+root_url = 'http://localhost:1323'
+secure_cookie_key = 'cddc196bdf9e76c9a343ed8fb33a553e'
+use_tls = false
+
+[app.oidc]
+issuer = 'https://gitea.opnlabs.org/'
+client_id = '7341b392-9035-4028-be49-8b3494f090d4'
+client_secret = 'gto_iaaa22babsra2naxurym4rp4jnd6jgk4r36eg46idianzugfu5hq'
+
+[db]
+dbname = 'watcher'
+host = '127.0.0.1'
+password = 'watcher'
+port = 5432
+user = 'watcher'
+
+[valkey]
+host = 'localhost'
+password = ''
+port = 6379

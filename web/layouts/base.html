@@ -80,7 +80,9 @@
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {{ if eq .Active "machines" }}
+        {{ if eq .Active "error" }}
+            {{ template "error" . }}
+        {{ else if eq .Active "machines" }}
             {{ template "machines_index" . }}
         {{ else if eq .Active "queries" }}
             {{ template "queries_index" . }}
