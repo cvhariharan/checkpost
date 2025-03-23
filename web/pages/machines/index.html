@@ -2,6 +2,7 @@
 <div x-data="{ 
     machines: {{ .Machines | toJSON }},
     filteredMachines: {{ .Machines | toJSON }},
+    activePopup: null,
     filterMachines(searchData) {
         const search = searchData.term ? searchData.term.toLowerCase() : '';
         const tag = searchData.tag;
@@ -32,7 +33,7 @@
     </div>
 
     <!-- Machines Table -->
-    <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden">
+    <div class="bg-white shadow-sm rounded-lg border border-primary-200">
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-primary-200">
                     <thead class="bg-primary-50">
@@ -81,9 +82,37 @@
                                     <div class="text-sm text-primary-600" x-text="machine.LastSeen"></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex flex-wrap gap-2">
-                                        <template x-for="tag in machine.Tags || []" :key="tag">
+                                    <div class="flex flex-wrap gap-2 items-center">
+                                        <template x-for="tag in (machine.Tags || []).slice(0, 2)" :key="tag">
                                             <span class="px-2 py-1 text-xs font-medium bg-primary-100 text-primary-700 rounded-full" x-text="tag"></span>
+                                        </template>
+                                        <template x-if="(machine.Tags || []).length > 2">
+                                            <div x-data="{ show: false }">
+                                                <button 
+                                                    class="px-2 py-1 text-xs font-medium bg-primary-100 text-primary-700 rounded-full hover:bg-primary-200"
+                                                    @mouseenter="
+                                                        show = true;
+                                                        $nextTick(() => {
+                                                            const rect = $el.getBoundingClientRect();
+                                                            $refs[`tooltip-${machine.ID}`].style.left = (rect.left + rect.width/2) + 'px';
+                                                            $refs[`tooltip-${machine.ID}`].style.top = (window.scrollY + rect.top - 10) + 'px';
+                                                        })"
+                                                    @mouseleave="show = false"
+                                                    x-text="`+${(machine.Tags || []).length - 2} more`">
+                                                </button>
+                                                <div
+                                                    :ref="`tooltip-${machine.ID}`"
+                                                    x-show="show"
+                                                    class="fixed z-[60] -mt-24 px-3 py-2 bg-white border border-primary-200 rounded-lg shadow-lg -translate-x-1/2">
+                                                    <div class="flex flex-wrap gap-2 overflow-y-auto max-h-20">
+                                                        <template x-for="tag in machine.Tags.slice(2)" :key="tag">
+                                                            <span class="px-2 py-1 text-xs font-medium bg-primary-100 text-primary-700 rounded-full" x-text="tag"></span>
+                                                        </template>
+                                                    </div>
+                                                    <!-- Arrow -->
+                                                    <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-primary-200 transform rotate-45"></div>
+                                                </div>
+                                            </div>
                                         </template>
                                     </div>
                                 </td>

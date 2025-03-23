@@ -73,6 +73,7 @@ select[multiple] {
     background-image: none;
 }
 
+
 /* Responsive padding adjustments */
 @media (max-width: 640px) {
     .container-padding {

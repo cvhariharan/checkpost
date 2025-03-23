@@ -6,8 +6,8 @@ import (
 
 func (h *Handler) HandleMachines(c echo.Context) error {
 	machines := []Machine{
-		{ID: "m1", Hostname: "web-server-01", Platform: "ubuntu 22.04", Status: "active", LastSeen: "2 minutes ago", Tags: []string{"production", "web"}},
-		{ID: "m2", Hostname: "db-server-01", Platform: "debian 11", Status: "active", LastSeen: "5 minutes ago", Tags: []string{"production", "database"}},
+		{ID: "m1", Hostname: "web-server-01", Platform: "ubuntu 22.04", Status: "active", LastSeen: "2 minutes ago", Tags: []string{"production", "web", "endpoint", "tech"}},
+		{ID: "m2", Hostname: "db-server-01", Platform: "debian 11", Status: "active", LastSeen: "5 minutes ago", Tags: []string{"production", "database", "mobile"}},
 		{ID: "m3", Hostname: "worker-01", Platform: "centos 8", Status: "offline", LastSeen: "2 days ago", Tags: []string{"staging", "worker"}},
 		{ID: "m4", Hostname: "cache-01", Platform: "ubuntu 20.04", Status: "active", LastSeen: "1 minute ago", Tags: []string{"production", "cache"}},
 	}
