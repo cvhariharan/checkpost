@@ -13,26 +13,75 @@ WITH node AS (
     WHERE
         nodes.uuid = $1
 ) SELECT
-    node.*,
-    os_version_info.os_id,
-    os_version_info.codename,
-    os_version_info.major,
-    os_version_info.minor,
-    os_version_info.platform,
-    os_version_info.platform_like,
-    os_version_info.version,
-    system_info.computer_name,
-    system_info.cpu_logical_cores,
-    system_info.cpu_physical_cores,
-    system_info.hostname,
-    system_info.local_hostname,
-    system_info.physical_memory
-    FROM
-        node, os_version_info, osquery_info, system_info
-    WHERE
-        node.id = os_version_info.node_fk
-        AND node.id = osquery_info.node_fk
-        AND node.id = system_info.node_fk;
+    node.uuid,
+    node.host_identifier,
+
+    -- OS Version Info
+    json_build_object(
+        'uuid', os_version_info.uuid,
+        'os_id', os_version_info.os_id,
+        'codename', os_version_info.codename,
+        'major', os_version_info.major,
+        'minor', os_version_info.minor,
+        'name', os_version_info.name,
+        'patch', os_version_info.patch,
+        'platform', os_version_info.platform,
+        'platform_like', os_version_info.platform_like,
+        'version', os_version_info.version
+    ) AS os_version,
+
+    -- OSQuery Info
+    json_build_object(
+        'uuid', osquery_info.uuid,
+        'build_distro', osquery_info.build_distro,
+        'build_platform', osquery_info.build_platform,
+        'config_hash', osquery_info.config_hash,
+        'config_valid', osquery_info.config_valid,
+        'extensions', osquery_info.extensions,
+        'instance_id', osquery_info.instance_id,
+        'pid', osquery_info.pid,
+        'start_time', osquery_info.start_time,
+        'version', osquery_info.version,
+        'watcher', osquery_info.watcher
+    ) AS osquery_info,
+
+    -- System Info
+    json_build_object(
+        'uuid', system_info.uuid,
+        'computer_name', system_info.computer_name,
+        'cpu_brand', system_info.cpu_brand,
+        'cpu_logical_cores', system_info.cpu_logical_cores,
+        'cpu_physical_cores', system_info.cpu_physical_cores,
+        'cpu_subtype', system_info.cpu_subtype,
+        'cpu_type', system_info.cpu_type,
+        'hardware_model', system_info.hardware_model,
+        'hardware_serial', system_info.hardware_serial,
+        'hardware_vendor', system_info.hardware_vendor,
+        'hardware_version', system_info.hardware_version,
+        'hostname', system_info.hostname,
+        'local_hostname', system_info.local_hostname,
+        'physical_memory', system_info.physical_memory
+    ) AS system_info,
+
+    -- Platform Info
+    json_build_object(
+        'uuid', platform_info.uuid,
+        'address', platform_info.address,
+        'date', platform_info.date,
+        'extra', platform_info.extra,
+        'revision', platform_info.revision,
+        'size', platform_info.size,
+        'vendor', platform_info.vendor,
+        'version', platform_info.version,
+        'volume_size', platform_info.volume_size
+    ) AS platform_info
+
+FROM
+    node
+LEFT JOIN os_version_info ON node.id = os_version_info.node_fk
+LEFT JOIN osquery_info ON node.id = osquery_info.node_fk
+LEFT JOIN system_info ON node.id = system_info.node_fk
+LEFT JOIN platform_info ON node.id = platform_info.node_fk;
 
 -- name: AddOSVersionInfo :one
 INSERT INTO

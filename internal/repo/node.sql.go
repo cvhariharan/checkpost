@@ -8,7 +8,7 @@ package repo
 import (
 	"context"
 	"database/sql"
-	"time"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -317,71 +317,96 @@ WITH node AS (
     WHERE
         nodes.uuid = $1
 ) SELECT
-    node.id, node.uuid, node.host_identifier, node.os_name, node.created_at,
-    os_version_info.os_id,
-    os_version_info.codename,
-    os_version_info.major,
-    os_version_info.minor,
-    os_version_info.platform,
-    os_version_info.platform_like,
-    os_version_info.version,
-    system_info.computer_name,
-    system_info.cpu_logical_cores,
-    system_info.cpu_physical_cores,
-    system_info.hostname,
-    system_info.local_hostname,
-    system_info.physical_memory
-    FROM
-        node, os_version_info, osquery_info, system_info
-    WHERE
-        node.id = os_version_info.node_fk
-        AND node.id = osquery_info.node_fk
-        AND node.id = system_info.node_fk
+    node.uuid,
+    node.host_identifier,
+
+    -- OS Version Info
+    json_build_object(
+        'uuid', os_version_info.uuid,
+        'os_id', os_version_info.os_id,
+        'codename', os_version_info.codename,
+        'major', os_version_info.major,
+        'minor', os_version_info.minor,
+        'name', os_version_info.name,
+        'patch', os_version_info.patch,
+        'platform', os_version_info.platform,
+        'platform_like', os_version_info.platform_like,
+        'version', os_version_info.version
+    ) AS os_version,
+
+    -- OSQuery Info
+    json_build_object(
+        'uuid', osquery_info.uuid,
+        'build_distro', osquery_info.build_distro,
+        'build_platform', osquery_info.build_platform,
+        'config_hash', osquery_info.config_hash,
+        'config_valid', osquery_info.config_valid,
+        'extensions', osquery_info.extensions,
+        'instance_id', osquery_info.instance_id,
+        'pid', osquery_info.pid,
+        'start_time', osquery_info.start_time,
+        'version', osquery_info.version,
+        'watcher', osquery_info.watcher
+    ) AS osquery_info,
+
+    -- System Info
+    json_build_object(
+        'uuid', system_info.uuid,
+        'computer_name', system_info.computer_name,
+        'cpu_brand', system_info.cpu_brand,
+        'cpu_logical_cores', system_info.cpu_logical_cores,
+        'cpu_physical_cores', system_info.cpu_physical_cores,
+        'cpu_subtype', system_info.cpu_subtype,
+        'cpu_type', system_info.cpu_type,
+        'hardware_model', system_info.hardware_model,
+        'hardware_serial', system_info.hardware_serial,
+        'hardware_vendor', system_info.hardware_vendor,
+        'hardware_version', system_info.hardware_version,
+        'hostname', system_info.hostname,
+        'local_hostname', system_info.local_hostname,
+        'physical_memory', system_info.physical_memory
+    ) AS system_info,
+
+    -- Platform Info
+    json_build_object(
+        'uuid', platform_info.uuid,
+        'address', platform_info.address,
+        'date', platform_info.date,
+        'extra', platform_info.extra,
+        'revision', platform_info.revision,
+        'size', platform_info.size,
+        'vendor', platform_info.vendor,
+        'version', platform_info.version,
+        'volume_size', platform_info.volume_size
+    ) AS platform_info
+
+FROM
+    node
+LEFT JOIN os_version_info ON node.id = os_version_info.node_fk
+LEFT JOIN osquery_info ON node.id = osquery_info.node_fk
+LEFT JOIN system_info ON node.id = system_info.node_fk
+LEFT JOIN platform_info ON node.id = platform_info.node_fk
 `
 
 type GetNodeByUUIDRow struct {
-	ID               int32          `db:"id" json:"id"`
-	Uuid             uuid.UUID      `db:"uuid" json:"uuid"`
-	HostIdentifier   sql.NullString `db:"host_identifier" json:"host_identifier"`
-	OsName           sql.NullString `db:"os_name" json:"os_name"`
-	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
-	OsID             sql.NullString `db:"os_id" json:"os_id"`
-	Codename         sql.NullString `db:"codename" json:"codename"`
-	Major            sql.NullString `db:"major" json:"major"`
-	Minor            sql.NullString `db:"minor" json:"minor"`
-	Platform         sql.NullString `db:"platform" json:"platform"`
-	PlatformLike     sql.NullString `db:"platform_like" json:"platform_like"`
-	Version          sql.NullString `db:"version" json:"version"`
-	ComputerName     sql.NullString `db:"computer_name" json:"computer_name"`
-	CpuLogicalCores  sql.NullString `db:"cpu_logical_cores" json:"cpu_logical_cores"`
-	CpuPhysicalCores sql.NullString `db:"cpu_physical_cores" json:"cpu_physical_cores"`
-	Hostname         sql.NullString `db:"hostname" json:"hostname"`
-	LocalHostname    sql.NullString `db:"local_hostname" json:"local_hostname"`
-	PhysicalMemory   sql.NullString `db:"physical_memory" json:"physical_memory"`
+	Uuid           uuid.UUID       `db:"uuid" json:"uuid"`
+	HostIdentifier sql.NullString  `db:"host_identifier" json:"host_identifier"`
+	OsVersion      json.RawMessage `db:"os_version" json:"os_version"`
+	OsqueryInfo    json.RawMessage `db:"osquery_info" json:"osquery_info"`
+	SystemInfo     json.RawMessage `db:"system_info" json:"system_info"`
+	PlatformInfo   json.RawMessage `db:"platform_info" json:"platform_info"`
 }
 
 func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (GetNodeByUUIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getNodeByUUID, argUuid)
 	var i GetNodeByUUIDRow
 	err := row.Scan(
-		&i.ID,
 		&i.Uuid,
 		&i.HostIdentifier,
-		&i.OsName,
-		&i.CreatedAt,
-		&i.OsID,
-		&i.Codename,
-		&i.Major,
-		&i.Minor,
-		&i.Platform,
-		&i.PlatformLike,
-		&i.Version,
-		&i.ComputerName,
-		&i.CpuLogicalCores,
-		&i.CpuPhysicalCores,
-		&i.Hostname,
-		&i.LocalHostname,
-		&i.PhysicalMemory,
+		&i.OsVersion,
+		&i.OsqueryInfo,
+		&i.SystemInfo,
+		&i.PlatformInfo,
 	)
 	return i, err
 }

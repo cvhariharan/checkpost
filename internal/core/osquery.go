@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -89,4 +90,44 @@ func (c *Core) EnrollNode(ctx context.Context, hostIdentifier string, details mo
 	}
 
 	return c.store.CreateNodeTx(ctx, node, osVersionInfo, osqueryInfo, platformInfo, systemInfo)
+}
+
+// GetNode returns the node corresponding to the nodekey which internally maps to the node uuid
+func (c *Core) GetNode(ctx context.Context, nodeKey string) (models.Node, error) {
+	nk, err := uuid.Parse(nodeKey)
+	if err != nil {
+		return models.Node{}, fmt.Errorf("failed to parse node key uuid: %w", err)
+	}
+
+	nr, err := c.store.GetNodeByUUID(ctx, nk)
+	if err != nil {
+		return models.Node{}, fmt.Errorf("error retrieving node %s: %w", nodeKey, err)
+	}
+
+	var osVersion models.OSVersionInfo
+	var osquery models.OsqueryInfo
+	var system models.SystemInfo
+	var platform models.PlatformInfo
+
+	if err := json.Unmarshal(nr.OsVersion, &osVersion); err != nil {
+		return models.Node{}, fmt.Errorf("error unmarshaling os version: %w", err)
+	}
+	if err := json.Unmarshal(nr.OsqueryInfo, &osquery); err != nil {
+		return models.Node{}, fmt.Errorf("error unmarshaling osquery info: %w", err)
+	}
+	if err := json.Unmarshal(nr.SystemInfo, &system); err != nil {
+		return models.Node{}, fmt.Errorf("error unmarshaling system info: %w", err)
+	}
+	if err := json.Unmarshal(nr.PlatformInfo, &platform); err != nil {
+		return models.Node{}, fmt.Errorf("error unmarshaling platform info: %w", err)
+	}
+
+	return models.Node{
+		NodeKey:        nodeKey,
+		HostIdentifier: nr.HostIdentifier.String,
+		OSVersion:      osVersion,
+		OSQuery:        osquery,
+		System:         system,
+		Platform:       platform,
+	}, nil
 }

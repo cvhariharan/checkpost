@@ -1,7 +1,6 @@
 package models
 
 type Node struct {
-	ID             int64         `json:"_"`
 	NodeKey        string        `json:"node_key"`
 	HostIdentifier string        `json:"host_identifier"`
 	OSVersion      OSVersionInfo `json:"os_version"`
@@ -11,7 +10,6 @@ type Node struct {
 }
 
 type OSVersionInfo struct {
-	ID           int64  `json:"-"`
 	UUID         string `json:"uuid"`
 	OSID         string `json:"os_id"`
 	Codename     string `json:"codename"`
@@ -26,7 +24,6 @@ type OSVersionInfo struct {
 }
 
 type OsqueryInfo struct {
-	ID            int64  `json:"-"`
 	UUID          string `json:"uuid"`
 	BuildDistro   string `json:"build_distro"`
 	BuildPlatform string `json:"build_platform"`
@@ -42,7 +39,6 @@ type OsqueryInfo struct {
 }
 
 type SystemInfo struct {
-	ID               int64  `json:"-"`
 	UUID             string `json:"uuid"`
 	ComputerName     string `json:"computer_name"`
 	CPUBrand         string `json:"cpu_brand"`
@@ -61,7 +57,6 @@ type SystemInfo struct {
 }
 
 type PlatformInfo struct {
-	ID         int64  `json:"-"`
 	UUID       string `json:"uuid"`
 	Address    string `json:"address"`
 	Date       string `json:"date"`
