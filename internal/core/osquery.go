@@ -3,21 +3,18 @@ package core
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
-	"github.com/google/uuid"
 )
 
 type Core struct {
-	store  repo.Store
+	store  *repo.Store
 	logger *slog.Logger
 }
 
-func NewCore(logger *slog.Logger, store repo.Store) *Core {
+func NewCore(logger *slog.Logger, store *repo.Store) *Core {
 	return &Core{store: store, logger: logger.WithGroup("core.osquery")}
 }
 
@@ -25,109 +22,6 @@ func ToNullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
 }
 
-func (c *Core) EnrollNode(ctx context.Context, hostIdentifier string, details models.HostDetailsInfo) (string, error) {
-	node := repo.Node{
-		HostIdentifier: ToNullString(hostIdentifier),
-		OsName:         ToNullString(details.OSVersion.Name),
-	}
-
-	osVersionInfo := repo.OsVersionInfo{
-		OsID:         ToNullString(details.OSVersion.OSID),
-		Codename:     ToNullString(details.OSVersion.Codename),
-		Major:        ToNullString(details.OSVersion.Major),
-		Minor:        ToNullString(details.OSVersion.Minor),
-		Name:         ToNullString(details.OSVersion.Name),
-		Patch:        ToNullString(details.OSVersion.Patch),
-		Platform:     ToNullString(details.OSVersion.Platform),
-		PlatformLike: ToNullString(details.OSVersion.PlatformLike),
-		Version:      ToNullString(details.OSVersion.Version),
-	}
-
-	osqueryUUID, err := uuid.Parse(details.OSQuery.UUID)
-	if err != nil {
-		return "", fmt.Errorf("error parsing osquery UUID: %w", err)
-	}
-	osqueryInfo := repo.OsqueryInfo{
-		BuildDistro:   ToNullString(details.OSQuery.BuildDistro),
-		BuildPlatform: ToNullString(details.OSQuery.BuildPlatform),
-		ConfigHash:    ToNullString(details.OSQuery.ConfigHash),
-		ConfigValid:   ToNullString(details.OSQuery.ConfigValid),
-		Extensions:    ToNullString(details.OSQuery.Extension),
-		InstanceID:    ToNullString(details.OSQuery.InstanceID),
-		Pid:           ToNullString(details.OSQuery.PID),
-		StartTime:     ToNullString(details.OSQuery.StartTime),
-		Uuid:          osqueryUUID,
-		Version:       ToNullString(details.OSQuery.Version),
-		Watcher:       ToNullString(details.OSQuery.Watcher),
-	}
-
-	platformInfo := repo.PlatformInfo{
-		Address:    ToNullString(details.Platform.Address),
-		Date:       ToNullString(details.Platform.Date),
-		Extra:      ToNullString(details.Platform.Extra),
-		Revision:   ToNullString(details.Platform.Revision),
-		Size:       ToNullString(details.Platform.Size),
-		Vendor:     ToNullString(details.Platform.Vendor),
-		Version:    ToNullString(details.Platform.Version),
-		VolumeSize: ToNullString(details.Platform.VolumeSize),
-	}
-
-	systemInfo := repo.SystemInfo{
-		ComputerName:     ToNullString(details.System.ComputerName),
-		CpuBrand:         ToNullString(details.System.CPUBrand),
-		CpuLogicalCores:  ToNullString(details.System.CPULogicalCores),
-		CpuPhysicalCores: ToNullString(details.System.CPUPhysicalCores),
-		CpuSubtype:       ToNullString(details.System.CPUSubtype),
-		CpuType:          ToNullString(details.System.CPUType),
-		HardwareModel:    ToNullString(details.System.HardwareModel),
-		HardwareSerial:   ToNullString(details.System.HardwareSerial),
-		HardwareVendor:   ToNullString(details.System.HardwareVendor),
-		HardwareVersion:  ToNullString(details.System.HardwareVersion),
-		Hostname:         ToNullString(details.System.Hostname),
-		LocalHostname:    ToNullString(details.System.LocalHostname),
-		PhysicalMemory:   ToNullString(details.System.PhysicalMemory),
-		Uuid:             uuid.New(),
-	}
-
-	return c.store.CreateNodeTx(ctx, node, osVersionInfo, osqueryInfo, platformInfo, systemInfo)
-}
-
-// GetNode returns the node corresponding to the nodekey which internally maps to the node uuid
-func (c *Core) GetNode(ctx context.Context, nodeKey string) (models.Node, error) {
-	nk, err := uuid.Parse(nodeKey)
-	if err != nil {
-		return models.Node{}, fmt.Errorf("failed to parse node key uuid: %w", err)
-	}
-
-	nr, err := c.store.GetNodeByUUID(ctx, nk)
-	if err != nil {
-		return models.Node{}, fmt.Errorf("error retrieving node %s: %w", nodeKey, err)
-	}
-
-	var osVersion models.OSVersionInfo
-	var osquery models.OsqueryInfo
-	var system models.SystemInfo
-	var platform models.PlatformInfo
-
-	if err := json.Unmarshal(nr.OsVersion, &osVersion); err != nil {
-		return models.Node{}, fmt.Errorf("error unmarshaling os version: %w", err)
-	}
-	if err := json.Unmarshal(nr.OsqueryInfo, &osquery); err != nil {
-		return models.Node{}, fmt.Errorf("error unmarshaling osquery info: %w", err)
-	}
-	if err := json.Unmarshal(nr.SystemInfo, &system); err != nil {
-		return models.Node{}, fmt.Errorf("error unmarshaling system info: %w", err)
-	}
-	if err := json.Unmarshal(nr.PlatformInfo, &platform); err != nil {
-		return models.Node{}, fmt.Errorf("error unmarshaling platform info: %w", err)
-	}
-
-	return models.Node{
-		NodeKey:        nodeKey,
-		HostIdentifier: nr.HostIdentifier.String,
-		OSVersion:      osVersion,
-		OSQuery:        osquery,
-		System:         system,
-		Platform:       platform,
-	}, nil
+func (c *Core) EnrollNode(ctx context.Context, node models.Node) (string, error) {
+	return c.store.CreateNodeTx(ctx, node)
 }

@@ -18,6 +18,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
+	"github.com/knadh/goyesql/v2"
+	goyesqlx "github.com/knadh/goyesql/v2/sqlx"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
@@ -43,7 +45,8 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	if err := initDB(); err != nil {
+	pq, err := initDB()
+	if err != nil {
 		log.Fatalf("could not initialize db: %v", err)
 	}
 
@@ -53,7 +56,7 @@ func main() {
 	}
 	defer db.Close()
 
-	s := repo.NewPostgresStore(db)
+	s := repo.NewPostgresStore(db, pq)
 
 	c := core.NewCore(logger, s)
 
@@ -64,7 +67,7 @@ func main() {
 
 	e := echo.New()
 
-	h := handlers.NewHandler(c)
+	h := handlers.NewHandler(cfg.AppConfig, c)
 	e.Renderer = handlers.NewTemplateRenderer()
 	e.HTTPErrorHandler = handlers.ErrorHandler
 
@@ -117,18 +120,25 @@ func runDBMigration(db *sqlx.DB) error {
 	return nil
 }
 
-func initDB() error {
+func initDB() (repo.PreparedQueries, error) {
 	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
 	if err != nil {
-		return fmt.Errorf("could not connect to database: %w", err)
+		return repo.PreparedQueries{}, fmt.Errorf("could not connect to database: %w", err)
 	}
 	defer db.Close()
 
-	if err := runDBMigration(db); err != nil {
-		return fmt.Errorf("could not complete db migration: %w", err)
+	var pq repo.PreparedQueries
+	queries := goyesql.MustParseFile("queries.sql")
+	err = goyesqlx.ScanToStruct(&pq, queries, db)
+	if err != nil {
+		return repo.PreparedQueries{}, fmt.Errorf("could not set up prepared queries: %w", err)
 	}
 
-	return nil
+	if err := runDBMigration(db); err != nil {
+		return repo.PreparedQueries{}, fmt.Errorf("could not complete db migration: %w", err)
+	}
+
+	return pq, nil
 }
 
 func loadOrCreateConfigFile(configFile string) error {

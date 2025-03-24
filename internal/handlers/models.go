@@ -57,6 +57,16 @@ type EnrollmentRequest struct {
 	HostDetails models.HostDetailsInfo `json:"host_details"`
 }
 
+func (e EnrollmentRequest) ToNodeModel() models.Node {
+	return models.Node{
+		HostIdentifier: e.HostIdentifier,
+		OSVersion:      e.HostDetails.OSVersion,
+		OSQuery:        e.HostDetails.OSQuery,
+		Platform:       e.HostDetails.Platform,
+		System:         e.HostDetails.System,
+	}
+}
+
 type EnrollmentResponse struct {
 	NodeKey     string `json:"node_key"`
 	NodeInvalid bool   `json:"node_invalid"`

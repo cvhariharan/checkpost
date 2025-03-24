@@ -2,17 +2,20 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
+	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/labstack/echo/v4"
 )
 
 type Handler struct {
-	c *core.Core
+	cfg config.AppConfig
+	c   *core.Core
 }
 
-func NewHandler(c *core.Core) *Handler {
-	return &Handler{c: c}
+func NewHandler(cfg config.AppConfig, c *core.Core) *Handler {
+	return &Handler{cfg: cfg, c: c}
 }
 
 func (h *Handler) HandlePing(c echo.Context) error {
@@ -42,7 +45,13 @@ func ErrorHandler(err error, c echo.Context) {
 
 	c.Logger().Error(err)
 
-	if err := showErrorPage(c, code, errMsg); err != nil {
-		c.Logger().Error(err)
+	if strings.HasPrefix(c.Request().URL.Path, "/view") {
+		if err := showErrorPage(c, code, errMsg); err != nil {
+			c.Logger().Error(err)
+		}
+	} else {
+		c.JSON(code, map[string]string{
+			"error": errMsg,
+		})
 	}
 }

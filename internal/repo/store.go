@@ -2,115 +2,242 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/jmoiron/sqlx"
 )
 
-type Store interface {
-	Querier
-	CreateNodeTx(ctx context.Context, node Node, osVersionInfo OsVersionInfo, osqueryInfo OsqueryInfo, platformInfo PlatformInfo, systemInfo SystemInfo) (string, error)
+// PreparedQueries holds all prepared SQL statements
+type PreparedQueries struct {
+	AddNode       *sqlx.Stmt `query:"add-node"`
+	GetNodeByUUID *sqlx.Stmt `query:"get-node-by-uuid"`
+
+	AddOSVersionInfo       *sqlx.Stmt `query:"add-os-version-info"`
+	GetOSVersionInfoByNode *sqlx.Stmt `query:"get-os-version-info"`
+
+	AddOSQueryInfo       *sqlx.Stmt `query:"add-osquery-info"`
+	GetOSQueryInfoByNode *sqlx.Stmt `query:"get-osquery-info"`
+
+	AddSystemInfo       *sqlx.Stmt `query:"add-system-info"`
+	GetSystemInfoByNode *sqlx.Stmt `query:"get-system-info"`
+
+	AddPlatformInfo       *sqlx.Stmt `query:"add-platform-info"`
+	GetPlatformInfoByNode *sqlx.Stmt `query:"get-platform-info"`
 }
 
-type PostgresStore struct {
-	*Queries
-	db *sqlx.DB
+// Store represents the database store
+type Store struct {
+	db      *sqlx.DB
+	queries PreparedQueries
 }
 
-func NewPostgresStore(db *sqlx.DB) Store {
-	return &PostgresStore{
+// NewStore creates a new store instance
+func NewPostgresStore(db *sqlx.DB, q PreparedQueries) *Store {
+	return &Store{
 		db:      db,
-		Queries: New(db),
+		queries: q,
 	}
 }
 
-// CreateNodeTx creates a new node with the given information in a db transaction and returns the uuid (node key).
-func (p *PostgresStore) CreateNodeTx(ctx context.Context, node Node, osVersionInfo OsVersionInfo, osqueryInfo OsqueryInfo, platformInfo PlatformInfo, systemInfo SystemInfo) (string, error) {
-	tx, err := p.db.Begin()
+// CreateNodeTx creates a node and all its related info in a transaction
+func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, error) {
+	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
-		return "", fmt.Errorf("could not start transaction: %w", err)
+		return "", fmt.Errorf("error starting transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	q := Queries{db: tx}
-
-	n, err := q.AddNode(ctx, AddNodeParams{
-		HostIdentifier: node.HostIdentifier,
-		OsName:         node.OsName,
-	})
-	if err != nil {
-		return "", fmt.Errorf("error adding node: %w", err)
+	var nodeID int
+	var nodeKey string
+	if err := tx.StmtxContext(ctx, s.queries.AddNode).QueryRowxContext(ctx, node.HostIdentifier, node.OSVersion.Name).Scan(&nodeID, &nodeKey); err != nil {
+		return "", fmt.Errorf("error creating node: %w", err)
 	}
 
-	if _, err = q.AddOSVersionInfo(ctx, AddOSVersionInfoParams{
-		OsID:         osVersionInfo.OsID,
-		Codename:     osVersionInfo.Codename,
-		Major:        osVersionInfo.Major,
-		Minor:        osVersionInfo.Minor,
-		Name:         osVersionInfo.Name,
-		Patch:        osVersionInfo.Patch,
-		Platform:     osVersionInfo.Platform,
-		PlatformLike: osVersionInfo.PlatformLike,
-		Version:      osVersionInfo.Version,
-		NodeFk:       n.ID,
-	}); err != nil {
+	if _, err := tx.StmtxContext(ctx, s.queries.AddOSVersionInfo).ExecContext(
+		ctx,
+		node.OSVersion.OSID,
+		node.OSVersion.Codename,
+		node.OSVersion.Major,
+		node.OSVersion.Minor,
+		node.OSVersion.Name,
+		node.OSVersion.Patch,
+		node.OSVersion.Platform,
+		node.OSVersion.PlatformLike,
+		node.OSVersion.Version,
+		nodeID,
+	); err != nil {
 		return "", fmt.Errorf("error adding os version info: %w", err)
 	}
 
-	if _, err = q.AddOSQueryInfo(ctx, AddOSQueryInfoParams{
-		BuildDistro:   osqueryInfo.BuildDistro,
-		BuildPlatform: osqueryInfo.BuildPlatform,
-		ConfigHash:    osqueryInfo.ConfigHash,
-		ConfigValid:   osqueryInfo.ConfigValid,
-		Extensions:    osqueryInfo.Extensions,
-		InstanceID:    osqueryInfo.InstanceID,
-		Pid:           osqueryInfo.Pid,
-		StartTime:     osqueryInfo.StartTime,
-		Uuid:          osqueryInfo.Uuid,
-		Version:       osqueryInfo.Version,
-		Watcher:       osqueryInfo.Watcher,
-		NodeFk:        n.ID,
-	}); err != nil {
+	if _, err := tx.StmtxContext(ctx, s.queries.AddOSQueryInfo).ExecContext(
+		ctx,
+		node.OSQuery.BuildDistro,
+		node.OSQuery.BuildPlatform,
+		node.OSQuery.ConfigHash,
+		node.OSQuery.ConfigValid,
+		node.OSQuery.Extension,
+		node.OSQuery.InstanceID,
+		node.OSQuery.PID,
+		node.OSQuery.StartTime,
+		node.OSQuery.UUID,
+		node.OSQuery.Version,
+		node.OSQuery.Watcher,
+		nodeID,
+	); err != nil {
 		return "", fmt.Errorf("error adding osquery info: %w", err)
 	}
 
-	if _, err = q.AddPlatformInfo(ctx, AddPlatformInfoParams{
-		Address:    platformInfo.Address,
-		Date:       platformInfo.Date,
-		Extra:      platformInfo.Extra,
-		Revision:   platformInfo.Revision,
-		Size:       platformInfo.Size,
-		Vendor:     platformInfo.Vendor,
-		Version:    platformInfo.Version,
-		VolumeSize: platformInfo.VolumeSize,
-		NodeFk:     n.ID,
-	}); err != nil {
-		return "", fmt.Errorf("error adding platform info: %w", err)
-	}
-
-	if _, err = q.AddSystemInfo(ctx, AddSystemInfoParams{
-		ComputerName:     systemInfo.ComputerName,
-		CpuBrand:         systemInfo.CpuBrand,
-		CpuLogicalCores:  systemInfo.CpuLogicalCores,
-		CpuPhysicalCores: systemInfo.CpuPhysicalCores,
-		CpuSubtype:       systemInfo.CpuSubtype,
-		CpuType:          systemInfo.CpuType,
-		HardwareModel:    systemInfo.HardwareModel,
-		HardwareSerial:   systemInfo.HardwareSerial,
-		HardwareVendor:   systemInfo.HardwareVendor,
-		HardwareVersion:  systemInfo.HardwareVersion,
-		Hostname:         systemInfo.Hostname,
-		LocalHostname:    systemInfo.LocalHostname,
-		PhysicalMemory:   systemInfo.PhysicalMemory,
-		Uuid:             systemInfo.Uuid,
-		NodeFk:           n.ID,
-	}); err != nil {
+	if _, err := tx.StmtxContext(ctx, s.queries.AddSystemInfo).ExecContext(
+		ctx,
+		node.System.ComputerName,
+		node.System.CPUBrand,
+		node.System.CPULogicalCores,
+		node.System.CPUPhysicalCores,
+		node.System.CPUSubtype,
+		node.System.CPUType,
+		node.System.HardwareModel,
+		node.System.HardwareSerial,
+		node.System.HardwareVendor,
+		node.System.HardwareVersion,
+		node.System.Hostname,
+		node.System.LocalHostname,
+		node.System.PhysicalMemory,
+		node.System.UUID,
+		nodeID,
+	); err != nil {
 		return "", fmt.Errorf("error adding system info: %w", err)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return "", fmt.Errorf("could not commit transaction: %w", err)
+	if _, err := tx.StmtxContext(ctx, s.queries.AddPlatformInfo).ExecContext(
+		ctx,
+		node.Platform.Address,
+		node.Platform.Date,
+		node.Platform.Extra,
+		node.Platform.Revision,
+		node.Platform.Size,
+		node.Platform.Vendor,
+		node.Platform.Version,
+		node.Platform.VolumeSize,
+		nodeID,
+	); err != nil {
+		return "", fmt.Errorf("error adding platform info: %w", err)
 	}
 
-	return n.Uuid.String(), nil
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return nodeKey, nil
+}
+
+// GetNodeByUUID retrieves a node and all its related info by UUID
+func (s *Store) GetNodeByUUID(ctx context.Context, uuid string) (*models.Node, error) {
+	row := s.queries.GetNodeByUUID.QueryRowContext(ctx, uuid)
+
+	var node models.Node
+	var osVersionJSON, osqueryJSON, systemJSON, platformJSON []byte
+
+	err := row.Scan(
+		&node.NodeKey,
+		&node.HostIdentifier,
+		&osVersionJSON,
+		&osqueryJSON,
+		&systemJSON,
+		&platformJSON,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal JSON data into struct fields
+	if err := json.Unmarshal(osVersionJSON, &node.OSVersion); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(osqueryJSON, &node.OSQuery); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(systemJSON, &node.System); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(platformJSON, &node.Platform); err != nil {
+		return nil, err
+	}
+
+	return &node, nil
+}
+
+// AddOSVersionInfo adds OS version information for a node
+func (s *Store) AddOSVersionInfo(ctx context.Context, info *models.OSVersionInfo, nodeFk int) error {
+	_, err := s.queries.AddOSVersionInfo.ExecContext(ctx,
+		info.OSID,
+		info.Codename,
+		info.Major,
+		info.Minor,
+		info.Name,
+		info.Patch,
+		info.Platform,
+		info.PlatformLike,
+		info.Version,
+		nodeFk,
+	)
+	return err
+}
+
+// AddOSQueryInfo adds OSQuery information for a node
+func (s *Store) AddOSQueryInfo(ctx context.Context, info *models.OsqueryInfo, nodeFk int) error {
+	_, err := s.queries.AddOSQueryInfo.ExecContext(ctx,
+		info.BuildDistro,
+		info.BuildPlatform,
+		info.ConfigHash,
+		info.ConfigValid,
+		info.Extension,
+		info.InstanceID,
+		info.PID,
+		info.StartTime,
+		info.UUID,
+		info.Version,
+		info.Watcher,
+		nodeFk,
+	)
+	return err
+}
+
+// AddSystemInfo adds system information for a node
+func (s *Store) AddSystemInfo(ctx context.Context, info *models.SystemInfo, nodeFk int) error {
+	_, err := s.queries.AddSystemInfo.ExecContext(ctx,
+		info.ComputerName,
+		info.CPUBrand,
+		info.CPULogicalCores,
+		info.CPUPhysicalCores,
+		info.CPUSubtype,
+		info.CPUType,
+		info.HardwareModel,
+		info.HardwareSerial,
+		info.HardwareVendor,
+		info.HardwareVersion,
+		info.Hostname,
+		info.LocalHostname,
+		info.PhysicalMemory,
+		info.UUID,
+		nodeFk,
+	)
+	return err
+}
+
+// AddPlatformInfo adds platform information for a node
+func (s *Store) AddPlatformInfo(ctx context.Context, info *models.PlatformInfo, nodeFk int) error {
+	_, err := s.queries.AddPlatformInfo.ExecContext(ctx,
+		info.Address,
+		info.Date,
+		info.Extra,
+		info.Revision,
+		info.Size,
+		info.Vendor,
+		info.Version,
+		info.VolumeSize,
+		nodeFk,
+	)
+	return err
 }
