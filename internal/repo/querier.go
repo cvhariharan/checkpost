@@ -6,6 +6,8 @@ package repo
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
@@ -14,6 +16,11 @@ type Querier interface {
 	AddOSVersionInfo(ctx context.Context, arg AddOSVersionInfoParams) (OsVersionInfo, error)
 	AddPlatformInfo(ctx context.Context, arg AddPlatformInfoParams) (PlatformInfo, error)
 	AddSystemInfo(ctx context.Context, arg AddSystemInfoParams) (SystemInfo, error)
+	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (GetNodeByUUIDRow, error)
+	GetOSQueryInfoByNode(ctx context.Context, nodeFk int32) (OsqueryInfo, error)
+	GetOSVersionInfoByNode(ctx context.Context, nodeFk int32) (OsVersionInfo, error)
+	GetPlatformInfoByNode(ctx context.Context, nodeFk int32) (PlatformInfo, error)
+	GetSystemInfoByNode(ctx context.Context, nodeFk int32) (SystemInfo, error)
 }
 
 var _ Querier = (*Queries)(nil)

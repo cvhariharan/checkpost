@@ -1,5 +1,9 @@
 package handlers
 
+import (
+	"github.com/cvhariharan/watcher/internal/models"
+)
+
 type Machine struct {
 	ID       string
 	Hostname string
@@ -44,4 +48,16 @@ type IndexPageData struct {
 	AllTags      []string
 	ErrorCode    int
 	ErrorMessage string
+}
+
+type EnrollmentRequest struct {
+	EnrollSecret   string `json:"enroll_secret"`
+	HostIdentifier string `json:"host_identifier"`
+
+	HostDetails models.HostDetailsInfo `json:"host_details"`
+}
+
+type EnrollmentResponse struct {
+	NodeKey     string `json:"node_key"`
+	NodeInvalid bool   `json:"node_invalid"`
 }

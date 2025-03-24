@@ -21,6 +21,7 @@ type Node struct {
 
 type OsVersionInfo struct {
 	ID           int32          `db:"id" json:"id"`
+	Uuid         uuid.UUID      `db:"uuid" json:"uuid"`
 	OsID         sql.NullString `db:"os_id" json:"os_id"`
 	Codename     sql.NullString `db:"codename" json:"codename"`
 	Major        sql.NullString `db:"major" json:"major"`
@@ -35,6 +36,7 @@ type OsVersionInfo struct {
 
 type OsqueryInfo struct {
 	ID            int32          `db:"id" json:"id"`
+	Uuid          uuid.UUID      `db:"uuid" json:"uuid"`
 	BuildDistro   sql.NullString `db:"build_distro" json:"build_distro"`
 	BuildPlatform sql.NullString `db:"build_platform" json:"build_platform"`
 	ConfigHash    sql.NullString `db:"config_hash" json:"config_hash"`
@@ -43,7 +45,6 @@ type OsqueryInfo struct {
 	InstanceID    sql.NullString `db:"instance_id" json:"instance_id"`
 	Pid           sql.NullString `db:"pid" json:"pid"`
 	StartTime     sql.NullString `db:"start_time" json:"start_time"`
-	Uuid          string         `db:"uuid" json:"uuid"`
 	Version       sql.NullString `db:"version" json:"version"`
 	Watcher       sql.NullString `db:"watcher" json:"watcher"`
 	NodeFk        int32          `db:"node_fk" json:"node_fk"`
@@ -51,6 +52,7 @@ type OsqueryInfo struct {
 
 type PlatformInfo struct {
 	ID         int32          `db:"id" json:"id"`
+	Uuid       uuid.UUID      `db:"uuid" json:"uuid"`
 	Address    sql.NullString `db:"address" json:"address"`
 	Date       sql.NullString `db:"date" json:"date"`
 	Extra      sql.NullString `db:"extra" json:"extra"`
@@ -64,6 +66,7 @@ type PlatformInfo struct {
 
 type SystemInfo struct {
 	ID               int32          `db:"id" json:"id"`
+	Uuid             uuid.UUID      `db:"uuid" json:"uuid"`
 	ComputerName     sql.NullString `db:"computer_name" json:"computer_name"`
 	CpuBrand         sql.NullString `db:"cpu_brand" json:"cpu_brand"`
 	CpuLogicalCores  sql.NullString `db:"cpu_logical_cores" json:"cpu_logical_cores"`
@@ -77,6 +80,5 @@ type SystemInfo struct {
 	Hostname         sql.NullString `db:"hostname" json:"hostname"`
 	LocalHostname    sql.NullString `db:"local_hostname" json:"local_hostname"`
 	PhysicalMemory   sql.NullString `db:"physical_memory" json:"physical_memory"`
-	Uuid             string         `db:"uuid" json:"uuid"`
 	NodeFk           int32          `db:"node_fk" json:"node_fk"`
 }

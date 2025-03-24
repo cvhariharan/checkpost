@@ -12,8 +12,11 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE UNIQUE INDEX idx_node_uuid ON nodes (uuid);
 
+CREATE UNIQUE INDEX idx_node_host_identifier ON nodes (host_identifier);
+
 CREATE TABLE IF NOT EXISTS os_version_info (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     os_id TEXT,
     codename TEXT,
     major TEXT,
@@ -27,8 +30,11 @@ CREATE TABLE IF NOT EXISTS os_version_info (
     FOREIGN KEY (node_fk) REFERENCES nodes (id)
 );
 
+CREATE UNIQUE INDEX idx_os_version_info_uuid ON os_version_info (uuid);
+
 CREATE TABLE IF NOT EXISTS osquery_info (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     build_distro TEXT,
     build_platform TEXT,
     config_hash TEXT,
@@ -37,15 +43,17 @@ CREATE TABLE IF NOT EXISTS osquery_info (
     instance_id TEXT,
     pid TEXT,
     start_time TEXT,
-    uuid TEXT NOT NULL,
     version TEXT,
     watcher TEXT,
     node_fk INT NOT NULL,
     FOREIGN KEY (node_fk) REFERENCES nodes (id)
 );
 
+CREATE UNIQUE INDEX idx_osquery_info_uuid ON osquery_info (uuid);
+
 CREATE TABLE IF NOT EXISTS system_info (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     computer_name TEXT,
     cpu_brand TEXT,
     cpu_logical_cores TEXT,
@@ -59,13 +67,15 @@ CREATE TABLE IF NOT EXISTS system_info (
     hostname TEXT,
     local_hostname TEXT,
     physical_memory TEXT,
-    uuid TEXT NOT NULL,
     node_fk INT NOT NULL,
     FOREIGN KEY (node_fk) REFERENCES nodes (id)
 );
 
+CREATE UNIQUE INDEX idx_system_info_uuid ON system_info (uuid);
+
 CREATE TABLE IF NOT EXISTS platform_info (
     id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     address TEXT,
     date TEXT,
     extra TEXT,
@@ -77,3 +87,5 @@ CREATE TABLE IF NOT EXISTS platform_info (
     node_fk INT NOT NULL,
     FOREIGN KEY (node_fk) REFERENCES nodes (id)
 );
+
+CREATE UNIQUE INDEX idx_platform_info_uuid ON platform_info (uuid);

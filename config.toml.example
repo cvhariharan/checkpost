@@ -8,9 +8,9 @@ secure_cookie_key = 'cddc196bdf9e76c9a343ed8fb33a553e'
 use_tls = false
 
 [app.oidc]
-issuer = 'https://gitea.opnlabs.org/'
-client_id = '7341b392-9035-4028-be49-8b3494f090d4'
-client_secret = 'gto_iaaa22babsra2naxurym4rp4jnd6jgk4r36eg46idianzugfu5hq'
+issuer = ''
+client_id = ''
+client_secret = ''
 
 [db]
 dbname = 'watcher'

@@ -15,6 +15,7 @@ type AppConfig struct {
 	RootURL         string `koanf:"app.root_url"`
 	UseTLS          bool   `koanf:"app.use_tls"`
 	SecureCookieKey string `koanf:"app.secure_cookie_key"`
+	EnrollmentKey   string `koanf:"app.enrollment_key"`
 }
 
 type OIDCConfig struct {

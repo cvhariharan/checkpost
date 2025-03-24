@@ -3,14 +3,16 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/labstack/echo/v4"
 )
 
 type Handler struct {
+	c *core.Core
 }
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(c *core.Core) *Handler {
+	return &Handler{c: c}
 }
 
 func (h *Handler) HandlePing(c echo.Context) error {

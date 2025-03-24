@@ -3,28 +3,34 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
-	"errors"
 
 	"github.com/cvhariharan/watcher/internal/config"
+	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
+	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 	"github.com/labstack/echo/v4"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 var k = koanf.New(".")
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	var configFile string
 	flag.StringVar(&configFile, "config", "config.toml", "Path to the config file. If the file doesn't exist, a default file will be generated")
 	flag.Parse()
@@ -37,9 +43,19 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	if err := runDBMigration(); err != nil {
-		log.Fatalf("could not perform db migration: %v", err)
+	if err := initDB(); err != nil {
+		log.Fatalf("could not initialize db: %v", err)
 	}
+
+	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
+	if err != nil {
+		log.Fatalf("could not connect to database: %v", err)
+	}
+	defer db.Close()
+
+	s := repo.NewPostgresStore(db)
+
+	c := core.NewCore(logger, s)
 
 	var cfg config.Config
 	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf", FlatPaths: true}); err != nil {
@@ -48,7 +64,7 @@ func main() {
 
 	e := echo.New()
 
-	h := handlers.NewHandler()
+	h := handlers.NewHandler(c)
 	e.Renderer = handlers.NewTemplateRenderer()
 	e.HTTPErrorHandler = handlers.ErrorHandler
 
@@ -66,22 +82,7 @@ func main() {
 	e.Logger.Fatal(e.Start(":1323"))
 }
 
-func runDBMigration() error {
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
-	if err != nil {
-		return fmt.Errorf("could not connect to database: %w", err)
-	}
-	defer db.Close()
-
-	if err := initDB(db); err != nil {
-		return fmt.Errorf("could not complete db migration: %w", err)
-	}
-
-	return nil
-}
-
-
-func initDB(db *sqlx.DB) error {
+func runDBMigration(db *sqlx.DB) error {
 	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to create postgres driver instance: %w", err)
@@ -111,6 +112,20 @@ func initDB(db *sqlx.DB) error {
 			return nil
 		}
 		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	return nil
+}
+
+func initDB() error {
+	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
+	if err != nil {
+		return fmt.Errorf("could not connect to database: %w", err)
+	}
+	defer db.Close()
+
+	if err := runDBMigration(db); err != nil {
+		return fmt.Errorf("could not complete db migration: %w", err)
 	}
 
 	return nil
