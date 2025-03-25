@@ -12,8 +12,6 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE UNIQUE INDEX idx_node_uuid ON nodes (uuid);
 
-CREATE UNIQUE INDEX idx_node_host_identifier ON nodes (host_identifier);
-
 CREATE TABLE IF NOT EXISTS os_version_info (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),

@@ -43,7 +43,13 @@ func ErrorHandler(err error, c echo.Context) {
 		errMsg = he.Message.(string)
 	}
 
-	c.Logger().Error(err)
+	c.Logger().Error("request error",
+		"status", code,
+		"path", c.Request().URL.Path,
+		"method", c.Request().Method,
+		"error", err.Error(),
+		"remote_ip", c.RealIP(),
+		"request_id", c.Response().Header().Get("X-Request-ID"))
 
 	if strings.HasPrefix(c.Request().URL.Path, "/view") {
 		if err := showErrorPage(c, code, errMsg); err != nil {

@@ -51,11 +51,18 @@ func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, err
 
 	var nodeID int
 	var nodeKey string
-	if err := tx.StmtxContext(ctx, s.queries.AddNode).QueryRowxContext(ctx, node.HostIdentifier, node.OSVersion.Name).Scan(&nodeID, &nodeKey); err != nil {
+
+	addNodeStmt := tx.Stmtx(s.queries.AddNode)
+	addOSVersionStmt := tx.Stmtx(s.queries.AddOSVersionInfo)
+	addOSQueryStmt := tx.Stmtx(s.queries.AddOSQueryInfo)
+	addSystemStmt := tx.Stmtx(s.queries.AddSystemInfo)
+	addPlatformStmt := tx.Stmtx(s.queries.AddPlatformInfo)
+
+	if err := addNodeStmt.QueryRowxContext(ctx, node.HostIdentifier, node.OSVersion.Name).Scan(&nodeID, &nodeKey); err != nil {
 		return "", fmt.Errorf("error creating node: %w", err)
 	}
 
-	if _, err := tx.StmtxContext(ctx, s.queries.AddOSVersionInfo).ExecContext(
+	if _, err := addOSVersionStmt.ExecContext(
 		ctx,
 		node.OSVersion.OSID,
 		node.OSVersion.Codename,
@@ -71,7 +78,7 @@ func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, err
 		return "", fmt.Errorf("error adding os version info: %w", err)
 	}
 
-	if _, err := tx.StmtxContext(ctx, s.queries.AddOSQueryInfo).ExecContext(
+	if _, err := addOSQueryStmt.ExecContext(
 		ctx,
 		node.OSQuery.BuildDistro,
 		node.OSQuery.BuildPlatform,
@@ -89,7 +96,7 @@ func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, err
 		return "", fmt.Errorf("error adding osquery info: %w", err)
 	}
 
-	if _, err := tx.StmtxContext(ctx, s.queries.AddSystemInfo).ExecContext(
+	if _, err := addSystemStmt.ExecContext(
 		ctx,
 		node.System.ComputerName,
 		node.System.CPUBrand,
@@ -110,7 +117,7 @@ func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, err
 		return "", fmt.Errorf("error adding system info: %w", err)
 	}
 
-	if _, err := tx.StmtxContext(ctx, s.queries.AddPlatformInfo).ExecContext(
+	if _, err := addPlatformStmt.ExecContext(
 		ctx,
 		node.Platform.Address,
 		node.Platform.Date,

@@ -45,8 +45,7 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	pq, err := initDB()
-	if err != nil {
+	if err := initDB(); err != nil {
 		log.Fatalf("could not initialize db: %v", err)
 	}
 
@@ -55,6 +54,13 @@ func main() {
 		log.Fatalf("could not connect to database: %v", err)
 	}
 	defer db.Close()
+
+	var pq repo.PreparedQueries
+	queries := goyesql.MustParseFile("queries.sql")
+	err = goyesqlx.ScanToStruct(&pq, queries, db)
+	if err != nil {
+		log.Fatalf("could not set up prepared queries: %v", err)
+	}
 
 	s := repo.NewPostgresStore(db, pq)
 
@@ -70,6 +76,7 @@ func main() {
 	h := handlers.NewHandler(cfg.AppConfig, c)
 	e.Renderer = handlers.NewTemplateRenderer()
 	e.HTTPErrorHandler = handlers.ErrorHandler
+	e.Logger.SetLevel(1)
 
 	e.Static("/static", "web/static")
 
@@ -82,7 +89,16 @@ func main() {
 	e.GET("/packs", h.HandlePacks)
 	e.GET("/schedules", h.HandleSchedules)
 
-	e.Logger.Fatal(e.Start(":1323"))
+	api := e.Group("/api/v1")
+	osqueryAPI := api.Group("/osquery")
+
+	osqueryAPI.POST("/enroll", h.HandleEnrollment)
+
+	if cfg.UseTLS {
+		e.Logger.Fatal(e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath))
+	} else {
+		e.Logger.Fatal(e.Start(":1323"))
+	}
 }
 
 func runDBMigration(db *sqlx.DB) error {
@@ -120,25 +136,18 @@ func runDBMigration(db *sqlx.DB) error {
 	return nil
 }
 
-func initDB() (repo.PreparedQueries, error) {
+func initDB() error {
 	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
 	if err != nil {
-		return repo.PreparedQueries{}, fmt.Errorf("could not connect to database: %w", err)
+		return fmt.Errorf("could not connect to database: %w", err)
 	}
 	defer db.Close()
 
-	var pq repo.PreparedQueries
-	queries := goyesql.MustParseFile("queries.sql")
-	err = goyesqlx.ScanToStruct(&pq, queries, db)
-	if err != nil {
-		return repo.PreparedQueries{}, fmt.Errorf("could not set up prepared queries: %w", err)
-	}
-
 	if err := runDBMigration(db); err != nil {
-		return repo.PreparedQueries{}, fmt.Errorf("could not complete db migration: %w", err)
+		return fmt.Errorf("could not complete db migration: %w", err)
 	}
 
-	return pq, nil
+	return nil
 }
 
 func loadOrCreateConfigFile(configFile string) error {
@@ -187,6 +196,7 @@ func setDefaultConfig() error {
 		"app.admin_password":    "watcher_password",
 		"app.http_tls_cert":     "server_cert.pem",
 		"app.http_tls_key":      "server_key.pem",
+		"app.use_tls":           false,
 		"app.root_url":          "http://localhost:1323",
 		"app.secure_cookie_key": hex.EncodeToString(key),
 		"app.enrollment_key":    hex.EncodeToString(enrollmentKey),

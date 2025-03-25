@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"html/template"
 	"io"
+	"reflect"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -38,4 +40,33 @@ func NewTemplateRenderer() *Template {
 	template.Must(t.templates.ParseGlob("web/pages/*.html"))
 
 	return t
+}
+
+// SanitizeString removes null bytes and invalid UTF-8 characters
+func SanitizeString(s string) string {
+	return strings.ReplaceAll(s, "\x00", "")
+}
+
+// SanitizeStruct recursively sanitizes all string fields in a struct
+func SanitizeStruct(obj interface{}) {
+	v := reflect.ValueOf(obj)
+	if v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+
+		if field.Kind() == reflect.String && field.CanSet() {
+			field.SetString(SanitizeString(field.String()))
+		} else if field.Kind() == reflect.Struct {
+			SanitizeStruct(field.Addr().Interface())
+		} else if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+			SanitizeStruct(field.Interface())
+		}
+	}
 }

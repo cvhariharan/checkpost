@@ -27,6 +27,27 @@ services:
         source: valkey-data
         target: /data
 
+  osquery:
+    build:
+      context: ./testdata
+      dockerfile: Dockerfile.osquery
+    volumes:
+      - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem"
+    environment:
+      - ENROLLMENT_SECRET=secret-key
+    command:
+      [
+        "osqueryd",
+        "--logger_plugin=tls",
+        "--enroll_tls_endpoint=/api/v1/osquery/enroll",
+        "--config_tls_endpoint=/api/v1/osquery/config",
+        "--tls_hostname=host.docker.internal:1323",
+        "--tls_server_certs=/etc/osquery-tls/certs/server.pem",
+        "--disable_enrollment=false",
+        "--enroll_secret_env=ENROLLMENT_SECRET",
+      ]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 volumes:
   watcher-db-data:
   valkey-data:
