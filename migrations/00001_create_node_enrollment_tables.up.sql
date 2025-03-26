@@ -33,6 +33,7 @@ CREATE UNIQUE INDEX idx_os_version_info_uuid ON os_version_info (uuid);
 CREATE TABLE IF NOT EXISTS osquery_info (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
+    osquery_uuid TEXT,
     build_distro TEXT,
     build_platform TEXT,
     config_hash TEXT,

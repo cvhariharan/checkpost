@@ -24,7 +24,7 @@ type OSVersionInfo struct {
 }
 
 type OsqueryInfo struct {
-	UUID          string `json:"uuid"`
+	OsqueryUUID   string `json:"uuid"`
 	BuildDistro   string `json:"build_distro"`
 	BuildPlatform string `json:"build_platform"`
 	ConfigHash    string `json:"config_hash"`

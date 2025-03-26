@@ -32,15 +32,18 @@ services:
       context: ./testdata
       dockerfile: Dockerfile.osquery
     volumes:
-      - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem"
+      - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem:ro,Z"
+      - "osquery-db:/var/osquery/osquery.db"
     environment:
       - ENROLLMENT_SECRET=secret-key
     command:
       [
         "osqueryd",
         "--logger_plugin=tls",
+        "--config_plugin=tls",
         "--enroll_tls_endpoint=/api/v1/osquery/enroll",
         "--config_tls_endpoint=/api/v1/osquery/config",
+        "--logger_tls_endpoint=/api/v1/osquery/logger",
         "--tls_hostname=host.docker.internal:1323",
         "--tls_server_certs=/etc/osquery-tls/certs/server.pem",
         "--disable_enrollment=false",
@@ -51,3 +54,4 @@ services:
 volumes:
   watcher-db-data:
   valkey-data:
+  osquery-db:

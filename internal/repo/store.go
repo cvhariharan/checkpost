@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/jmoiron/sqlx"
@@ -31,11 +32,13 @@ type PreparedQueries struct {
 type Store struct {
 	db      *sqlx.DB
 	queries PreparedQueries
+	logger  *slog.Logger
 }
 
 // NewStore creates a new store instance
-func NewPostgresStore(db *sqlx.DB, q PreparedQueries) *Store {
+func NewPostgresStore(logger *slog.Logger, db *sqlx.DB, q PreparedQueries) *Store {
 	return &Store{
+		logger:  logger.WithGroup("repo"),
 		db:      db,
 		queries: q,
 	}
@@ -88,7 +91,7 @@ func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, err
 		node.OSQuery.InstanceID,
 		node.OSQuery.PID,
 		node.OSQuery.StartTime,
-		node.OSQuery.UUID,
+		node.OSQuery.OsqueryUUID,
 		node.OSQuery.Version,
 		node.OSQuery.Watcher,
 		nodeID,
@@ -203,7 +206,7 @@ func (s *Store) AddOSQueryInfo(ctx context.Context, info *models.OsqueryInfo, no
 		info.InstanceID,
 		info.PID,
 		info.StartTime,
-		info.UUID,
+		info.OsqueryUUID,
 		info.Version,
 		info.Watcher,
 		nodeFk,

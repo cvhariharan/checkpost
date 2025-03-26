@@ -15,7 +15,7 @@ type Core struct {
 }
 
 func NewCore(logger *slog.Logger, store *repo.Store) *Core {
-	return &Core{store: store, logger: logger.WithGroup("core.osquery")}
+	return &Core{store: store, logger: logger.WithGroup("core")}
 }
 
 func ToNullString(s string) sql.NullString {

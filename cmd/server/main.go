@@ -33,6 +33,11 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
+	slog.SetLogLoggerLevel(slog.LevelError)
+	if os.Getenv("DEBUG_LOG") == "true" {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
+
 	var configFile string
 	flag.StringVar(&configFile, "config", "config.toml", "Path to the config file. If the file doesn't exist, a default file will be generated")
 	flag.Parse()
@@ -62,7 +67,7 @@ func main() {
 		log.Fatalf("could not set up prepared queries: %v", err)
 	}
 
-	s := repo.NewPostgresStore(db, pq)
+	s := repo.NewPostgresStore(logger, db, pq)
 
 	c := core.NewCore(logger, s)
 
@@ -73,10 +78,9 @@ func main() {
 
 	e := echo.New()
 
-	h := handlers.NewHandler(cfg.AppConfig, c)
+	h := handlers.NewHandler(logger, cfg.AppConfig, c)
 	e.Renderer = handlers.NewTemplateRenderer()
-	e.HTTPErrorHandler = handlers.ErrorHandler
-	e.Logger.SetLevel(1)
+	e.HTTPErrorHandler = h.ErrorHandler
 
 	e.Static("/static", "web/static")
 

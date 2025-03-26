@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -10,12 +11,13 @@ import (
 )
 
 type Handler struct {
-	cfg config.AppConfig
-	c   *core.Core
+	cfg    config.AppConfig
+	c      *core.Core
+	logger *slog.Logger
 }
 
-func NewHandler(cfg config.AppConfig, c *core.Core) *Handler {
-	return &Handler{cfg: cfg, c: c}
+func NewHandler(logger *slog.Logger, cfg config.AppConfig, c *core.Core) *Handler {
+	return &Handler{logger: logger.WithGroup("handler"), cfg: cfg, c: c}
 }
 
 func (h *Handler) HandlePing(c echo.Context) error {
@@ -31,7 +33,7 @@ func showErrorPage(c echo.Context, errCode int, msg string) error {
 	})
 }
 
-func ErrorHandler(err error, c echo.Context) {
+func (h *Handler) ErrorHandler(err error, c echo.Context) {
 	if c.Response().Committed {
 		return
 	}
@@ -43,17 +45,16 @@ func ErrorHandler(err error, c echo.Context) {
 		errMsg = he.Message.(string)
 	}
 
-	c.Logger().Error("request error",
+	h.logger.Error("error processing request",
 		"status", code,
 		"path", c.Request().URL.Path,
 		"method", c.Request().Method,
 		"error", err.Error(),
-		"remote_ip", c.RealIP(),
-		"request_id", c.Response().Header().Get("X-Request-ID"))
+		"remote_ip", c.RealIP())
 
 	if strings.HasPrefix(c.Request().URL.Path, "/view") {
 		if err := showErrorPage(c, code, errMsg); err != nil {
-			c.Logger().Error(err)
+			h.logger.Error("error showing error page", "error", err)
 		}
 	} else {
 		c.JSON(code, map[string]string{
