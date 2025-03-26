@@ -75,3 +75,28 @@ type HostDetailsInfo struct {
 	System    SystemInfo    `json:"system_info"`
 	Platform  PlatformInfo  `json:"platform_info"`
 }
+
+type ScheduledQuery struct {
+	Query       string `json:"query"`
+	Interval    int    `json:"interval"`
+	Description string `json:"description"`
+}
+
+type Schedule struct {
+	Queries  map[string]ScheduledQuery
+	Removed  bool   `json:"removed"`
+	Snapshot bool   `json:"snapshot"`
+	Platform string `json:"platform"`
+	Version  string `json:"version"`
+	Shard    int    `json:"shard"`
+	Denylist bool   `json:"denylist"`
+}
+
+type Pack struct {
+	Discovery []string `json:"discovery"`
+	Platform  string   `json:"platform"`
+	Version   string   `json:"version"`
+	Shard     int      `json:"shard"`
+}
+
+type Packs map[string]Pack

@@ -88,3 +88,9 @@ CREATE TABLE IF NOT EXISTS platform_info (
 );
 
 CREATE UNIQUE INDEX idx_platform_info_uuid ON platform_info (uuid);
+
+CREATE TABLE IF NOT EXISTS queries (
+    id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
+    query TEXT NOT NULL,
+)
