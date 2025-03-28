@@ -263,12 +263,42 @@ func (s *Store) AddPlatformInfo(ctx context.Context, info *models.PlatformInfo, 
 
 func (s *Store) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
 	var q models.Query
-	if err := s.queries.CreateQuery.QueryRowxContext(ctx, query, description).StructScan(&q); err != nil {
-		return q, err
+	if err := s.queries.CreateQuery.Get(&q, query, description); err != nil {
+		return models.Query{}, err
 	}
 
-	if q.UUID == "" {
-		return q, ErrNotFound
-	}
 	return q, nil
+}
+
+func (s *Store) GetQueries(ctx context.Context, limit, offset int) (queries []models.Query, count int, pageCount int, err error) {
+	var q []models.Query
+	rows, err := s.queries.GetQueries.QueryxContext(ctx, limit, offset)
+	if err != nil {
+		return nil, -1, -1, err
+	}
+	defer rows.Close()
+
+	totalCountVal := 0
+	pageCountVal := 0
+
+	for rows.Next() {
+		var query models.Query
+		var tc int
+		var pc int
+
+		if err := rows.Scan(&query.UUID, &query.Query, &query.Description, &pc, &tc); err != nil {
+			return nil, -1, -1, err
+		}
+
+		q = append(q, query)
+
+		totalCountVal = tc
+		pageCountVal = pc
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, -1, -1, err
+	}
+
+	return q, totalCountVal, pageCountVal, nil
 }

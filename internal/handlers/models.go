@@ -80,3 +80,14 @@ type CreateQueryRequest struct {
 type CreateQueryResponse struct {
 	ID string `json:"string"`
 }
+
+type PaginateRequest struct {
+	Page  int `query:"page"`
+	Count int `query:"count_per_page"`
+}
+
+type PaginateQueriesResponse struct {
+	Queries    []models.Query `json:"queries"`
+	TotalCount int            `json:"total_count"`
+	PageCount  int            `json:"page_count"`
+}

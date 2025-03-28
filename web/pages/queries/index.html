@@ -1,20 +1,43 @@
 {{ define "queries_index" }}
 <div x-data="{ 
-    queries: {{ .Queries | toJSON }},
-    filteredQueries: {{ .Queries | toJSON }},
-    filterQueries(search) {
-        if (!search) {
-            this.filteredQueries = this.queries;
-            return;
+    queries: [],
+    currentPage: 0,
+    pageCount: 1,
+    totalCount: 0,
+    search: '',
+    countPerPage: 10,
+    async fetchQueries() {
+        try {
+            const response = await fetch(`/api/v1/queries?page=${this.currentPage}&count_per_page=${this.countPerPage}`);
+            const data = await response.json();
+            this.queries = data.queries;
+            this.pageCount = data.page_count;
+            this.totalCount = data.total_count;
+        } catch (error) {
+            console.error('Error fetching queries:', error);
         }
-        search = search.toLowerCase();
-        this.filteredQueries = this.queries.filter(query => 
-            query.Name.toLowerCase().includes(search) ||
-            (query.Description && query.Description.toLowerCase().includes(search)) ||
-            query.SQL.toLowerCase().includes(search)
-        );
+    },
+    nextPage() {
+        if (this.currentPage < this.pageCount) {
+            this.currentPage++;
+            this.fetchQueries();
+        }
+    },
+    prevPage() {
+        if (this.currentPage > 1) {
+            this.currentPage--;
+            this.fetchQueries();
+        }
+    },
+    goToPage(page) {
+        if (page >= 1 && page <= this.pageCount) {
+            this.currentPage = page;
+            this.fetchQueries();
+        }
     }
-}" @search.window="filterQueries($event.detail)">
+}" 
+x-init="fetchQueries()"
+@search.window="search = $event.detail; currentPage = 1; fetchQueries()">
     <!-- Page Header -->
     <div class="mb-4">
         <div class="flex items-center justify-between">
@@ -35,7 +58,7 @@
 
     <!-- Queries Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <template x-for="query in filteredQueries" :key="query.Name">
+        <template x-for="query in queries" :key="query.UUID">
             <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden hover:border-primary-300 transition-colors">
                 <div class="px-6 py-4 border-b border-primary-200">
                     <h3 class="text-lg font-medium text-primary-900" x-text="query.Name"></h3>
@@ -59,5 +82,42 @@
         </template>
     </div>
 
+    <!-- Pagination Controls -->
+    <div class="mt-6 flex items-center justify-between border-t border-primary-200 px-4 py-3 sm:px-6">
+        <div class="flex flex-1 justify-between sm:hidden">
+            <button @click="prevPage()" :disabled="currentPage === 1" class="relative inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 bg-white border border-primary-300 rounded-md hover:bg-primary-50 disabled:opacity-50">
+                Previous
+            </button>
+            <button @click="nextPage()" :disabled="currentPage === pageCount" class="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-primary-700 bg-white border border-primary-300 rounded-md hover:bg-primary-50 disabled:opacity-50">
+                Next
+            </button>
+        </div>
+        <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+                <p class="text-sm text-primary-700">
+                    Showing page <span class="font-medium" x-text="currentPage"></span> of <span class="font-medium" x-text="pageCount"></span>
+                </p>
+            </div>
+            <div>
+                <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                    <button @click="prevPage()" :disabled="currentPage === 1" class="relative inline-flex items-center rounded-l-md px-2 py-2 text-primary-400 ring-1 ring-inset ring-primary-300 hover:bg-primary-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">
+                        <span class="sr-only">Previous</span>
+                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <template x-for="page in pageCount">
+                        <button @click="goToPage(page)" :class="page === currentPage ? 'relative z-10 inline-flex items-center bg-indigo-600 px-4 py-2 text-sm font-semibold text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600' : 'relative inline-flex items-center px-4 py-2 text-sm font-semibold text-primary-900 ring-1 ring-inset ring-primary-300 hover:bg-primary-50 focus:z-20 focus:outline-offset-0'" x-text="page"></button>
+                    </template>
+                    <button @click="nextPage()" :disabled="currentPage === pageCount" class="relative inline-flex items-center rounded-r-md px-2 py-2 text-primary-400 ring-1 ring-inset ring-primary-300 hover:bg-primary-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50">
+                        <span class="sr-only">Next</span>
+                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </div>
 </div>
 {{ end }}

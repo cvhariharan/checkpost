@@ -179,4 +179,11 @@ INSERT INTO queries (
 SELECT * FROM queries WHERE uuid = $1;
 
 -- name: get-queries
-SELECT * FROM queries LIMIT 100;
+SELECT
+    uuid,
+    query,
+    description,
+    CEIL((SELECT COUNT(*) FROM queries)::float / $1) as page_count,
+    (SELECT COUNT(*) FROM queries) as total_count
+FROM queries
+LIMIT $1 OFFSET $2;

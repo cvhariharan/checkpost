@@ -8,6 +8,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// CountPerPage used for pagination requests
+const CountPerPage = 10
+
 func (h *Handler) HandleEnrollment(c echo.Context) error {
 	var req EnrollmentRequest
 	if err := c.Bind(&req); err != nil {
@@ -66,4 +69,26 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, resp)
+}
+
+func (h *Handler) HandleQueriesPagination(c echo.Context) error {
+	var req PaginateRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.Count == 0 {
+		req.Count = CountPerPage
+	}
+
+	queries, totalCount, pageCount, err := h.c.PaginateQueries(c.Request().Context(), req.Page, req.Count)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, "could not get queries", err)
+	}
+
+	return c.JSON(http.StatusOK, PaginateQueriesResponse{
+		Queries:    queries,
+		TotalCount: totalCount,
+		PageCount:  pageCount,
+	})
 }

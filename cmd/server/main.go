@@ -69,13 +69,12 @@ func main() {
 
 	s := repo.NewPostgresStore(logger, db, pq)
 
-	c := core.NewCore(logger, s)
-
 	var cfg config.Config
 	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf", FlatPaths: true}); err != nil {
 		log.Fatal(err)
 	}
 
+	c := core.NewCore(logger, s)
 	e := echo.New()
 
 	h := handlers.NewHandler(logger, cfg.AppConfig, c)
@@ -95,6 +94,7 @@ func main() {
 
 	api := e.Group("/api/v1")
 	api.POST("/query", h.HandleCreateQuery)
+	api.GET("/queries", h.HandleQueriesPagination)
 
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)

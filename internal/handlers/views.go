@@ -33,16 +33,9 @@ func (h *Handler) HandleMachines(c echo.Context) error {
 }
 
 func (h *Handler) HandleQueries(c echo.Context) error {
-	queries := []Query{
-		{ID: "q1", Name: "Running Processes", Description: "Lists all running processes", SQL: "SELECT * FROM processes", LastRun: "1 hour ago"},
-		{ID: "q2", Name: "Open Ports", Description: "Shows open network ports", SQL: "SELECT * FROM listening_ports", LastRun: "30 minutes ago"},
-		{ID: "q3", Name: "User Accounts", Description: "Lists user accounts", SQL: "SELECT * FROM users", LastRun: "2 hours ago"},
-		{ID: "q4", Name: "System Info", Description: "Basic system information", SQL: "SELECT * FROM system_info", LastRun: "15 minutes ago"},
-	}
 	return c.Render(200, "base.html", IndexPageData{
-		Title:   "Queries",
-		Active:  "queries",
-		Queries: queries,
+		Title:  "Queries",
+		Active: "queries",
 	})
 }
 
