@@ -77,9 +77,10 @@ type HostDetailsInfo struct {
 }
 
 type Query struct {
-	UUID        string `json:"uuid"`
-	Query       string `json:"query"`
-	Description string `json:"description"`
+	ID          string `json:"-" db:"id"`
+	UUID        string `json:"uuid" db:"uuid"`
+	Query       string `json:"query" db:"query"`
+	Description string `json:"description" db:"description"`
 }
 
 type Schedule struct {

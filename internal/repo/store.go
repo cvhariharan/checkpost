@@ -3,11 +3,16 @@ package repo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/jmoiron/sqlx"
+)
+
+var (
+	ErrNotFound = errors.New("not found")
 )
 
 // PreparedQueries holds all prepared SQL statements
@@ -257,15 +262,13 @@ func (s *Store) AddPlatformInfo(ctx context.Context, info *models.PlatformInfo, 
 }
 
 func (s *Store) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
-	res, err := s.queries.CreateQuery.QueryxContext(ctx, query, description)
-	if err != nil {
-		return models.Query{}, err
-	}
-
 	var q models.Query
-	if err := res.StructScan(&q); err != nil {
-		return models.Query{}, err
+	if err := s.queries.CreateQuery.QueryRowxContext(ctx, query, description).StructScan(&q); err != nil {
+		return q, err
 	}
 
+	if q.UUID == "" {
+		return q, ErrNotFound
+	}
 	return q, nil
 }

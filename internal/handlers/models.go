@@ -73,8 +73,8 @@ type EnrollmentResponse struct {
 }
 
 type CreateQueryRequest struct {
-	Query       string `json:"string"`
-	Description string `json:"string"`
+	Query       string `json:"query"`
+	Description string `json:"description"`
 }
 
 type CreateQueryResponse struct {

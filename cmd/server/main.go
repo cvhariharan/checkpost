@@ -94,8 +94,9 @@ func main() {
 	e.GET("/schedules", h.HandleSchedules)
 
 	api := e.Group("/api/v1")
-	osqueryAPI := api.Group("/osquery")
+	api.POST("/query", h.HandleCreateQuery)
 
+	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 
 	if cfg.UseTLS {

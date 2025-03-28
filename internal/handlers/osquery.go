@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -14,8 +15,6 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 	}
 
 	SanitizeStruct(&req)
-
-	c.Logger().Debugf("%+v", req)
 
 	if req.EnrollSecret != h.cfg.EnrollmentKey {
 		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"))
@@ -36,6 +35,25 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 	var req CreateQueryRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid create query request", err)
+	}
+	SanitizeStruct(&req)
+
+	if req.Query == "" {
+		return wrapError(http.StatusBadRequest, "query cannot be empty", fmt.Errorf("empty query"))
+	}
+
+	sqlKeywords := []string{"SELECT", "FROM", "WHERE", "JOIN", "ORDER BY", "GROUP BY", "HAVING", "LIMIT", "INSERT", "UPDATE", "DELETE"}
+	validSQL := false
+
+	for _, keyword := range sqlKeywords {
+		if strings.Contains(strings.ToUpper(req.Query), keyword) {
+			validSQL = true
+			break
+		}
+	}
+
+	if !validSQL {
+		return wrapError(http.StatusBadRequest, "invalid SQL query", fmt.Errorf("query does not appear to be valid SQL"))
 	}
 
 	q, err := h.c.CreateQuery(c.Request().Context(), req.Query, req.Description)
