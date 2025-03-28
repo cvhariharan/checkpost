@@ -93,4 +93,32 @@ CREATE TABLE IF NOT EXISTS queries (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     query TEXT NOT NULL,
-)
+    description TEXT
+);
+
+CREATE UNIQUE INDEX idx_query_uuid ON queries (uuid);
+
+CREATE TYPE platform_type AS ENUM (
+    'darwin',
+    'linux',
+    'posix',
+    'windows',
+    'any',
+    'all'
+);
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
+    query_id_fk INT NOT NULL,
+    interval INT NOT NULL,
+    platform platform_type NOT NULL DEFAULT 'all',
+    version TEXT,
+    shard INT,
+    denylist BOOLEAN NOT NULL DEFAULT true,
+    removed BOOLEAN NOT NULL DEFAULT true,
+    snapshot BOOLEAN NOT NULL DEFAULT false,
+    FOREIGN KEY (query_id_fk) REFERENCES queries (id)
+);
+
+CREATE UNIQUE INDEX idx_schedules_uuid ON schedules (uuid);

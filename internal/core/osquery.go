@@ -25,3 +25,7 @@ func ToNullString(s string) sql.NullString {
 func (c *Core) EnrollNode(ctx context.Context, node models.Node) (string, error) {
 	return c.store.CreateNodeTx(ctx, node)
 }
+
+func (c *Core) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
+	return c.store.CreateQuery(ctx, query, description)
+}

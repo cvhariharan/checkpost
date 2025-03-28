@@ -76,14 +76,16 @@ type HostDetailsInfo struct {
 	Platform  PlatformInfo  `json:"platform_info"`
 }
 
-type ScheduledQuery struct {
+type Query struct {
+	UUID        string `json:"uuid"`
 	Query       string `json:"query"`
-	Interval    int    `json:"interval"`
 	Description string `json:"description"`
 }
 
 type Schedule struct {
-	Queries  map[string]ScheduledQuery
+	Query
+	UUID     string `json:"uuid"`
+	Interval int    `json:"interval"`
 	Removed  bool   `json:"removed"`
 	Snapshot bool   `json:"snapshot"`
 	Platform string `json:"platform"`
@@ -93,6 +95,7 @@ type Schedule struct {
 }
 
 type Pack struct {
+	UUID      string   `json:"uuid"`
 	Discovery []string `json:"discovery"`
 	Platform  string   `json:"platform"`
 	Version   string   `json:"version"`
@@ -100,3 +103,4 @@ type Pack struct {
 }
 
 type Packs map[string]Pack
+type Schedules map[string]Schedule

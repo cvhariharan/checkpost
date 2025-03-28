@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io"
 	"reflect"
+	"runtime"
 	"strings"
 
 	"github.com/labstack/echo/v4"
@@ -69,4 +70,33 @@ func SanitizeStruct(obj interface{}) {
 			SanitizeStruct(field.Interface())
 		}
 	}
+}
+
+type HTTPError struct {
+	code int
+	msg  string
+	err  error
+	file string
+	line int
+}
+
+func (h *HTTPError) Error() string {
+	return h.err.Error()
+}
+
+func wrapError(code int, msg string, err error) error {
+	he := &HTTPError{
+		code: code,
+		msg:  msg,
+		err:  err,
+		file: "unknown",
+		line: -1,
+	}
+	_, f, l, ok := runtime.Caller(1)
+	if ok {
+		he.file = f
+		he.line = l
+	}
+
+	return he
 }

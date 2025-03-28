@@ -168,3 +168,15 @@ VALUES
 
 -- name: get-platform-info
 SELECT * FROM platform_info WHERE node_fk = $1;
+
+-- name: create-query
+INSERT INTO queries (
+    query,
+    description
+) VALUES ($1, $2) RETURNING *;
+
+-- name: get-query-by-uuid
+SELECT * FROM queries WHERE uuid = $1;
+
+-- name: get-queries
+SELECT * FROM queries LIMIT 100;

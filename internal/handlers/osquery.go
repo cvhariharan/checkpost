@@ -10,8 +10,7 @@ import (
 func (h *Handler) HandleEnrollment(c echo.Context) error {
 	var req EnrollmentRequest
 	if err := c.Bind(&req); err != nil {
-		c.Logger().Errorf("error binding enrollment request: %w", err)
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid enrollment request")
+		return wrapError(http.StatusBadRequest, "invalid enrollment request", err)
 	}
 
 	SanitizeStruct(&req)
@@ -19,16 +18,34 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 	c.Logger().Debugf("%+v", req)
 
 	if req.EnrollSecret != h.cfg.EnrollmentKey {
-		return echo.NewHTTPError(http.StatusUnauthorized, "invalid enrollment key")
+		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"))
 	}
 
 	nodeKey, err := h.c.EnrollNode(c.Request().Context(), req.ToNodeModel())
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("could not enroll node: %s", err.Error()))
+		return wrapError(http.StatusInternalServerError, "could not enroll node", err)
 	}
 
 	return c.JSON(http.StatusOK, EnrollmentResponse{
 		NodeKey:     nodeKey,
 		NodeInvalid: false,
 	})
+}
+
+func (h *Handler) HandleCreateQuery(c echo.Context) error {
+	var req CreateQueryRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid create query request", err)
+	}
+
+	q, err := h.c.CreateQuery(c.Request().Context(), req.Query, req.Description)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, "error creating query", err)
+	}
+
+	resp := CreateQueryResponse{
+		ID: q.UUID,
+	}
+
+	return c.JSON(http.StatusCreated, resp)
 }

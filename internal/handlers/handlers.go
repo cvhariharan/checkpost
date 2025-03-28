@@ -39,26 +39,35 @@ func (h *Handler) ErrorHandler(err error, c echo.Context) {
 	}
 
 	code := http.StatusInternalServerError
-	errMsg := "error processing the request"
-	if he, ok := err.(*echo.HTTPError); ok {
-		code = he.Code
-		errMsg = he.Message.(string)
+	file := "unknown"
+	line := -1
+	msg := "error processing the request"
+	if he, ok := err.(*HTTPError); ok {
+		code = he.code
+		msg = he.msg
+		err = he.err
+		file = he.file
+		line = he.line
 	}
 
 	h.logger.Error("error processing request",
 		"status", code,
 		"path", c.Request().URL.Path,
 		"method", c.Request().Method,
-		"error", err.Error(),
+		"error", err,
+		"msg", msg,
+		"file", file,
+		"line", line,
 		"remote_ip", c.RealIP())
 
 	if strings.HasPrefix(c.Request().URL.Path, "/view") {
-		if err := showErrorPage(c, code, errMsg); err != nil {
-			h.logger.Error("error showing error page", "error", err)
+		if err := showErrorPage(c, code, msg); err != nil {
+			h.logger.Error("error showing error page",
+				"error", err)
 		}
 	} else {
 		c.JSON(code, map[string]string{
-			"error": errMsg,
+			"error": msg,
 		})
 	}
 }

@@ -26,6 +26,10 @@ type PreparedQueries struct {
 
 	AddPlatformInfo       *sqlx.Stmt `query:"add-platform-info"`
 	GetPlatformInfoByNode *sqlx.Stmt `query:"get-platform-info"`
+
+	CreateQuery    *sqlx.Stmt `query:"create-query"`
+	GetQueryByUUID *sqlx.Stmt `query:"get-query-by-uuid"`
+	GetQueries     *sqlx.Stmt `query:"get-queries"`
 }
 
 // Store represents the database store
@@ -250,4 +254,18 @@ func (s *Store) AddPlatformInfo(ctx context.Context, info *models.PlatformInfo, 
 		nodeFk,
 	)
 	return err
+}
+
+func (s *Store) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
+	res, err := s.queries.CreateQuery.QueryxContext(ctx, query, description)
+	if err != nil {
+		return models.Query{}, err
+	}
+
+	var q models.Query
+	if err := res.StructScan(&q); err != nil {
+		return models.Query{}, err
+	}
+
+	return q, nil
 }

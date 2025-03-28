@@ -71,3 +71,12 @@ type EnrollmentResponse struct {
 	NodeKey     string `json:"node_key"`
 	NodeInvalid bool   `json:"node_invalid"`
 }
+
+type CreateQueryRequest struct {
+	Query       string `json:"string"`
+	Description string `json:"string"`
+}
+
+type CreateQueryResponse struct {
+	ID string `json:"string"`
+}
