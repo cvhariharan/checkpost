@@ -1,23 +1,27 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
 type Handler struct {
-	cfg    config.AppConfig
-	c      *core.Core
-	logger *slog.Logger
+	cfg      config.AppConfig
+	c        *core.Core
+	logger   *slog.Logger
+	validate *validator.Validate
 }
 
 func NewHandler(logger *slog.Logger, cfg config.AppConfig, c *core.Core) *Handler {
-	return &Handler{logger: logger.WithGroup("handler"), cfg: cfg, c: c}
+	validate := validator.New()
+	return &Handler{logger: logger.WithGroup("handler"), cfg: cfg, c: c, validate: validate}
 }
 
 func (h *Handler) HandlePing(c echo.Context) error {
@@ -70,4 +74,22 @@ func (h *Handler) ErrorHandler(err error, c echo.Context) {
 			"error": msg,
 		})
 	}
+}
+
+func formatValidationErrors(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	validationErrors, ok := err.(validator.ValidationErrors)
+	if !ok {
+		return err.Error()
+	}
+
+	var errMsgs []string
+	for _, e := range validationErrors {
+		errMsgs = append(errMsgs, fmt.Sprintf("%s: %s", e.Field(), e.Tag()))
+	}
+
+	return strings.Join(errMsgs, "; ")
 }

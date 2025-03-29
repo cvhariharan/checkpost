@@ -45,3 +45,7 @@ func (c *Core) UpdateQuery(ctx context.Context, id, query, description string) (
 func (c *Core) DeleteQuery(ctx context.Context, id string) error {
 	return c.store.DeleteQuery(ctx, id)
 }
+
+func (c *Core) CreateSchedule(ctx context.Context, sched models.Schedule, queryID string) (string, error) {
+	return c.store.CreateSchedule(ctx, sched, queryID)
+}

@@ -109,6 +109,7 @@ CREATE TYPE platform_type AS ENUM (
 
 CREATE TABLE IF NOT EXISTS schedules (
     id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     query_id_fk INT NOT NULL,
     interval INT NOT NULL,

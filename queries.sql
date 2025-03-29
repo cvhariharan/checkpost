@@ -193,3 +193,16 @@ DELETE FROM queries WHERE uuid = $1;
 
 -- name: update-query-by-uuid
 UPDATE queries SET query = $1, description = $2 WHERE uuid = $3 RETURNING uuid, query, description;
+
+-- name: create-schedule
+INSERT INTO schedules (
+    query_id_fk,
+    interval,
+    platform,
+    version,
+    shard,
+    denylist,
+    removed,
+    snapshot,
+    title
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;

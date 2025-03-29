@@ -85,14 +85,17 @@ type Query struct {
 
 type Schedule struct {
 	Query
-	UUID     string `json:"uuid"`
-	Interval int    `json:"interval"`
-	Removed  bool   `json:"removed"`
-	Snapshot bool   `json:"snapshot"`
-	Platform string `json:"platform"`
-	Version  string `json:"version"`
-	Shard    int    `json:"shard"`
-	Denylist bool   `json:"denylist"`
+	Query_ID int    `json:"-" db:"query_id_fk"`
+	ID       string `json:"-" db:"id"`
+	UUID     string `json:"uuid" db:"uuid"`
+	Title    string `json:"title" db:"title"`
+	Interval int    `json:"interval" db:"interval"`
+	Removed  bool   `json:"removed" db:"removed"`
+	Snapshot bool   `json:"snapshot" db:"snapshot"`
+	Platform string `json:"platform" db:"platform"`
+	Version  string `json:"version" db:"version"`
+	Shard    int    `json:"shard" db:"shard"`
+	Denylist bool   `json:"denylist" db:"denylist"`
 }
 
 type Pack struct {

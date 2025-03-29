@@ -64,7 +64,7 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 		return wrapError(http.StatusInternalServerError, "error creating query", err)
 	}
 
-	resp := CreateQueryResponse{
+	resp := CreateResponse{
 		ID: q.UUID,
 	}
 

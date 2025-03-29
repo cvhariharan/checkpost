@@ -99,6 +99,8 @@ func main() {
 	api.PUT("/query/:id", h.HandleUpdateQuery)
 	api.GET("/queries", h.HandleQueriesPagination)
 
+	api.POST("/schedule", h.HandleCreateSchedule)
+
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 

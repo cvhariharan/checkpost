@@ -77,7 +77,7 @@ type CreateQueryRequest struct {
 	Description string `json:"description"`
 }
 
-type CreateQueryResponse struct {
+type CreateResponse struct {
 	ID string `json:"string"`
 }
 
@@ -100,4 +100,16 @@ type UpdateQueryRequest struct {
 	ID          string `param:"id"`
 	Query       string `json:"query"`
 	Description string `json:"description"`
+}
+
+type CreateScheduleRequest struct {
+	QueryID  string `json:"query_id" validate:"required,uuid4"`
+	Title    string `json:"title" validate:"required,ascii"`
+	Interval int    `json:"interval" validate:"required,lte=604800"`
+	Removed  bool   `json:"removed"`
+	Snapshot bool   `json:"snapshot"`
+	Platform string `json:"platform" validate:"oneof=darwin linux posiz windows any all"`
+	Version  string `json:"version"`
+	Shard    int    `json:"shard" validate:"lte=100"`
+	Denylist bool   `json:"denylist"`
 }

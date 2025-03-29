@@ -36,6 +36,8 @@ type PreparedQueries struct {
 	DeleteQueryByUUID *sqlx.Stmt `query:"delete-query-by-uuid"`
 	UpdateQueryByUUID *sqlx.Stmt `query:"update-query-by-uuid"`
 	GetQueries        *sqlx.Stmt `query:"get-queries"`
+
+	CreateSchedule *sqlx.Stmt `query:"create-schedule"`
 }
 
 // Store represents the database store
@@ -236,4 +238,39 @@ func (s *Store) UpdateQuery(ctx context.Context, queryUUID, query, description s
 	}
 
 	return q, nil
+}
+
+func (s *Store) CreateSchedule(ctx context.Context, schedule models.Schedule, queryID string) (string, error) {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var q models.Query
+	if err := s.queries.GetQueryByUUID.Get(&q, queryID); err != nil {
+		return "", fmt.Errorf("error getting query %s while creating schedule: %w", schedule.Query.UUID, err)
+	}
+
+	var sched models.Schedule
+	if err := tx.Stmtx(s.queries.CreateSchedule).Get(
+		&sched,
+		q.ID,
+		schedule.Interval,
+		schedule.Platform,
+		schedule.Version,
+		schedule.Shard,
+		schedule.Denylist,
+		schedule.Removed,
+		schedule.Snapshot,
+		schedule.Title,
+	); err != nil {
+		return "", fmt.Errorf("error creating schedule: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return sched.UUID, nil
 }
