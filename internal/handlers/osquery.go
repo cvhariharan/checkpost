@@ -77,6 +77,14 @@ func (h *Handler) HandleQueriesPagination(c echo.Context) error {
 		return wrapError(http.StatusInternalServerError, "invalid request", err)
 	}
 
+	if req.Page < 0 || req.Count < 0 {
+		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"))
+	}
+
+	if req.Page > 0 {
+		req.Page -= 1
+	}
+
 	if req.Count == 0 {
 		req.Count = CountPerPage
 	}

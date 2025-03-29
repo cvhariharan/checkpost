@@ -1,21 +1,31 @@
 {{ define "queries_index" }}
 <div x-data="{ 
     queries: [],
-    currentPage: 0,
+    filteredQueries: [],
+    currentPage: 1,
     pageCount: 1,
     totalCount: 0,
-    search: '',
     countPerPage: 10,
     async fetchQueries() {
         try {
             const response = await fetch(`/api/v1/queries?page=${this.currentPage}&count_per_page=${this.countPerPage}`);
             const data = await response.json();
             this.queries = data.queries;
+            this.filteredQueries = data.queries;
             this.pageCount = data.page_count;
             this.totalCount = data.total_count;
         } catch (error) {
             console.error('Error fetching queries:', error);
         }
+    },
+    filterQueries(searchData) {
+        const search = searchData.term ? searchData.term.toLowerCase() : '';
+        
+        this.filteredQueries = this.queries.filter(query => {
+            return !search || 
+                query.query.toLowerCase().includes(search) ||
+                (query.description && query.description.toLowerCase().includes(search));
+        });
     },
     nextPage() {
         if (this.currentPage < this.pageCount) {
@@ -37,7 +47,7 @@
     }
 }" 
 x-init="fetchQueries()"
-@search.window="search = $event.detail; currentPage = 1; fetchQueries()">
+@search.window="filterQueries($event.detail)">
     <!-- Page Header -->
     <div class="mb-4">
         <div class="flex items-center justify-between">
@@ -53,29 +63,27 @@ x-init="fetchQueries()"
 
     <!-- Search Component -->
     <div class="mb-4">
-        {{ template "search" "Search machines..." }}
+        {{ template "search" "Search queries..." }}
     </div>
 
     <!-- Queries Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <template x-for="query in queries" :key="query.UUID">
+        <template x-for="query in filteredQueries" :key="query.uuid">
             <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden hover:border-primary-300 transition-colors">
                 <div class="px-6 py-4 border-b border-primary-200">
-                    <h3 class="text-lg font-medium text-primary-900" x-text="query.Name"></h3>
-                    <p class="mt-1 text-sm text-primary-500" x-text="query.Description || 'No description'"></p>
+                    <p class="mt-1 text-sm text-primary-500" x-text="query.description || 'No description'"></p>
                 </div>
                 <div class="px-6 py-4">
-                    <pre class="text-sm font-mono bg-primary-50 rounded-md p-3 overflow-x-auto" x-text="query.SQL"></pre>
+                    <pre class="text-sm font-mono bg-primary-50 rounded-md p-3 overflow-x-auto" x-text="query.query"></pre>
                 </div>
                 <div class="px-6 py-4 bg-primary-50 border-t border-primary-200">
                     <div class="flex justify-between items-center">
                         <button 
                             class="text-sm text-indigo-600 hover:text-indigo-900 font-medium copy-button"
-                            :data-clipboard-text="query.SQL"
+                            :data-clipboard-text="query.query"
                         >
                             Copy Query
                         </button>
-                        <span class="text-sm text-primary-500" x-text="query.LastRun"></span>
                     </div>
                 </div>
             </div>
