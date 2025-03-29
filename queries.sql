@@ -171,16 +171,21 @@ SELECT * FROM platform_info WHERE node_fk = $1;
 
 -- name: create-query
 INSERT INTO queries (
+    title,
     query,
     description
-) VALUES ($1, $2) RETURNING *;
+) VALUES ($1, $2, $3) RETURNING *;
 
 -- name: get-query-by-uuid
 SELECT * FROM queries WHERE uuid = $1;
 
+-- name: get-query
+SELECT * FROM queries WHERE id = $1;
+
 -- name: get-queries
 SELECT
     uuid,
+    title,
     query,
     description,
     CEIL((SELECT COUNT(*) FROM queries)::float / $1) as page_count,
@@ -192,7 +197,7 @@ LIMIT $1 OFFSET $2;
 DELETE FROM queries WHERE uuid = $1;
 
 -- name: update-query-by-uuid
-UPDATE queries SET query = $1, description = $2 WHERE uuid = $3 RETURNING uuid, query, description;
+UPDATE queries SET title = $1, query = $2, description = $3 WHERE uuid = $4 RETURNING uuid, query, description;
 
 -- name: create-schedule
 INSERT INTO schedules (
@@ -206,3 +211,20 @@ INSERT INTO schedules (
     snapshot,
     title
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+
+-- name: get-schedules
+SELECT
+    schedules.title,
+    schedules.uuid,
+    schedules.query_id_fk,
+    schedules.interval,
+    schedules.platform,
+    schedules.version,
+    schedules.shard,
+    schedules.denylist,
+    schedules.removed,
+    schedules.snapshot,
+    CEIL((SELECT COUNT(*) FROM schedules)::float / $1) as page_count,
+    (SELECT COUNT(*) FROM schedules) as total_count
+FROM schedules
+LIMIT $1 OFFSET $2;

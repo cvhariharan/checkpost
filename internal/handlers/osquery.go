@@ -59,7 +59,7 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "invalid SQL query", fmt.Errorf("query does not appear to be valid SQL"))
 	}
 
-	q, err := h.c.CreateQuery(c.Request().Context(), req.Query, req.Description)
+	q, err := h.c.CreateQuery(c.Request().Context(), req.Title, req.Query, req.Description)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error creating query", err)
 	}
@@ -146,7 +146,7 @@ func (h *Handler) HandleUpdateQuery(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
 	}
 
-	q, err := h.c.UpdateQuery(c.Request().Context(), req.ID, req.Query, req.Description)
+	q, err := h.c.UpdateQuery(c.Request().Context(), req.ID, req.Title, req.Query, req.Description)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating query %s", req.ID), err)
 	}

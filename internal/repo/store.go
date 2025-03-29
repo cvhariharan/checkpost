@@ -36,8 +36,10 @@ type PreparedQueries struct {
 	DeleteQueryByUUID *sqlx.Stmt `query:"delete-query-by-uuid"`
 	UpdateQueryByUUID *sqlx.Stmt `query:"update-query-by-uuid"`
 	GetQueries        *sqlx.Stmt `query:"get-queries"`
+	GetQuery          *sqlx.Stmt `query:"get-query"`
 
 	CreateSchedule *sqlx.Stmt `query:"create-schedule"`
+	GetSchedules   *sqlx.Stmt `query:"get-schedules"`
 }
 
 // Store represents the database store
@@ -154,7 +156,7 @@ func (s *Store) CreateNode(ctx context.Context, node models.Node) (string, error
 	return nodeKey, nil
 }
 
-func (s *Store) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
+func (s *Store) CreateQuery(ctx context.Context, title, query, description string) (models.Query, error) {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return models.Query{}, fmt.Errorf("error starting transaction: %w", err)
@@ -162,7 +164,7 @@ func (s *Store) CreateQuery(ctx context.Context, query, description string) (mod
 	defer tx.Rollback()
 
 	var q models.Query
-	if err := tx.Stmtx(s.queries.CreateQuery).Get(&q, query, description); err != nil {
+	if err := tx.Stmtx(s.queries.CreateQuery).Get(&q, title, query, description); err != nil {
 		return models.Query{}, fmt.Errorf("error creating query: %w", err)
 	}
 
@@ -197,7 +199,7 @@ func (s *Store) GetQueries(ctx context.Context, limit, offset int) (queries []mo
 		var tc int
 		var pc int
 
-		if err := rows.Scan(&query.UUID, &query.Query, &query.Description, &pc, &tc); err != nil {
+		if err := rows.Scan(&query.UUID, &query.Title, &query.Query, &query.Description, &pc, &tc); err != nil {
 			return nil, -1, -1, fmt.Errorf("error scanning queries: %w", err)
 		}
 
@@ -221,7 +223,7 @@ func (s *Store) DeleteQuery(ctx context.Context, queryUUID string) error {
 	return nil
 }
 
-func (s *Store) UpdateQuery(ctx context.Context, queryUUID, query, description string) (models.Query, error) {
+func (s *Store) UpdateQuery(ctx context.Context, queryUUID, title, query, description string) (models.Query, error) {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return models.Query{}, fmt.Errorf("error starting transaction: %w", err)
@@ -229,7 +231,7 @@ func (s *Store) UpdateQuery(ctx context.Context, queryUUID, query, description s
 	defer tx.Rollback()
 
 	var q models.Query
-	if err := tx.Stmtx(s.queries.UpdateQueryByUUID).Get(&q, query, description, queryUUID); err != nil {
+	if err := tx.Stmtx(s.queries.UpdateQueryByUUID).Get(&q, title, query, description, queryUUID); err != nil {
 		return models.Query{}, fmt.Errorf("error updating query: %w", err)
 	}
 
@@ -273,4 +275,56 @@ func (s *Store) CreateSchedule(ctx context.Context, schedule models.Schedule, qu
 	}
 
 	return sched.UUID, nil
+}
+
+func (s *Store) GetSchedules(ctx context.Context, limit, offset int) (schedules []models.Schedule, count int, pageCount int, err error) {
+	var q []models.Schedule
+	rows, err := s.queries.GetSchedules.QueryxContext(ctx, limit, offset)
+	if err != nil {
+		return nil, -1, -1, fmt.Errorf("error getting schedules: %w", err)
+	}
+	defer rows.Close()
+
+	totalCountVal := 0
+	pageCountVal := 0
+
+	for rows.Next() {
+		var schedule models.Schedule
+		var tc int
+		var pc int
+
+		if err := rows.Scan(
+			&schedule.Title,
+			&schedule.UUID,
+			&schedule.Query_ID,
+			&schedule.Interval,
+			&schedule.Platform,
+			&schedule.Version,
+			&schedule.Shard,
+			&schedule.Denylist,
+			&schedule.Removed,
+			&schedule.Snapshot,
+			&pc,
+			&tc,
+		); err != nil {
+			return nil, -1, -1, fmt.Errorf("error scanning schedule: %w", err)
+		}
+
+		var query models.Query
+		if err := s.queries.GetQuery.Get(&query, schedule.Query_ID); err != nil {
+			return nil, -1, -1, fmt.Errorf("error getting query for schedule %s: %w", schedule.UUID, err)
+		}
+		schedule.Query = query
+
+		q = append(q, schedule)
+
+		totalCountVal = tc
+		pageCountVal = pc
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, -1, -1, fmt.Errorf("error iterating over schedules: %w", err)
+	}
+
+	return q, totalCountVal, pageCountVal, nil
 }

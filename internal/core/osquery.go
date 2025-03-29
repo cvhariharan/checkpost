@@ -26,8 +26,8 @@ func (c *Core) EnrollNode(ctx context.Context, node models.Node) (string, error)
 	return c.store.CreateNode(ctx, node)
 }
 
-func (c *Core) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
-	return c.store.CreateQuery(ctx, query, description)
+func (c *Core) CreateQuery(ctx context.Context, title, query, description string) (models.Query, error) {
+	return c.store.CreateQuery(ctx, title, query, description)
 }
 
 func (c *Core) GetQuery(ctx context.Context, id string) (models.Query, error) {
@@ -38,8 +38,8 @@ func (c *Core) PaginateQueries(ctx context.Context, page, countPerPage int) (que
 	return c.store.GetQueries(ctx, countPerPage, page*countPerPage)
 }
 
-func (c *Core) UpdateQuery(ctx context.Context, id, query, description string) (models.Query, error) {
-	return c.store.UpdateQuery(ctx, id, query, description)
+func (c *Core) UpdateQuery(ctx context.Context, id, title, query, description string) (models.Query, error) {
+	return c.store.UpdateQuery(ctx, id, title, query, description)
 }
 
 func (c *Core) DeleteQuery(ctx context.Context, id string) error {
@@ -48,4 +48,8 @@ func (c *Core) DeleteQuery(ctx context.Context, id string) error {
 
 func (c *Core) CreateSchedule(ctx context.Context, sched models.Schedule, queryID string) (string, error) {
 	return c.store.CreateSchedule(ctx, sched, queryID)
+}
+
+func (c *Core) PaginateSchedules(ctx context.Context, page, countPerPage int) (schedules []models.Schedule, totalCount int, pageCount int, err error) {
+	return c.store.GetSchedules(ctx, countPerPage, page*countPerPage)
 }

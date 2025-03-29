@@ -73,6 +73,7 @@ type EnrollmentResponse struct {
 }
 
 type CreateQueryRequest struct {
+	Title       string `json:"title"`
 	Query       string `json:"query"`
 	Description string `json:"description"`
 }
@@ -98,6 +99,7 @@ type GetRequest struct {
 
 type UpdateQueryRequest struct {
 	ID          string `param:"id"`
+	Title       string `json:"title"`
 	Query       string `json:"query"`
 	Description string `json:"description"`
 }
@@ -112,4 +114,10 @@ type CreateScheduleRequest struct {
 	Version  string `json:"version"`
 	Shard    int    `json:"shard" validate:"lte=100"`
 	Denylist bool   `json:"denylist"`
+}
+
+type PaginateSchedulesResponse struct {
+	Schedules  []models.Schedule `json:"schedules"`
+	TotalCount int               `json:"total_count"`
+	PageCount  int               `json:"page_count"`
 }

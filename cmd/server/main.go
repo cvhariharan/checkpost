@@ -100,6 +100,7 @@ func main() {
 	api.GET("/queries", h.HandleQueriesPagination)
 
 	api.POST("/schedule", h.HandleCreateSchedule)
+	api.GET("/schedules", h.HandleSchedulesPagination)
 
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)

@@ -1,31 +1,42 @@
 {{ define "schedules_index" }}
 <div
     x-data="{
-    schedules: {{ .Schedules | toJSON }},
-    filteredSchedules: {{ .Schedules | toJSON }},
+    schedules: [],
+    totalCount: 0,
+    pageCount: 0,
+    currentPage: 1,
+    countPerPage: 10,
     filterSchedules(search) {
         if (!search) {
-            this.filteredSchedules = this.schedules;
+            this.reloadSchedules();
             return;
         }
         search = search.toLowerCase();
-        this.filteredSchedules = this.schedules.filter(schedule =>
-            schedule.Name.toLowerCase().includes(search) ||
-            schedule.Query.toLowerCase().includes(search) ||
-            schedule.Interval.toLowerCase().includes(search)
+        this.schedules = this.schedules.filter(schedule =>
+            (schedule.title || '').toLowerCase().includes(search) ||
+            (schedule.query.query || '').toLowerCase().includes(search) ||
+            (schedule.interval.toString() || '').toLowerCase().includes(search)
         );
     },
     async reloadSchedules() {
-        const response = await fetch('/api/v1/schedules');
+        const response = await fetch(`/api/v1/schedules?page=${this.currentPage}&count_per_page=${this.countPerPage}`);
         if (response.ok) {
             const data = await response.json();
-            this.schedules = data;
-            this.filteredSchedules = data;
+            this.schedules = data.schedules || [];
+            this.totalCount = data.total_count;
+            this.pageCount = data.page_count;
+        }
+    },
+    async changePage(page) {
+        if (page > 0 && page <= this.pageCount) {
+            this.currentPage = page;
+            await this.reloadSchedules();
         }
     }
 }"
     @search.window="filterSchedules($event.detail)"
     @schedules-updated.window="reloadSchedules()"
+    x-init="reloadSchedules()"
 >
     <!-- Create Schedule Modal -->
     {{ template "create_schedule_modal" . }}
@@ -41,12 +52,21 @@
                     Schedule queries to run on specific machines
                 </p>
             </div>
-            <button 
+            <button
                 @click="$dispatch('show-create-schedule-modal')"
                 class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-                <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                <svg
+                    class="-ml-1 mr-2 h-5 w-5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                >
+                    <path
+                        fill-rule="evenodd"
+                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                        clip-rule="evenodd"
+                    />
                 </svg>
                 Create Schedule
             </button>
@@ -54,7 +74,9 @@
     </div>
 
     <!-- Search Component -->
-    <div class="mb-4 max-w-4xl mx-auto">{{ template "search" "Search schedules..." }}</div>
+    <div class="mb-4 max-w-4xl mx-auto">
+        {{ template "search" "Search schedules..." }}
+    </div>
 
     <!-- Schedules Table -->
     <div
@@ -87,29 +109,23 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-primary-200">
-                    <template
-                        x-for="schedule in filteredSchedules"
-                        :key="schedule.Name"
-                    >
+                    <template x-for="schedule in schedules" :key="schedule.uuid">
                         <tr class="hover:bg-primary-50">
-                            <td
-                                class="px-6 py-4 whitespace-nowrap border-r border-primary-200"
-                            >
-                                <div
-                                    class="text-sm font-medium text-primary-900"
-                                    x-text="schedule.Name"
-                                ></div>
-                                <div
-                                    class="text-sm text-primary-500"
-                                    x-text="schedule.Query"
-                                ></div>
+                            <td class="px-6 py-4 whitespace-nowrap border-r border-primary-200">
+                                <div class="text-sm font-medium text-primary-900" 
+                                    x-text="schedule.title || 'Untitled'"></div>
+                                <div class="text-sm text-primary-500" 
+                                    x-text="schedule.query.query"></div>
+                                <div class="text-sm text-primary-400" 
+                                    x-show="schedule.query.description"
+                                    x-text="schedule.query.description"></div>
                             </td>
                             <td
                                 class="px-6 py-4 whitespace-nowrap border-r border-primary-200"
                             >
                                 <span
                                     class="text-sm text-primary-900"
-                                    x-text="schedule.Interval"
+                                    x-text="schedule.interval"
                                 ></span>
                             </td>
                             <td
@@ -130,18 +146,79 @@
                             </td>
                         </tr>
                     </template>
-                    <template x-if="filteredSchedules.length === 0">
+                    <template x-if="schedules.length === 0">
                         <tr>
                             <td
                                 colspan="3"
                                 class="px-6 py-4 text-center text-primary-500"
                             >
-                                No matching schedules found
+                                No schedules found
                             </td>
                         </tr>
                     </template>
                 </tbody>
             </table>
+
+            <!-- Pagination Controls -->
+            <div
+                class="bg-white px-4 py-3 flex items-center justify-between border-t border-primary-200 sm:px-6"
+            >
+                <div
+                    class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between"
+                >
+                    <div>
+                        <p class="text-sm text-primary-700">
+                            Showing
+                            <span
+                                class="font-medium"
+                                x-text="((currentPage - 1) * countPerPage) + 1"
+                            ></span>
+                            to
+                            <span
+                                class="font-medium"
+                                x-text="Math.min(currentPage * countPerPage, totalCount)"
+                            ></span>
+                            of
+                            <span
+                                class="font-medium"
+                                x-text="totalCount"
+                            ></span>
+                            results
+                        </p>
+                    </div>
+                    <div>
+                        <nav
+                            class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+                            aria-label="Pagination"
+                        >
+                            <button
+                                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-primary-300 bg-white text-sm font-medium text-primary-500 hover:bg-primary-50"
+                                :class="{ 'cursor-not-allowed opacity-50': currentPage === 1 }"
+                                @click="changePage(currentPage - 1)"
+                                :disabled="currentPage === 1"
+                            >
+                                Previous
+                            </button>
+                            <template x-for="page in pageCount" :key="page">
+                                <button
+                                    class="relative inline-flex items-center px-4 py-2 border border-primary-300 bg-white text-sm font-medium hover:bg-primary-50"
+                                    :class="{ 'bg-primary-100 text-primary-800': currentPage === page, 'text-primary-500': currentPage !== page }"
+                                    x-text="page"
+                                    @click="changePage(page)"
+                                ></button>
+                            </template>
+                            <button
+                                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-primary-300 bg-white text-sm font-medium text-primary-500 hover:bg-primary-50"
+                                :class="{ 'cursor-not-allowed opacity-50': currentPage === pageCount }"
+                                @click="changePage(currentPage + 1)"
+                                :disabled="currentPage === pageCount"
+                            >
+                                Next
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

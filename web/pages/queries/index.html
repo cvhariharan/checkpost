@@ -14,8 +14,8 @@
         try {
             const response = await fetch(`/api/v1/queries?page=${this.currentPage}&count_per_page=${this.countPerPage}`);
             const data = await response.json();
-            this.queries = data.queries;
-            this.filteredQueries = data.queries;
+            this.queries = data.queries || [];
+            this.filteredQueries = data.queries || [];
             this.pageCount = data.page_count;
             this.totalCount = data.total_count;
         } catch (error) {
@@ -28,6 +28,7 @@
         this.filteredQueries = this.queries.filter(query => {
             return !search || 
                 query.query.toLowerCase().includes(search) ||
+                (query.title && query.title.toLowerCase().includes(search)) ||
                 (query.description && query.description.toLowerCase().includes(search));
         });
     },
@@ -100,6 +101,7 @@ x-init="fetchQueries()"
         <template x-for="query in filteredQueries" :key="query.uuid">
             <div class="bg-white shadow-sm rounded-lg border border-primary-200 overflow-hidden hover:border-primary-300 transition-colors">
                 <div class="px-6 py-4 border-b border-primary-200">
+                    <h3 class="text-base font-medium text-primary-900" x-text="query.title"></h3>
                     <p class="mt-1 text-sm text-primary-500" x-text="query.description || 'No description'"></p>
                 </div>
                 <div class="px-6 py-4">

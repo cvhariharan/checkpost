@@ -79,12 +79,13 @@ type HostDetailsInfo struct {
 type Query struct {
 	ID          string `json:"-" db:"id"`
 	UUID        string `json:"uuid" db:"uuid"`
+	Title       string `json:"title" db:"title"`
 	Query       string `json:"query" db:"query"`
 	Description string `json:"description" db:"description"`
 }
 
 type Schedule struct {
-	Query
+	Query    Query  `json:"query"`
 	Query_ID int    `json:"-" db:"query_id_fk"`
 	ID       string `json:"-" db:"id"`
 	UUID     string `json:"uuid" db:"uuid"`
