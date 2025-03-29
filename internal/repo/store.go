@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,9 +31,11 @@ type PreparedQueries struct {
 	AddPlatformInfo       *sqlx.Stmt `query:"add-platform-info"`
 	GetPlatformInfoByNode *sqlx.Stmt `query:"get-platform-info"`
 
-	CreateQuery    *sqlx.Stmt `query:"create-query"`
-	GetQueryByUUID *sqlx.Stmt `query:"get-query-by-uuid"`
-	GetQueries     *sqlx.Stmt `query:"get-queries"`
+	CreateQuery       *sqlx.Stmt `query:"create-query"`
+	GetQueryByUUID    *sqlx.Stmt `query:"get-query-by-uuid"`
+	DeleteQueryByUUID *sqlx.Stmt `query:"delete-query-by-uuid"`
+	UpdateQueryByUUID *sqlx.Stmt `query:"update-query-by-uuid"`
+	GetQueries        *sqlx.Stmt `query:"get-queries"`
 }
 
 // Store represents the database store
@@ -54,7 +55,7 @@ func NewPostgresStore(logger *slog.Logger, db *sqlx.DB, q PreparedQueries) *Stor
 }
 
 // CreateNodeTx creates a node and all its related info in a transaction
-func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, error) {
+func (s *Store) CreateNode(ctx context.Context, node models.Node) (string, error) {
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return "", fmt.Errorf("error starting transaction: %w", err)
@@ -151,122 +152,30 @@ func (s *Store) CreateNodeTx(ctx context.Context, node models.Node) (string, err
 	return nodeKey, nil
 }
 
-// GetNodeByUUID retrieves a node and all its related info by UUID
-func (s *Store) GetNodeByUUID(ctx context.Context, uuid string) (*models.Node, error) {
-	row := s.queries.GetNodeByUUID.QueryRowContext(ctx, uuid)
-
-	var node models.Node
-	var osVersionJSON, osqueryJSON, systemJSON, platformJSON []byte
-
-	err := row.Scan(
-		&node.NodeKey,
-		&node.HostIdentifier,
-		&osVersionJSON,
-		&osqueryJSON,
-		&systemJSON,
-		&platformJSON,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Unmarshal JSON data into struct fields
-	if err := json.Unmarshal(osVersionJSON, &node.OSVersion); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(osqueryJSON, &node.OSQuery); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(systemJSON, &node.System); err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(platformJSON, &node.Platform); err != nil {
-		return nil, err
-	}
-
-	return &node, nil
-}
-
-// AddOSVersionInfo adds OS version information for a node
-func (s *Store) AddOSVersionInfo(ctx context.Context, info *models.OSVersionInfo, nodeFk int) error {
-	_, err := s.queries.AddOSVersionInfo.ExecContext(ctx,
-		info.OSID,
-		info.Codename,
-		info.Major,
-		info.Minor,
-		info.Name,
-		info.Patch,
-		info.Platform,
-		info.PlatformLike,
-		info.Version,
-		nodeFk,
-	)
-	return err
-}
-
-// AddOSQueryInfo adds OSQuery information for a node
-func (s *Store) AddOSQueryInfo(ctx context.Context, info *models.OsqueryInfo, nodeFk int) error {
-	_, err := s.queries.AddOSQueryInfo.ExecContext(ctx,
-		info.BuildDistro,
-		info.BuildPlatform,
-		info.ConfigHash,
-		info.ConfigValid,
-		info.Extension,
-		info.InstanceID,
-		info.PID,
-		info.StartTime,
-		info.OsqueryUUID,
-		info.Version,
-		info.Watcher,
-		nodeFk,
-	)
-	return err
-}
-
-// AddSystemInfo adds system information for a node
-func (s *Store) AddSystemInfo(ctx context.Context, info *models.SystemInfo, nodeFk int) error {
-	_, err := s.queries.AddSystemInfo.ExecContext(ctx,
-		info.ComputerName,
-		info.CPUBrand,
-		info.CPULogicalCores,
-		info.CPUPhysicalCores,
-		info.CPUSubtype,
-		info.CPUType,
-		info.HardwareModel,
-		info.HardwareSerial,
-		info.HardwareVendor,
-		info.HardwareVersion,
-		info.Hostname,
-		info.LocalHostname,
-		info.PhysicalMemory,
-		info.UUID,
-		nodeFk,
-	)
-	return err
-}
-
-// AddPlatformInfo adds platform information for a node
-func (s *Store) AddPlatformInfo(ctx context.Context, info *models.PlatformInfo, nodeFk int) error {
-	_, err := s.queries.AddPlatformInfo.ExecContext(ctx,
-		info.Address,
-		info.Date,
-		info.Extra,
-		info.Revision,
-		info.Size,
-		info.Vendor,
-		info.Version,
-		info.VolumeSize,
-		nodeFk,
-	)
-	return err
-}
-
 func (s *Store) CreateQuery(ctx context.Context, query, description string) (models.Query, error) {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return models.Query{}, fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
 	var q models.Query
-	if err := s.queries.CreateQuery.Get(&q, query, description); err != nil {
-		return models.Query{}, err
+	if err := tx.Stmtx(s.queries.CreateQuery).Get(&q, query, description); err != nil {
+		return models.Query{}, fmt.Errorf("error creating query: %w", err)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return models.Query{}, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return q, nil
+}
+
+func (s *Store) GetQuery(ctx context.Context, queryUUID string) (models.Query, error) {
+	var q models.Query
+	if err := s.queries.GetQueryByUUID.Get(&q, queryUUID); err != nil {
+		return models.Query{}, fmt.Errorf("error getting query %s: %w", queryUUID, err)
+	}
 	return q, nil
 }
 
@@ -274,7 +183,7 @@ func (s *Store) GetQueries(ctx context.Context, limit, offset int) (queries []mo
 	var q []models.Query
 	rows, err := s.queries.GetQueries.QueryxContext(ctx, limit, offset)
 	if err != nil {
-		return nil, -1, -1, err
+		return nil, -1, -1, fmt.Errorf("error getting queries: %w", err)
 	}
 	defer rows.Close()
 
@@ -287,7 +196,7 @@ func (s *Store) GetQueries(ctx context.Context, limit, offset int) (queries []mo
 		var pc int
 
 		if err := rows.Scan(&query.UUID, &query.Query, &query.Description, &pc, &tc); err != nil {
-			return nil, -1, -1, err
+			return nil, -1, -1, fmt.Errorf("error scanning queries: %w", err)
 		}
 
 		q = append(q, query)
@@ -297,8 +206,34 @@ func (s *Store) GetQueries(ctx context.Context, limit, offset int) (queries []mo
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, -1, -1, err
+		return nil, -1, -1, fmt.Errorf("error iterating over queries: %w", err)
 	}
 
 	return q, totalCountVal, pageCountVal, nil
+}
+
+func (s *Store) DeleteQuery(ctx context.Context, queryUUID string) error {
+	if _, err := s.queries.DeleteQueryByUUID.ExecContext(ctx, queryUUID); err != nil {
+		return fmt.Errorf("error deleting query %s: %w", queryUUID, err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateQuery(ctx context.Context, queryUUID, query, description string) (models.Query, error) {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return models.Query{}, fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	var q models.Query
+	if err := tx.Stmtx(s.queries.UpdateQueryByUUID).Get(&q, query, description, queryUUID); err != nil {
+		return models.Query{}, fmt.Errorf("error updating query: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return models.Query{}, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return q, nil
 }

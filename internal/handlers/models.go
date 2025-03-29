@@ -91,3 +91,13 @@ type PaginateQueriesResponse struct {
 	TotalCount int            `json:"total_count"`
 	PageCount  int            `json:"page_count"`
 }
+
+type GetRequest struct {
+	ID string `param:"id"`
+}
+
+type UpdateQueryRequest struct {
+	ID          string `param:"id"`
+	Query       string `json:"query"`
+	Description string `json:"description"`
+}

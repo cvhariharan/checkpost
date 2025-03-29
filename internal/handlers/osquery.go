@@ -100,3 +100,56 @@ func (h *Handler) HandleQueriesPagination(c echo.Context) error {
 		PageCount:  pageCount,
 	})
 }
+
+func (h *Handler) HandleGetQuery(c echo.Context) error {
+	var req GetRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+	}
+
+	q, err := h.c.GetQuery(c.Request().Context(), req.ID)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting query %s", req.ID), err)
+	}
+
+	return c.JSON(http.StatusOK, q)
+}
+
+func (h *Handler) HandleDeleteQuery(c echo.Context) error {
+	var req GetRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+	}
+
+	if err := h.c.DeleteQuery(c.Request().Context(), req.ID); err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting query %s", req.ID), err)
+	}
+
+	return c.NoContent(http.StatusOK)
+}
+
+func (h *Handler) HandleUpdateQuery(c echo.Context) error {
+	var req UpdateQueryRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+	}
+
+	q, err := h.c.UpdateQuery(c.Request().Context(), req.ID, req.Query, req.Description)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating query %s", req.ID), err)
+	}
+
+	return c.JSON(http.StatusOK, q)
+}

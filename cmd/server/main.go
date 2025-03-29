@@ -94,6 +94,9 @@ func main() {
 
 	api := e.Group("/api/v1")
 	api.POST("/query", h.HandleCreateQuery)
+	api.GET("/query/:id", h.HandleGetQuery)
+	api.DELETE("/query/:id", h.HandleDeleteQuery)
+	api.PUT("/query/:id", h.HandleUpdateQuery)
 	api.GET("/queries", h.HandleQueriesPagination)
 
 	osqueryAPI := api.Group("/osquery")

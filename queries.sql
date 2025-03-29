@@ -187,3 +187,9 @@ SELECT
     (SELECT COUNT(*) FROM queries) as total_count
 FROM queries
 LIMIT $1 OFFSET $2;
+
+-- name: delete-query-by-uuid
+DELETE FROM queries WHERE uuid = $1;
+
+-- name: update-query-by-uuid
+UPDATE queries SET query = $1, description = $2 WHERE uuid = $3 RETURNING uuid, query, description;
