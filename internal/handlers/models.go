@@ -121,3 +121,16 @@ type PaginateSchedulesResponse struct {
 	TotalCount int               `json:"total_count"`
 	PageCount  int               `json:"page_count"`
 }
+
+type UpdateScheduleRequest struct {
+	ID       string `param:"id"`
+	QueryID  string `json:"query_id" validate:"required,uuid4"`
+	Title    string `json:"title" validate:"required,ascii"`
+	Interval int    `json:"interval" validate:"required,lte=604800"`
+	Removed  bool   `json:"removed"`
+	Snapshot bool   `json:"snapshot"`
+	Platform string `json:"platform" validate:"oneof=darwin linux posiz windows any all"`
+	Version  string `json:"version"`
+	Shard    int    `json:"shard" validate:"lte=100"`
+	Denylist bool   `json:"denylist"`
+}

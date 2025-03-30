@@ -93,6 +93,7 @@ func main() {
 	e.GET("/schedules", h.HandleSchedules)
 
 	api := e.Group("/api/v1")
+
 	api.POST("/query", h.HandleCreateQuery)
 	api.GET("/query/:id", h.HandleGetQuery)
 	api.DELETE("/query/:id", h.HandleDeleteQuery)
@@ -101,6 +102,9 @@ func main() {
 
 	api.POST("/schedule", h.HandleCreateSchedule)
 	api.GET("/schedules", h.HandleSchedulesPagination)
+	api.GET("/schedule/:id", h.HandleGetSchedule)
+	api.DELETE("/schedule/:id", h.HandleDeleteSchedule)
+	api.PUT("/schedule/:id", h.HandleUpdateSchedule)
 
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)

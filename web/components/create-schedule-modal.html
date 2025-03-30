@@ -9,6 +9,8 @@
     platform: 'any',
     error: '',
     isSubmitting: false,
+    editMode: false,
+    scheduleId: null,
     async fetchQueries() {
         try {
             const response = await fetch('/api/v1/queries?page=1&count_per_page=1000');
@@ -24,17 +26,22 @@
         this.isSubmitting = true;
         this.error = '';
         try {
-            const response = await fetch('/api/v1/schedule', {
-                method: 'POST',
+            const payload = {
+                query_id: this.selectedQuery,
+                title: this.title,
+                interval: parseInt(this.interval),
+                platform: this.platform
+            };
+
+            const url = this.editMode ? `/api/v1/schedule/${this.scheduleId}` : '/api/v1/schedule';
+            const method = this.editMode ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    query_id: this.selectedQuery,
-                    title: this.title,
-                    interval: parseInt(this.interval),
-                    platform: this.platform
-                })
+                body: JSON.stringify(payload)
             });
             if (!response.ok) {
                 const data = await response.json();
@@ -55,6 +62,18 @@
         this.interval = 3600;
         this.platform = 'any';
         this.error = '';
+        this.editMode = false;
+        this.scheduleId = null;
+    },
+    handleEdit(schedule) {
+        this.editMode = true;
+        this.scheduleId = schedule.uuid;
+        this.selectedQuery = schedule.query.uuid;
+        this.title = schedule.title;
+        this.interval = schedule.interval;
+        this.platform = schedule.platform || 'any';
+        this.showModal = true;
+        this.fetchQueries();
     },
     init() {
         this.$watch('showModal', (value) => {
@@ -66,6 +85,7 @@
 }"
     x-cloak
     @show-create-schedule-modal.window="showModal = true"
+    @edit-schedule.window="handleEdit($event.detail)"
 >
     <!-- Modal -->
     <div x-show="showModal" class="fixed inset-0 z-50 overflow-y-auto">
@@ -102,7 +122,7 @@
                 <form @submit.prevent="saveSchedule">
                     <div>
                         <h3 class="text-lg leading-6 font-medium text-gray-900">
-                            Create New Schedule
+                            <span x-text="editMode ? 'Edit Schedule' : 'Create New Schedule'"></span>
                         </h3>
 
                         <!-- Error Message -->
@@ -250,8 +270,8 @@
                             class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm"
                             :disabled="isSubmitting"
                         >
-                            <span x-show="!isSubmitting">Create</span>
-                            <span x-show="isSubmitting">Creating...</span>
+                            <span x-show="!isSubmitting" x-text="editMode ? 'Update' : 'Create'"></span>
+                            <span x-show="isSubmitting" x-text="editMode ? 'Updating...' : 'Creating...'"></span>
                         </button>
                         <button
                             type="button"

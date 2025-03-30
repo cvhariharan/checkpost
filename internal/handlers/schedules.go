@@ -66,3 +66,66 @@ func (h *Handler) HandleSchedulesPagination(c echo.Context) error {
 		PageCount:  pageCount,
 	})
 }
+
+func (h *Handler) HandleGetSchedule(c echo.Context) error {
+	var req GetRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+	}
+
+	q, err := h.c.GetSchedule(c.Request().Context(), req.ID)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting schedule %s", req.ID), err)
+	}
+
+	return c.JSON(http.StatusOK, q)
+}
+
+func (h *Handler) HandleDeleteSchedule(c echo.Context) error {
+	var req GetRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+	}
+
+	if err := h.c.DeleteSchedule(c.Request().Context(), req.ID); err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting schedule %s", req.ID), err)
+	}
+
+	return c.NoContent(http.StatusOK)
+}
+
+func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
+	var req UpdateScheduleRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+	}
+
+	q, err := h.c.UpdateSchedule(c.Request().Context(), models.Schedule{
+		UUID:     req.ID,
+		Title:    req.Title,
+		Interval: req.Interval,
+		Removed:  req.Removed,
+		Snapshot: req.Snapshot,
+		Platform: req.Platform,
+		Version:  req.Version,
+		Shard:    req.Shard,
+		Denylist: req.Denylist,
+	}, req.QueryID)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating schedule %s", req.ID), err)
+	}
+
+	return c.JSON(http.StatusOK, q)
+}

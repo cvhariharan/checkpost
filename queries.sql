@@ -228,3 +228,34 @@ SELECT
     (SELECT COUNT(*) FROM schedules) as total_count
 FROM schedules
 LIMIT $1 OFFSET $2;
+
+-- name: get-schedule-by-uuid
+SELECT
+    schedules.title,
+    schedules.uuid,
+    schedules.query_id_fk,
+    schedules.interval,
+    schedules.platform,
+    schedules.version,
+    schedules.shard,
+    schedules.denylist,
+    schedules.removed,
+    schedules.snapshot
+FROM schedules where uuid = $1;
+
+-- name: delete-schedule-by-uuid
+DELETE FROM schedules WHERE uuid = $1;
+
+-- name: update-schedule-by-uuid
+UPDATE schedules SET
+    title = $1,
+    query_id_fk = $2,
+    interval = $3,
+    platform = $4,
+    version = $5,
+    shard = $6,
+    denylist = $7,
+    removed = $8,
+    snapshot = $9
+WHERE uuid = $10
+RETURNING *;

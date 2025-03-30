@@ -53,3 +53,15 @@ func (c *Core) CreateSchedule(ctx context.Context, sched models.Schedule, queryI
 func (c *Core) PaginateSchedules(ctx context.Context, page, countPerPage int) (schedules []models.Schedule, totalCount int, pageCount int, err error) {
 	return c.store.GetSchedules(ctx, countPerPage, page*countPerPage)
 }
+
+func (c *Core) GetSchedule(ctx context.Context, id string) (models.Schedule, error) {
+	return c.store.GetSchedule(ctx, id)
+}
+
+func (c *Core) DeleteSchedule(ctx context.Context, scheduleID string) error {
+	return c.store.DeleteSchedule(ctx, scheduleID)
+}
+
+func (c *Core) UpdateSchedule(ctx context.Context, sched models.Schedule, queryID string) (models.Schedule, error) {
+	return c.store.UpdateSchedule(ctx, sched, queryID)
+}

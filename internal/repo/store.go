@@ -38,8 +38,11 @@ type PreparedQueries struct {
 	GetQueries        *sqlx.Stmt `query:"get-queries"`
 	GetQuery          *sqlx.Stmt `query:"get-query"`
 
-	CreateSchedule *sqlx.Stmt `query:"create-schedule"`
-	GetSchedules   *sqlx.Stmt `query:"get-schedules"`
+	CreateSchedule       *sqlx.Stmt `query:"create-schedule"`
+	GetSchedules         *sqlx.Stmt `query:"get-schedules"`
+	GetSchedule          *sqlx.Stmt `query:"get-schedule-by-uuid"`
+	DeleteScheduleByUUID *sqlx.Stmt `query:"delete-schedule-by-uuid"`
+	UpdateScheduleByUUID *sqlx.Stmt `query:"update-schedule-by-uuid"`
 }
 
 // Store represents the database store
@@ -327,4 +330,55 @@ func (s *Store) GetSchedules(ctx context.Context, limit, offset int) (schedules 
 	}
 
 	return q, totalCountVal, pageCountVal, nil
+}
+
+func (s *Store) GetSchedule(ctx context.Context, scheduleUUID string) (models.Schedule, error) {
+	var q models.Schedule
+	if err := s.queries.GetSchedule.Get(&q, scheduleUUID); err != nil {
+		return models.Schedule{}, fmt.Errorf("error getting schedule %s: %w", scheduleUUID, err)
+	}
+	return q, nil
+}
+
+func (s *Store) DeleteSchedule(ctx context.Context, scheduleUUID string) error {
+	if _, err := s.queries.DeleteScheduleByUUID.ExecContext(ctx, scheduleUUID); err != nil {
+		return fmt.Errorf("error deleting schedule %s: %w", scheduleUUID, err)
+	}
+	return nil
+}
+
+func (s *Store) UpdateSchedule(ctx context.Context, schedule models.Schedule, queryID string) (models.Schedule, error) {
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return models.Schedule{}, fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	query, err := s.GetQuery(ctx, queryID)
+	if err != nil {
+		return models.Schedule{}, fmt.Errorf("error getting query for schedule %s: %w", schedule.UUID, err)
+	}
+
+	var q models.Schedule
+	if err := tx.Stmtx(s.queries.UpdateScheduleByUUID).Get(
+		&q,
+		schedule.Title,
+		query.ID,
+		schedule.Interval,
+		schedule.Platform,
+		schedule.Version,
+		schedule.Shard,
+		schedule.Denylist,
+		schedule.Removed,
+		schedule.Snapshot,
+		schedule.UUID,
+	); err != nil {
+		return models.Schedule{}, fmt.Errorf("error updating query: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return models.Schedule{}, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return q, nil
 }
