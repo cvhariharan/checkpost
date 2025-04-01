@@ -134,3 +134,23 @@ type UpdateScheduleRequest struct {
 	Shard    int    `json:"shard" validate:"lte=100"`
 	Denylist bool   `json:"denylist"`
 }
+
+type ConfigRequest struct {
+	NodeKey string `json:"node_key" validate:"required,uuid4"`
+}
+
+type ScheduleConfig struct {
+	Query    string `json:"query"`
+	Interval int    `json:"interval"`
+	Platform string `json:"platform"`
+}
+
+type OSQueryConfigResponse struct {
+	Schedule map[string]ScheduleConfig `json:"schedule"`
+}
+
+type LogRequest struct {
+	NodeKey string                   `json:"node_key"`
+	Data    []map[string]interface{} `json:"data"`
+	LogType string                   `json:"log_type"`
+}

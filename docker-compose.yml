@@ -27,6 +27,22 @@ services:
         source: valkey-data
         target: /data
 
+  clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:latest
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_DB=watcher
+      - CLICKHOUSE_USER=watcher
+      - CLICKHOUSE_PASSWORD=watcher
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - type: volume
+        source: clickhouse-data
+        target: /var/lib/clickhouse
+
   osquery:
     build:
       context: ./testdata
@@ -48,6 +64,7 @@ services:
         "--tls_server_certs=/etc/osquery-tls/certs/server.pem",
         "--disable_enrollment=false",
         "--enroll_secret_env=ENROLLMENT_SECRET",
+        "--config_refresh=30",
       ]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -55,3 +72,4 @@ volumes:
   watcher-db-data:
   valkey-data:
   osquery-db:
+  clickhouse-data:

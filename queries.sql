@@ -5,6 +5,9 @@ VALUES
     ($1, $2) RETURNING id, uuid;
 
 -- name: get-node-by-uuid
+SELECT nodes.uuid, nodes.host_identifier FROM nodes WHERE uuid = $1
+
+-- name: get-node-details-by-uuid
 WITH node AS (
     SELECT
         *

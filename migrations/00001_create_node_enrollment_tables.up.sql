@@ -32,7 +32,7 @@ CREATE UNIQUE INDEX idx_os_version_info_uuid ON os_version_info (uuid);
 
 CREATE TABLE IF NOT EXISTS osquery_info (
     id SERIAL PRIMARY KEY,
-    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
+    uuid UUID NOT NULL,
     osquery_uuid TEXT,
     build_distro TEXT,
     build_platform TEXT,
@@ -48,11 +48,11 @@ CREATE TABLE IF NOT EXISTS osquery_info (
     FOREIGN KEY (node_fk) REFERENCES nodes (id)
 );
 
-CREATE UNIQUE INDEX idx_osquery_info_uuid ON osquery_info (uuid);
+CREATE INDEX idx_osquery_info_uuid ON osquery_info (uuid);
 
 CREATE TABLE IF NOT EXISTS system_info (
     id SERIAL PRIMARY KEY,
-    uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
+    uuid UUID NOT NULL,
     computer_name TEXT,
     cpu_brand TEXT,
     cpu_logical_cores TEXT,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS system_info (
     FOREIGN KEY (node_fk) REFERENCES nodes (id)
 );
 
-CREATE UNIQUE INDEX idx_system_info_uuid ON system_info (uuid);
+CREATE INDEX idx_system_info_uuid ON system_info (uuid);
 
 CREATE TABLE IF NOT EXISTS platform_info (
     id SERIAL PRIMARY KEY,

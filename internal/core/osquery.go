@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
 )
@@ -12,10 +13,11 @@ import (
 type Core struct {
 	store  *repo.Store
 	logger *slog.Logger
+	chConn driver.Conn
 }
 
-func NewCore(logger *slog.Logger, store *repo.Store) *Core {
-	return &Core{store: store, logger: logger.WithGroup("core")}
+func NewCore(logger *slog.Logger, store *repo.Store, conn driver.Conn) *Core {
+	return &Core{store: store, logger: logger.WithGroup("core"), chConn: conn}
 }
 
 func ToNullString(s string) sql.NullString {
@@ -24,6 +26,10 @@ func ToNullString(s string) sql.NullString {
 
 func (c *Core) EnrollNode(ctx context.Context, node models.Node) (string, error) {
 	return c.store.CreateNode(ctx, node)
+}
+
+func (c *Core) GetNode(ctx context.Context, id string) (models.Node, error) {
+	return c.store.GetNode(ctx, id)
 }
 
 func (c *Core) CreateQuery(ctx context.Context, title, query, description string) (models.Query, error) {
@@ -64,4 +70,25 @@ func (c *Core) DeleteSchedule(ctx context.Context, scheduleID string) error {
 
 func (c *Core) UpdateSchedule(ctx context.Context, sched models.Schedule, queryID string) (models.Schedule, error) {
 	return c.store.UpdateSchedule(ctx, sched, queryID)
+}
+
+func (c *Core) LogResults(ctx context.Context, data []map[string]interface{}) error {
+	for _, item := range data {
+		if err := c.chConn.AsyncInsert(ctx, `
+			INSERT INTO osquery_results (
+				action,
+				calendar_time,
+				counter,
+				epoch,
+				host_identifier,
+				name,
+				numerics,
+				unix_time,
+				columns_json
+			) VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`, false, item["action"], item["calendarTime"], item["counter"], item["epoch"], item["hostIdentifier"], item["name"], item["numerics"], item["unixTime"], item["columns"]); err != nil {
+			return err
+		}
+	}
+	return nil
 }

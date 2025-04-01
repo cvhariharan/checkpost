@@ -1,8 +1,8 @@
 package models
 
 type Node struct {
-	NodeKey        string        `json:"node_key"`
-	HostIdentifier string        `json:"host_identifier"`
+	NodeKey        string        `json:"node_key" db:"uuid"`
+	HostIdentifier string        `json:"host_identifier" db:"host_identifier"`
 	OSVersion      OSVersionInfo `json:"os_version"`
 	OSQuery        OsqueryInfo   `json:"osquery_info"`
 	System         SystemInfo    `json:"system_info"`
@@ -24,7 +24,7 @@ type OSVersionInfo struct {
 }
 
 type OsqueryInfo struct {
-	OsqueryUUID   string `json:"uuid"`
+	UUID          string `json:"uuid"`
 	BuildDistro   string `json:"build_distro"`
 	BuildPlatform string `json:"build_platform"`
 	ConfigHash    string `json:"config_hash"`

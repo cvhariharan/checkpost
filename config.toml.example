@@ -23,3 +23,9 @@ user = 'watcher'
 host = 'localhost'
 password = ''
 port = 6379
+
+[clickhouse]
+host = 'localhost:9000'
+user = 'watcher'
+db = 'watcher'
+password = 'watcher'

@@ -108,7 +108,7 @@ func (s *Store) CreateNode(ctx context.Context, node models.Node) (string, error
 		node.OSQuery.InstanceID,
 		node.OSQuery.PID,
 		node.OSQuery.StartTime,
-		node.OSQuery.OsqueryUUID,
+		node.OSQuery.UUID,
 		node.OSQuery.Version,
 		node.OSQuery.Watcher,
 		nodeID,
@@ -157,6 +157,15 @@ func (s *Store) CreateNode(ctx context.Context, node models.Node) (string, error
 	}
 
 	return nodeKey, nil
+}
+
+func (s *Store) GetNode(ctx context.Context, nodeUUID string) (models.Node, error) {
+	var n models.Node
+	if err := s.queries.GetNodeByUUID.Get(&n, nodeUUID); err != nil {
+		return models.Node{}, fmt.Errorf("error getting node %s: %w", nodeUUID, err)
+	}
+
+	return n, nil
 }
 
 func (s *Store) CreateQuery(ctx context.Context, title, query, description string) (models.Query, error) {

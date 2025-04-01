@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -10,6 +11,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
@@ -30,13 +33,17 @@ import (
 var k = koanf.New(".")
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	loglevel := slog.LevelError
+	if os.Getenv("DEBUG_LOG") == "true" {
+		loglevel = slog.LevelDebug
+	}
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: loglevel,
+	}))
 	slog.SetDefault(logger)
 
-	slog.SetLogLoggerLevel(slog.LevelError)
-	if os.Getenv("DEBUG_LOG") == "true" {
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-	}
+	logger.Debug("starting server")
 
 	var configFile string
 	flag.StringVar(&configFile, "config", "config.toml", "Path to the config file. If the file doesn't exist, a default file will be generated")
@@ -50,15 +57,31 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	if err := initDB(); err != nil {
-		log.Fatalf("could not initialize db: %v", err)
-	}
-
 	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
 	if err != nil {
 		log.Fatalf("could not connect to database: %v", err)
 	}
 	defer db.Close()
+
+	if err := runDBMigration(db); err != nil {
+		log.Fatalf("could not complete db migration: %w", err)
+	}
+
+	conn, err := clickhouse.Open(&clickhouse.Options{
+		Addr: []string{"localhost:9000"},
+		Auth: clickhouse.Auth{
+			Database: "watcher",
+			Username: "watcher",
+			Password: "watcher",
+		},
+	})
+	if err != nil {
+		log.Fatalf("could not connect to clickhouse: %w", err)
+	}
+
+	if err := runCHMigration(conn); err != nil {
+		log.Fatalf("could not complete clickhouse migration: %w", err)
+	}
 
 	var pq repo.PreparedQueries
 	queries := goyesql.MustParseFile("queries.sql")
@@ -74,7 +97,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c := core.NewCore(logger, s)
+	c := core.NewCore(logger, s, conn)
 	e := echo.New()
 
 	h := handlers.NewHandler(logger, cfg.AppConfig, c)
@@ -108,6 +131,8 @@ func main() {
 
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
+	osqueryAPI.POST("/config", h.HandleOSQueryConfig)
+	osqueryAPI.POST("/logger", h.HandleLog)
 
 	if cfg.UseTLS {
 		e.Logger.Fatal(e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath))
@@ -151,15 +176,27 @@ func runDBMigration(db *sqlx.DB) error {
 	return nil
 }
 
-func initDB() error {
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
-	if err != nil {
-		return fmt.Errorf("could not connect to database: %w", err)
-	}
-	defer db.Close()
+func runCHMigration(conn driver.Conn) error {
+	logTable := `
+	CREATE TABLE IF NOT EXISTS osquery_results (
+    action LowCardinality (String),
+    calendar_time String,
+    counter UInt64,
+    epoch UInt64,
+    host_identifier String,
+    name String,
+    numerics Boolean,
+    unix_time DateTime64 (0) DEFAULT 0,
+    columns_json String
+) ENGINE = MergeTree ()
+ORDER BY
+    unix_time
+PARTITION BY
+    toYYYYMM (unix_time);
+	`
 
-	if err := runDBMigration(db); err != nil {
-		return fmt.Errorf("could not complete db migration: %w", err)
+	if err := conn.Exec(context.Background(), logTable); err != nil {
+		return err
 	}
 
 	return nil
@@ -215,6 +252,11 @@ func setDefaultConfig() error {
 		"app.root_url":          "http://localhost:1323",
 		"app.secure_cookie_key": hex.EncodeToString(key),
 		"app.enrollment_key":    hex.EncodeToString(enrollmentKey),
+
+		"clickhouse.host":     "localhost:9000",
+		"clickhouse.db":       "watcher",
+		"clickhouse.user":     "watcher",
+		"clickhouse.password": "watcher",
 
 		"db.dbname":   "watcher",
 		"db.host":     "localhost",

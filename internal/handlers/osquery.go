@@ -8,8 +8,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// CountPerPage used for pagination requests
-const CountPerPage = 10
+const (
+	// CountPerPage used for pagination requests
+	CountPerPage = 10
+
+	// Maximum number of schedules that will be returned in osquery config
+	ScheduleMax = 100
+)
 
 func (h *Handler) HandleEnrollment(c echo.Context) error {
 	var req EnrollmentRequest
@@ -152,4 +157,55 @@ func (h *Handler) HandleUpdateQuery(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, q)
+}
+
+func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
+	var req ConfigRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err)
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err)
+	}
+
+	if _, err := h.c.GetNode(c.Request().Context(), req.NodeKey); err != nil {
+		return wrapError(http.StatusBadRequest, "error getting node details", err)
+	}
+
+	s, _, _, err := h.c.PaginateSchedules(c.Request().Context(), 0, ScheduleMax)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, "error getting schedules", err)
+	}
+
+	h.logger.Debug("config", "response", s)
+
+	osc := OSQueryConfigResponse{
+		Schedule: make(map[string]ScheduleConfig),
+	}
+	for _, sched := range s {
+		sc := ScheduleConfig{
+			Query:    sched.Query.Query,
+			Interval: sched.Interval,
+			Platform: sched.Platform,
+		}
+		osc.Schedule[sched.Title] = sc
+	}
+
+	return c.JSON(http.StatusOK, osc)
+}
+
+func (h *Handler) HandleLog(c echo.Context) error {
+	var req LogRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err)
+	}
+
+	h.logger.Debug("request", "body", req.Data)
+
+	// if err := h.c.LogResults(c.Request().Context(), req.Data); err != nil {
+	// 	return wrapError(http.StatusInternalServerError, "error writing logs", err)
+	// }
+
+	return c.NoContent(http.StatusOK)
 }
