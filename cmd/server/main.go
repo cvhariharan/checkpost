@@ -16,6 +16,7 @@ import (
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
+	"github.com/cvhariharan/watcher/internal/logqueue"
 	"github.com/cvhariharan/watcher/internal/repo"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -28,6 +29,7 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 )
 
 var k = koanf.New(".")
@@ -97,7 +99,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c := core.NewCore(logger, s, conn)
+	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:    []string{fmt.Sprintf("%s:%d", k.String("valkey.host"), k.Int("valkey.port"))},
+		Password: k.String("valkey.password"),
+	})
+	defer redisClient.Close()
+
+	logqueuer := logqueue.NewStreamLogger(logger, redisClient)
+
+	c := core.NewCore(logger, s, conn, logqueuer)
 	e := echo.New()
 
 	h := handlers.NewHandler(logger, cfg.AppConfig, c)
