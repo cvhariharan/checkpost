@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -12,13 +11,13 @@ import (
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
 	"github.com/cvhariharan/watcher/internal/logqueue"
 	"github.com/cvhariharan/watcher/internal/repo"
 	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
@@ -66,23 +65,29 @@ func main() {
 	defer db.Close()
 
 	if err := runDBMigration(db); err != nil {
-		log.Fatalf("could not complete db migration: %w", err)
+		log.Fatalf("could not complete db migration: %v", err)
 	}
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"localhost:9000"},
 		Auth: clickhouse.Auth{
-			Database: "watcher",
-			Username: "watcher",
-			Password: "watcher",
+			Database: k.String("clickhouse.host"),
+			Username: k.String("clickhouse.user"),
+			Password: k.String("clickhouse.password"),
+		},
+		Settings: clickhouse.Settings{
+			"allow_experimental_json_type":              1,
+			"output_format_json_quote_64bit_integers":   0,
+			"output_format_native_write_json_as_string": 1,
 		},
 	})
+	defer conn.Close()
 	if err != nil {
-		log.Fatalf("could not connect to clickhouse: %w", err)
+		log.Fatalf("error connecting to clickhouse: %v", err)
 	}
 
-	if err := runCHMigration(conn); err != nil {
-		log.Fatalf("could not complete clickhouse migration: %w", err)
+	if err := runCHMigration(); err != nil {
+		log.Fatalf("could not complete clickhouse migration: %v", err)
 	}
 
 	var pq repo.PreparedQueries
@@ -107,7 +112,7 @@ func main() {
 
 	logqueuer := logqueue.NewStreamLogger(logger, redisClient)
 
-	c := core.NewCore(logger, s, conn, logqueuer)
+	c := core.NewCore(logger, s, logqueuer)
 	e := echo.New()
 
 	h := handlers.NewHandler(logger, cfg.AppConfig, c)
@@ -157,7 +162,7 @@ func runDBMigration(db *sqlx.DB) error {
 		return fmt.Errorf("failed to create postgres driver instance: %w", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance("file://migrations", "postgres", driver)
+	m, err := migrate.NewWithDatabaseInstance("file://migrations/postgres", "postgres", driver)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}
@@ -186,27 +191,37 @@ func runDBMigration(db *sqlx.DB) error {
 	return nil
 }
 
-func runCHMigration(conn driver.Conn) error {
-	logTable := `
-	CREATE TABLE IF NOT EXISTS osquery_results (
-    action LowCardinality (String),
-    calendar_time String,
-    counter UInt64,
-    epoch UInt64,
-    host_identifier String,
-    name String,
-    numerics Boolean,
-    unix_time DateTime64 (0) DEFAULT 0,
-    columns_json String
-) ENGINE = MergeTree ()
-ORDER BY
-    unix_time
-PARTITION BY
-    toYYYYMM (unix_time);
-	`
+func runCHMigration() error {
+	driverURL := fmt.Sprintf("clickhouse://%s:%s@%s/%s",
+		k.String("clickhouse.user"),
+		k.String("clickhouse.password"),
+		k.String("clickhouse.host"),
+		k.String("clickhouse.db"))
 
-	if err := conn.Exec(context.Background(), logTable); err != nil {
-		return err
+	m, err := migrate.New("file://migrations/clickhouse", driverURL)
+	if err != nil {
+		return fmt.Errorf("failed to create migration instance: %w", err)
+	}
+
+	version, dirty, err := m.Version()
+	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
+		return fmt.Errorf("failed to get migration version: %w", err)
+	}
+
+	// If database is in a dirty state, force the version
+	if dirty {
+		if err := m.Force(int(version)); err != nil {
+			return fmt.Errorf("failed to force migration version: %w", err)
+		}
+	}
+
+	// Attempt to migrate to the latest version
+	if err := m.Up(); err != nil {
+		// ErrNoChange means we're at the latest version
+		if errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return nil

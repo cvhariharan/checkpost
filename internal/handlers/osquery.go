@@ -203,9 +203,9 @@ func (h *Handler) HandleLog(c echo.Context) error {
 
 	h.logger.Debug("request", "body", req.Data)
 
-	// if err := h.c.LogResults(c.Request().Context(), req.Data); err != nil {
-	// 	return wrapError(http.StatusInternalServerError, "error writing logs", err)
-	// }
+	if err := h.c.LogResults(c.Request().Context(), req.LogType, req.Data); err != nil {
+		return wrapError(http.StatusInternalServerError, "error writing logs", err)
+	}
 
 	return c.NoContent(http.StatusOK)
 }

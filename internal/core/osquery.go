@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/cvhariharan/watcher/internal/logqueue"
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
@@ -15,11 +14,10 @@ type Core struct {
 	store     *repo.Store
 	logger    *slog.Logger
 	logqueuer *logqueue.StreamLogger
-	chConn    driver.Conn
 }
 
-func NewCore(logger *slog.Logger, store *repo.Store, conn driver.Conn, logqueuer *logqueue.StreamLogger) *Core {
-	return &Core{store: store, logger: logger.WithGroup("core"), chConn: conn, logqueuer: logqueuer}
+func NewCore(logger *slog.Logger, store *repo.Store, logqueuer *logqueue.StreamLogger) *Core {
+	return &Core{store: store, logger: logger.WithGroup("core"), logqueuer: logqueuer}
 }
 
 func ToNullString(s string) sql.NullString {
@@ -74,6 +72,6 @@ func (c *Core) UpdateSchedule(ctx context.Context, sched models.Schedule, queryI
 	return c.store.UpdateSchedule(ctx, sched, queryID)
 }
 
-func (c *Core) LogResult(ctx context.Context, msgType string, data []map[string]interface{}) error {
+func (c *Core) LogResults(ctx context.Context, msgType string, data []map[string]interface{}) error {
 	return c.logqueuer.WriteLog(ctx, logqueue.LogMsg{LogType: msgType, Data: data})
 }

@@ -39,6 +39,8 @@ func (s *StreamLogger) WriteLog(ctx context.Context, msg LogMsg) error {
 
 	return s.r.XAdd(ctx, &redis.XAddArgs{
 		Stream: fmt.Sprintf(LogStreamPrefix, msg.LogType),
-		Values: msgBytes,
+		Values: map[string]interface{}{
+			"msg": string(msgBytes),
+		},
 	}).Err()
 }
