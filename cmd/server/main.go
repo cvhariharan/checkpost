@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -11,11 +12,13 @@ import (
 	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
 	"github.com/cvhariharan/watcher/internal/logqueue"
 	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/watcher/internal/shipper"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -71,7 +74,7 @@ func main() {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"localhost:9000"},
 		Auth: clickhouse.Auth{
-			Database: k.String("clickhouse.host"),
+			Database: k.String("clickhouse.db"),
 			Username: k.String("clickhouse.user"),
 			Password: k.String("clickhouse.password"),
 		},
@@ -89,6 +92,7 @@ func main() {
 	if err := runCHMigration(); err != nil {
 		log.Fatalf("could not complete clickhouse migration: %v", err)
 	}
+
 
 	var pq repo.PreparedQueries
 	queries := goyesql.MustParseFile("queries.sql")
@@ -110,6 +114,7 @@ func main() {
 	})
 	defer redisClient.Close()
 
+	go runShipper(logger, conn, redisClient)
 	logqueuer := logqueue.NewStreamLogger(logger, redisClient)
 
 	c := core.NewCore(logger, s, logqueuer)
@@ -253,6 +258,21 @@ func loadOrCreateConfigFile(configFile string) error {
 	if err := k.Load(file.Provider(configFile), toml.Parser()); err != nil {
 		log.Fatalf("error loading config: %v", err)
 	}
+	return nil
+}
+
+func runShipper(logger *slog.Logger, conn driver.Conn, r redis.UniversalClient) error {
+	ship, err := shipper.NewShipper(logger, "clickhouse", conn, r)
+	if err != nil {
+		logger.Error("could not create shipper", "error", err)
+		return err
+	}
+
+	if err := ship.Run(context.Background()); err != nil {
+		logger.Error("could not run shipper", "error", err)
+		return fmt.Errorf("failed to start shipper: %w", err)
+	}
+
 	return nil
 }
 

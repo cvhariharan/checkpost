@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"log/slog"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/redis/go-redis/v9"
@@ -18,21 +19,27 @@ const (
 )
 
 type Shipper struct {
+	logger *slog.Logger
 	name string
 	conn driver.Conn
 	r    redis.UniversalClient
 }
 
-func NewShipper(name string, conn driver.Conn, r redis.UniversalClient) (*Shipper, error) {
+func NewShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.UniversalClient) (*Shipper, error) {
 	if err := r.XGroupCreate(context.Background(), ResultsStream, fmt.Sprintf("%s-results", name), "0").Err(); err != nil {
-		return nil, err
+		if err.Error() != "BUSYGROUP Consumer Group name already exists" {
+			return nil, err
+		}
 	}
 
 	if err := r.XGroupCreate(context.Background(), StatusStream, fmt.Sprintf("%s-status", name), "0").Err(); err != nil {
-		return nil, err
+		if err.Error() != "BUSYGROUP Consumer Group name already exists" {
+			return nil, err
+		}
 	}
 
 	return &Shipper{
+		logger: logger.WithGroup("shipper"),
 		name: name,
 		conn: conn,
 		r:    r,
@@ -42,12 +49,12 @@ func NewShipper(name string, conn driver.Conn, r redis.UniversalClient) (*Shippe
 func (s *Shipper) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 
-	for i := 0; i < Workers; i++ {
+	for range Workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			if err := s.process(ctx); err != nil {
-				fmt.Printf("Error processing: %v\n", err)
+				fmt.Printf("error processing: %v\n", err)
 			}
 		}()
 	}
@@ -83,6 +90,7 @@ func (s *Shipper) process(ctx context.Context) error {
 				Block:    time.Second * 1,
 			}).Result()
 			if err != nil && err != redis.Nil {
+				s.logger.Error("error reading entries from stream", "error", err)
 				return err
 			}
 
@@ -92,7 +100,10 @@ func (s *Shipper) process(ctx context.Context) error {
 
 				for _, msg := range resultsEntries[0].Messages {
 					var log OsqueryLog
-					if err := json.Unmarshal([]byte(msg.Values["data"].(string)), &log); err != nil {
+					if msg.Values["msg"] == nil {
+						continue
+					}
+					if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
 						fmt.Printf("Error unmarshaling result log: %v\n", err)
 						continue
 					}
@@ -102,10 +113,12 @@ func (s *Shipper) process(ctx context.Context) error {
 
 				if len(batch) > 0 {
 					if err := s.insertResults(ctx, batch); err != nil {
+						s.logger.Error("error inserting results", "error", err)
 						return fmt.Errorf("failed to insert results: %w", err)
 					}
 
 					if err := s.r.XAck(ctx, ResultsStream, fmt.Sprintf("%s-results", s.name), ackIDs...).Err(); err != nil {
+						s.logger.Error("error ack results", "error", err)
 						return fmt.Errorf("failed to acknowledge results: %w", err)
 					}
 				}
@@ -119,6 +132,7 @@ func (s *Shipper) process(ctx context.Context) error {
 				Block:    time.Second * 1,
 			}).Result()
 			if err != nil && err != redis.Nil {
+				s.logger.Error("error reading entries from stream", "error", err)
 				return err
 			}
 
@@ -128,7 +142,10 @@ func (s *Shipper) process(ctx context.Context) error {
 
 				for _, msg := range statusEntries[0].Messages {
 					var log OsqueryLog
-					if err := json.Unmarshal([]byte(msg.Values["data"].(string)), &log); err != nil {
+					if msg.Values["msg"] == nil {
+						continue
+					}
+					if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
 						fmt.Printf("Error unmarshaling status log: %v\n", err)
 						continue
 					}
@@ -138,11 +155,13 @@ func (s *Shipper) process(ctx context.Context) error {
 
 				if len(batch) > 0 {
 					if err := s.insertStatus(ctx, batch); err != nil {
+						s.logger.Error("error inserting status", "error", err)
 						return fmt.Errorf("failed to insert status: %w", err)
 					}
 
 					// Acknowledge processed messages
 					if err := s.r.XAck(ctx, StatusStream, fmt.Sprintf("%s-status", s.name), ackIDs...).Err(); err != nil {
+						s.logger.Error("error ack status", "error", err)
 						return fmt.Errorf("failed to acknowledge status: %w", err)
 					}
 				}
@@ -158,6 +177,7 @@ func (s *Shipper) insertResults(ctx context.Context, logs []OsqueryLog) error {
 	}
 
 	for _, log := range logs {
+		s.logger.Debug("log entry", "columns", string(log.Columns))
 		unixTime := time.Unix(log.UnixTime, 0)
 		if err := batch.Append(
 			log.Action,
