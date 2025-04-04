@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
-	"log/slog"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/redis/go-redis/v9"
@@ -20,9 +20,9 @@ const (
 
 type Shipper struct {
 	logger *slog.Logger
-	name string
-	conn driver.Conn
-	r    redis.UniversalClient
+	name   string
+	conn   driver.Conn
+	r      redis.UniversalClient
 }
 
 func NewShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.UniversalClient) (*Shipper, error) {
@@ -40,9 +40,9 @@ func NewShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.Univ
 
 	return &Shipper{
 		logger: logger.WithGroup("shipper"),
-		name: name,
-		conn: conn,
-		r:    r,
+		name:   name,
+		conn:   conn,
+		r:      r,
 	}, nil
 }
 
@@ -103,6 +103,7 @@ func (s *Shipper) process(ctx context.Context) error {
 					if msg.Values["msg"] == nil {
 						continue
 					}
+					s.logger.Debug("stream message", "data", msg.Values["msg"])
 					if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
 						fmt.Printf("Error unmarshaling result log: %v\n", err)
 						continue
@@ -145,6 +146,7 @@ func (s *Shipper) process(ctx context.Context) error {
 					if msg.Values["msg"] == nil {
 						continue
 					}
+					s.logger.Debug("stream message", "data", msg.Values["msg"])
 					if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
 						fmt.Printf("Error unmarshaling status log: %v\n", err)
 						continue
@@ -188,7 +190,7 @@ func (s *Shipper) insertResults(ctx context.Context, logs []OsqueryLog) error {
 			log.Name,
 			log.Numerics,
 			unixTime,
-			log.Columns,
+			string(log.Columns),
 		); err != nil {
 			return err
 		}
@@ -204,6 +206,7 @@ func (s *Shipper) insertStatus(ctx context.Context, logs []OsqueryLog) error {
 	}
 
 	for _, log := range logs {
+		s.logger.Debug("received json status", "body", log.Columns)
 		unixTime := time.Unix(log.UnixTime, 0)
 		if err := batch.Append(
 			log.Action,
@@ -214,7 +217,7 @@ func (s *Shipper) insertStatus(ctx context.Context, logs []OsqueryLog) error {
 			log.Name,
 			log.Numerics,
 			unixTime,
-			log.Columns,
+			string(log.Columns),
 		); err != nil {
 			return err
 		}

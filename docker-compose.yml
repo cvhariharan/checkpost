@@ -51,7 +51,7 @@ services:
       - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem:ro,Z"
       - "osquery-db:/var/osquery/osquery.db"
     environment:
-      - ENROLLMENT_SECRET=c7af71dafa853cfb03595d6f3ae9ee7e
+      - ENROLLMENT_SECRET=secret-key
     command:
       [
         "osqueryd",

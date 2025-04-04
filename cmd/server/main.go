@@ -72,7 +72,7 @@ func main() {
 	}
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"localhost:9000"},
+		Addr: []string{k.String("clickhouse.host")},
 		Auth: clickhouse.Auth{
 			Database: k.String("clickhouse.db"),
 			Username: k.String("clickhouse.user"),
@@ -92,7 +92,6 @@ func main() {
 	if err := runCHMigration(); err != nil {
 		log.Fatalf("could not complete clickhouse migration: %v", err)
 	}
-
 
 	var pq repo.PreparedQueries
 	queries := goyesql.MustParseFile("queries.sql")
@@ -114,11 +113,12 @@ func main() {
 	})
 	defer redisClient.Close()
 
-	go runShipper(logger, conn, redisClient)
 	logqueuer := logqueue.NewStreamLogger(logger, redisClient)
 
 	c := core.NewCore(logger, s, logqueuer)
 	e := echo.New()
+
+	go runShipper(logger, conn, redisClient)
 
 	h := handlers.NewHandler(logger, cfg.AppConfig, c)
 	e.Renderer = handlers.NewTemplateRenderer()
@@ -262,15 +262,15 @@ func loadOrCreateConfigFile(configFile string) error {
 }
 
 func runShipper(logger *slog.Logger, conn driver.Conn, r redis.UniversalClient) error {
-	ship, err := shipper.NewShipper(logger, "clickhouse", conn, r)
+	s, err := shipper.NewShipper(logger, "clickhouse", conn, r)
 	if err != nil {
-		logger.Error("could not create shipper", "error", err)
+		logger.Error("error creating shipper", "error", err)
 		return err
 	}
 
-	if err := ship.Run(context.Background()); err != nil {
-		logger.Error("could not run shipper", "error", err)
-		return fmt.Errorf("failed to start shipper: %w", err)
+	if err := s.Run(context.Background()); err != nil {
+		logger.Error("error running shipper", "error", err)
+		return err
 	}
 
 	return nil
