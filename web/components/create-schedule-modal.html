@@ -7,6 +7,7 @@
     title: '',
     interval: 3600,
     platform: 'any',
+    snapshot: false, // Add snapshot property
     error: '',
     isSubmitting: false,
     editMode: false,
@@ -30,7 +31,8 @@
                 query_id: this.selectedQuery,
                 title: this.title,
                 interval: parseInt(this.interval),
-                platform: this.platform
+                platform: this.platform,
+                snapshot: this.snapshot // Include snapshot in payload
             };
 
             const url = this.editMode ? `/api/v1/schedule/${this.scheduleId}` : '/api/v1/schedule';
@@ -61,6 +63,7 @@
         this.title = '';
         this.interval = 3600;
         this.platform = 'any';
+        this.snapshot = false; // Reset snapshot
         this.error = '';
         this.editMode = false;
         this.scheduleId = null;
@@ -72,6 +75,7 @@
         this.title = schedule.title;
         this.interval = schedule.interval;
         this.platform = schedule.platform || 'any';
+        this.snapshot = schedule.snapshot || false; // Set snapshot on edit
         this.showModal = true;
         this.fetchQueries();
     },
@@ -259,6 +263,22 @@
                                     <option value="linux">Linux</option>
                                     <option value="windows">Windows</option>
                                 </select>
+                            </div>
+                            <!-- Snapshot Checkbox -->
+                            <div class="flex items-center">
+                                <input
+                                    id="snapshot"
+                                    name="snapshot"
+                                    type="checkbox"
+                                    x-model="snapshot"
+                                    class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                />
+                                <label
+                                    for="snapshot"
+                                    class="ml-2 block text-sm text-primary-700"
+                                >
+                                    Snapshot
+                                </label>
                             </div>
                         </div>
                     </div>

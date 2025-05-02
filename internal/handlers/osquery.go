@@ -188,7 +188,7 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 			Query:    sched.Query.Query,
 			Interval: sched.Interval,
 			Platform: sched.Platform,
-			Snapshot: true,
+			Snapshot: sched.Snapshot,
 		}
 		osc.Schedule[sched.Title] = sc
 	}
