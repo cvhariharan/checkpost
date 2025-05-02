@@ -65,6 +65,7 @@ services:
         "--disable_enrollment=false",
         "--enroll_secret_env=ENROLLMENT_SECRET",
         "--config_refresh=30",
+        "--verbose"
       ]
     extra_hosts:
       - "host.docker.internal:host-gateway"

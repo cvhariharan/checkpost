@@ -143,6 +143,7 @@ type ScheduleConfig struct {
 	Query    string `json:"query"`
 	Interval int    `json:"interval"`
 	Platform string `json:"platform"`
+	Snapshot bool 	`json:"snapshot"`
 }
 
 type OSQueryConfigResponse struct {

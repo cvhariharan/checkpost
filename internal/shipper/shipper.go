@@ -64,16 +64,22 @@ func (s *Shipper) Run(ctx context.Context) error {
 	return nil
 }
 
-type OsqueryLog struct {
-	Action         string          `json:"action"`
-	CalendarTime   string          `json:"calendarTime"`
-	Counter        uint64          `json:"counter"`
-	Epoch          uint64          `json:"epoch"`
-	HostIdentifier string          `json:"hostIdentifier"`
-	Name           string          `json:"name"`
-	Numerics       bool            `json:"numerics"`
-	UnixTime       int64           `json:"unixTime"`
-	Columns        json.RawMessage `json:"columns"`
+type ResultEntry struct {
+	Action         string              `json:"action"`
+	CalendarTime   string              `json:"calendarTime"`
+	Counter        uint64              `json:"counter"`
+	Epoch          uint64              `json:"epoch"`
+	HostIdentifier string              `json:"hostIdentifier"`
+	Name           string              `json:"name"`
+	Numerics       bool                `json:"numerics"`
+	UnixTime       int64               `json:"unixTime"`
+	Columns        []map[string]string `json:"columns"`
+	Snapshot       []map[string]string `json:"snapshot"`
+}
+
+type Results struct {
+	LogType string        `json:"log_type"`
+	Data    []ResultEntry `json:"data"`
 }
 
 func (s *Shipper) process(ctx context.Context) error {
@@ -95,11 +101,11 @@ func (s *Shipper) process(ctx context.Context) error {
 			}
 
 			if len(resultsEntries) > 0 && len(resultsEntries[0].Messages) > 0 {
-				batch := make([]OsqueryLog, 0, len(resultsEntries[0].Messages))
+				batch := make([]ResultEntry, 0, len(resultsEntries[0].Messages))
 				ackIDs := make([]string, 0, len(resultsEntries[0].Messages))
 
 				for _, msg := range resultsEntries[0].Messages {
-					var log OsqueryLog
+					var log Results
 					if msg.Values["msg"] == nil {
 						continue
 					}
@@ -108,11 +114,12 @@ func (s *Shipper) process(ctx context.Context) error {
 						fmt.Printf("Error unmarshaling result log: %v\n", err)
 						continue
 					}
-					batch = append(batch, log)
+					batch = append(batch, log.Data...)
 					ackIDs = append(ackIDs, msg.ID)
 				}
 
 				if len(batch) > 0 {
+					s.logger.Debug("results batch", "batch", batch)
 					if err := s.insertResults(ctx, batch); err != nil {
 						s.logger.Error("error inserting results", "error", err)
 						return fmt.Errorf("failed to insert results: %w", err)
@@ -125,62 +132,35 @@ func (s *Shipper) process(ctx context.Context) error {
 				}
 			}
 
-			statusEntries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
-				Group:    fmt.Sprintf("%s-status", s.name),
-				Consumer: fmt.Sprintf("%s-consumer", s.name),
-				Streams:  []string{StatusStream, ">"},
-				Count:    10,
-				Block:    time.Second * 1,
-			}).Result()
-			if err != nil && err != redis.Nil {
-				s.logger.Error("error reading entries from stream", "error", err)
-				return err
-			}
-
-			if len(statusEntries) > 0 && len(statusEntries[0].Messages) > 0 {
-				batch := make([]OsqueryLog, 0, len(statusEntries[0].Messages))
-				ackIDs := make([]string, 0, len(statusEntries[0].Messages))
-
-				for _, msg := range statusEntries[0].Messages {
-					var log OsqueryLog
-					if msg.Values["msg"] == nil {
-						continue
-					}
-					s.logger.Debug("stream message", "data", msg.Values["msg"])
-					if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
-						fmt.Printf("Error unmarshaling status log: %v\n", err)
-						continue
-					}
-					batch = append(batch, log)
-					ackIDs = append(ackIDs, msg.ID)
-				}
-
-				if len(batch) > 0 {
-					if err := s.insertStatus(ctx, batch); err != nil {
-						s.logger.Error("error inserting status", "error", err)
-						return fmt.Errorf("failed to insert status: %w", err)
-					}
-
-					// Acknowledge processed messages
-					if err := s.r.XAck(ctx, StatusStream, fmt.Sprintf("%s-status", s.name), ackIDs...).Err(); err != nil {
-						s.logger.Error("error ack status", "error", err)
-						return fmt.Errorf("failed to acknowledge status: %w", err)
-					}
-				}
-			}
 		}
 	}
 }
 
-func (s *Shipper) insertResults(ctx context.Context, logs []OsqueryLog) error {
+func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
 	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_results")
 	if err != nil {
 		return err
 	}
 
 	for _, log := range logs {
-		s.logger.Debug("log entry", "columns", string(log.Columns))
 		unixTime := time.Unix(log.UnixTime, 0)
+
+		var colsData any
+		if log.Action == "snapshot" {
+			colsData = log.Snapshot
+		} else {
+			colsData = log.Columns
+		}
+
+		// Wrap the array in an object with a 'data' field
+		wrapper := map[string]any{
+			"data": colsData,
+		}
+
+		cols, err := json.Marshal(wrapper)
+		if err != nil {
+			return err
+		}
 		if err := batch.Append(
 			log.Action,
 			log.CalendarTime,
@@ -190,7 +170,7 @@ func (s *Shipper) insertResults(ctx context.Context, logs []OsqueryLog) error {
 			log.Name,
 			log.Numerics,
 			unixTime,
-			string(log.Columns),
+			cols,
 		); err != nil {
 			return err
 		}
@@ -199,29 +179,29 @@ func (s *Shipper) insertResults(ctx context.Context, logs []OsqueryLog) error {
 	return batch.Send()
 }
 
-func (s *Shipper) insertStatus(ctx context.Context, logs []OsqueryLog) error {
-	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_status")
-	if err != nil {
-		return err
-	}
+// func (s *Shipper) insertStatus(ctx context.Context, logs []OsqueryLog) error {
+// 	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_status")
+// 	if err != nil {
+// 		return err
+// 	}
 
-	for _, log := range logs {
-		s.logger.Debug("received json status", "body", log.Columns)
-		unixTime := time.Unix(log.UnixTime, 0)
-		if err := batch.Append(
-			log.Action,
-			log.CalendarTime,
-			log.Counter,
-			log.Epoch,
-			log.HostIdentifier,
-			log.Name,
-			log.Numerics,
-			unixTime,
-			string(log.Columns),
-		); err != nil {
-			return err
-		}
-	}
+// 	for _, log := range logs {
+// 		s.logger.Debug("received json status", "body", log.Columns)
+// 		unixTime := time.Unix(log.UnixTime, 0)
+// 		if err := batch.Append(
+// 			log.Action,
+// 			log.CalendarTime,
+// 			log.Counter,
+// 			log.Epoch,
+// 			log.HostIdentifier,
+// 			log.Name,
+// 			log.Numerics,
+// 			unixTime,
+// 			string(log.Columns),
+// 		); err != nil {
+// 			return err
+// 		}
+// 	}
 
-	return batch.Send()
-}
+// 	return batch.Send()
+// }
