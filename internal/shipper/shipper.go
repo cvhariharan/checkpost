@@ -145,34 +145,32 @@ func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
 	for _, log := range logs {
 		unixTime := time.Unix(log.UnixTime, 0)
 
-		var colsData any
+		var colsData []map[string]string
 		if log.Action == "snapshot" {
 			colsData = log.Snapshot
 		} else {
 			colsData = log.Columns
 		}
 
-		// Wrap the array in an object with a 'data' field
-		wrapper := map[string]any{
-			"data": colsData,
-		}
+		for _, col := range colsData {
+			c, err := json.Marshal(col)
+			if err != nil {
+				return err
+			}
 
-		cols, err := json.Marshal(wrapper)
-		if err != nil {
-			return err
-		}
-		if err := batch.Append(
-			log.Action,
-			log.CalendarTime,
-			log.Counter,
-			log.Epoch,
-			log.HostIdentifier,
-			log.Name,
-			log.Numerics,
-			unixTime,
-			cols,
-		); err != nil {
-			return err
+			if err := batch.Append(
+				log.Action,
+				log.CalendarTime,
+				log.Counter,
+				log.Epoch,
+				log.HostIdentifier,
+				log.Name,
+				log.Numerics,
+				unixTime,
+				c,
+			); err != nil {
+				return err
+			}
 		}
 	}
 

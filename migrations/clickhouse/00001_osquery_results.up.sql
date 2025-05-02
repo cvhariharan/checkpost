@@ -7,9 +7,14 @@ CREATE TABLE IF NOT EXISTS osquery_results (
     name String,
     numerics Boolean,
     unix_time DateTime64 (0) DEFAULT 0,
-    columns_json JSON
-) ENGINE = MergeTree ()
+    columns JSON
+) ENGINE = ReplacingMergeTree ()
 ORDER BY
-    unix_time
+    (
+        host_identifier,
+        toStartOfHour (unix_time),
+        name,
+        unix_time
+    )
 PARTITION BY
-    toYYYYMM (unix_time)
+    toYYYYMM (unix_time) TTL toDateTime (unix_time) + INTERVAL 6 MONTH DELETE
