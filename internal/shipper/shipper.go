@@ -73,6 +73,34 @@ func (s *Shipper) Run(ctx context.Context) error {
 	return nil
 }
 
+func (s *Shipper) process(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			var eg errgroup.Group
+			eg.Go(func() error {
+				if err := s.processResults(ctx); err != nil {
+					return fmt.Errorf("error processing results: %w", err)
+				}
+				return nil
+			})
+
+			eg.Go(func() error {
+				if err := s.processStatus(ctx); err != nil {
+					return fmt.Errorf("error processing status: %w", err)
+				}
+				return nil
+			})
+
+			if err := eg.Wait(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
 type ResultEntry struct {
 	Action         string              `json:"action"`
 	CalendarTime   string              `json:"calendarTime"`
@@ -89,27 +117,6 @@ type ResultEntry struct {
 type Results struct {
 	LogType string        `json:"log_type"`
 	Data    []ResultEntry `json:"data"`
-}
-
-func (s *Shipper) process(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			var eg errgroup.Group
-			eg.Go(func() error {
-				if err := s.processResults(ctx); err != nil {
-					return fmt.Errorf("error processing results: %w", err)
-				}
-				return nil
-			})
-
-			if err := eg.Wait(); err != nil {
-				return err
-			}
-		}
-	}
 }
 
 func (s *Shipper) processResults(ctx context.Context) error {
@@ -198,29 +205,89 @@ func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
 	return batch.Send()
 }
 
-// func (s *Shipper) insertStatus(ctx context.Context, logs []OsqueryLog) error {
-// 	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_status")
-// 	if err != nil {
-// 		return err
-// 	}
+type StatusEntry struct {
+	CalendarTime   string `json:"calendarTime"`
+	FileName       string `json:"filename"`
+	HostIdentifier string `json:"hostIdentifier"`
+	Line           uint32 `json:"line"`
+	Message        string `json:"message"`
+	Severity       uint   `json:"severity"`
+	UnixTime       int64  `json:"unixTime"`
+	Version        string `json:"version"`
+}
 
-// 	for _, log := range logs {
-// 		s.logger.Debug("received json status", "body", log.Columns)
-// 		unixTime := time.Unix(log.UnixTime, 0)
-// 		if err := batch.Append(
-// 			log.Action,
-// 			log.CalendarTime,
-// 			log.Counter,
-// 			log.Epoch,
-// 			log.HostIdentifier,
-// 			log.Name,
-// 			log.Numerics,
-// 			unixTime,
-// 			string(log.Columns),
-// 		); err != nil {
-// 			return err
-// 		}
-// 	}
+type Statuses struct {
+	LogType string        `json:"log_type"`
+	Data    []StatusEntry `json:"data"`
+}
 
-// 	return batch.Send()
-// }
+func (s *Shipper) processStatus(ctx context.Context) error {
+	statusEntries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    fmt.Sprintf("%s-status", s.name),
+		Consumer: fmt.Sprintf("%s-consumer", s.name),
+		Streams:  []string{StatusStream, ">"},
+		Count:    10,
+		Block:    time.Second * 1,
+	}).Result()
+	if err != nil && err != redis.Nil {
+		s.logger.Error("error reading entries from stream", "error", err)
+		return err
+	}
+
+	if len(statusEntries) > 0 && len(statusEntries[0].Messages) > 0 {
+		batch := make([]StatusEntry, 0, len(statusEntries[0].Messages))
+		ackIDs := make([]string, 0, len(statusEntries[0].Messages))
+
+		for _, msg := range statusEntries[0].Messages {
+			var log Statuses
+			if msg.Values["msg"] == nil {
+				continue
+			}
+			if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
+				fmt.Printf("Error unmarshaling result log: %v\n", err)
+				continue
+			}
+			batch = append(batch, log.Data...)
+			ackIDs = append(ackIDs, msg.ID)
+		}
+
+		if len(batch) > 0 {
+			s.logger.Debug("results batch", "batch", batch)
+			if err := s.insertStatus(ctx, batch); err != nil {
+				return fmt.Errorf("failed to insert results: %w", err)
+			}
+
+			if err := s.r.XAck(ctx, ResultsStream, fmt.Sprintf("%s-results", s.name), ackIDs...).Err(); err != nil {
+				return fmt.Errorf("failed to acknowledge results: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Shipper) insertStatus(ctx context.Context, logs []StatusEntry) error {
+	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_status")
+	if err != nil {
+		return err
+	}
+
+	for _, log := range logs {
+		s.logger.Debug("received json status", "body", log)
+		unixTime := time.Unix(log.UnixTime, 0)
+		if err := batch.Append(
+			log.CalendarTime,
+			log.FileName,
+			log.HostIdentifier,
+			log.Line,
+			log.Message,
+			unixTime,
+			log.Severity,
+			log.Version,
+		); err != nil {
+			return err
+		}
+	}
+
+	return batch.Send()
+}

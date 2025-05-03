@@ -1,15 +1,20 @@
 CREATE TABLE IF NOT EXISTS osquery_status (
-    action LowCardinality (String),
     calendar_time String,
-    counter UInt64,
-    epoch UInt64,
+    file_name LowCardinality (String),
     host_identifier String,
-    name String,
-    numerics Boolean,
+    Line UInt32,
+    message String,
     unix_time DateTime64 (0) DEFAULT 0,
-    columns_json JSON (message String)
-) ENGINE = MergeTree ()
+    Severity UInt8,
+    Version LowCardinality (String),
+    message_hash UInt64 MATERIALIZED cityHash64 (message)
+) ENGINE = ReplacingMergeTree ()
 ORDER BY
-    unix_time
+    (
+        host_identifier,
+        file_name,
+        toStartOfHour (unix_time),
+        message_hash
+    )
 PARTITION BY
-    toYYYYMM (unix_time)
+    toYYYYMM (unix_time) TTL toDateTime (unix_time) + INTERVAL 6 MONTH DELETE

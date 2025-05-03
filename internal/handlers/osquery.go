@@ -202,7 +202,7 @@ func (h *Handler) HandleLog(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "invalid request", err)
 	}
 
-	h.logger.Debug("request", "body", req.Data)
+	h.logger.Debug("request", "log", req)
 
 	if err := h.c.LogResults(c.Request().Context(), req.LogType, req.Data); err != nil {
 		return wrapError(http.StatusInternalServerError, "error writing logs", err)
