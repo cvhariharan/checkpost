@@ -14,6 +14,7 @@ require (
 	github.com/knadh/koanf/v2 v2.1.2
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/redis/go-redis/v9 v9.7.3
+	golang.org/x/sync v0.11.0
 )
 
 require (

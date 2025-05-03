@@ -5,17 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	ResultsStream = "log:result"
 	StatusStream  = "log:status"
-	Workers       = 4
+
+	// Workers is the maximum worker threads that will be used for processing results and status.
+	// This will never exceed the max, it may be less than the actual value. The total count is divided
+	// in half when workers are created. Each worker internal creates 2 workers to process results and status.
+	Workers = 4
 )
 
 type Shipper struct {
@@ -47,19 +51,24 @@ func NewShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.Univ
 }
 
 func (s *Shipper) Run(ctx context.Context) error {
-	var wg sync.WaitGroup
+	var eg errgroup.Group
 
-	for range Workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := s.process(ctx); err != nil {
-				fmt.Printf("error processing: %v\n", err)
-			}
-		}()
+	if Workers < 2 {
+		return fmt.Errorf("expected atleast 2 workers, got %d", Workers)
 	}
 
-	wg.Wait()
+	for range Workers / 2 {
+		eg.Go(func() error {
+			if err := s.process(ctx); err != nil {
+				return fmt.Errorf("error processing logs: %w", err)
+			}
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -88,52 +97,64 @@ func (s *Shipper) process(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			resultsEntries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
-				Group:    fmt.Sprintf("%s-results", s.name),
-				Consumer: fmt.Sprintf("%s-consumer", s.name),
-				Streams:  []string{ResultsStream, ">"},
-				Count:    10,
-				Block:    time.Second * 1,
-			}).Result()
-			if err != nil && err != redis.Nil {
-				s.logger.Error("error reading entries from stream", "error", err)
+			var eg errgroup.Group
+			eg.Go(func() error {
+				if err := s.processResults(ctx); err != nil {
+					return fmt.Errorf("error processing results: %w", err)
+				}
+				return nil
+			})
+
+			if err := eg.Wait(); err != nil {
 				return err
 			}
-
-			if len(resultsEntries) > 0 && len(resultsEntries[0].Messages) > 0 {
-				batch := make([]ResultEntry, 0, len(resultsEntries[0].Messages))
-				ackIDs := make([]string, 0, len(resultsEntries[0].Messages))
-
-				for _, msg := range resultsEntries[0].Messages {
-					var log Results
-					if msg.Values["msg"] == nil {
-						continue
-					}
-					s.logger.Debug("stream message", "data", msg.Values["msg"])
-					if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
-						fmt.Printf("Error unmarshaling result log: %v\n", err)
-						continue
-					}
-					batch = append(batch, log.Data...)
-					ackIDs = append(ackIDs, msg.ID)
-				}
-
-				if len(batch) > 0 {
-					s.logger.Debug("results batch", "batch", batch)
-					if err := s.insertResults(ctx, batch); err != nil {
-						s.logger.Error("error inserting results", "error", err)
-						return fmt.Errorf("failed to insert results: %w", err)
-					}
-
-					if err := s.r.XAck(ctx, ResultsStream, fmt.Sprintf("%s-results", s.name), ackIDs...).Err(); err != nil {
-						s.logger.Error("error ack results", "error", err)
-						return fmt.Errorf("failed to acknowledge results: %w", err)
-					}
-				}
-			}
-
 		}
 	}
+}
+
+func (s *Shipper) processResults(ctx context.Context) error {
+	resultsEntries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    fmt.Sprintf("%s-results", s.name),
+		Consumer: fmt.Sprintf("%s-consumer", s.name),
+		Streams:  []string{ResultsStream, ">"},
+		Count:    10,
+		Block:    time.Second * 1,
+	}).Result()
+	if err != nil && err != redis.Nil {
+		s.logger.Error("error reading entries from stream", "error", err)
+		return err
+	}
+
+	if len(resultsEntries) > 0 && len(resultsEntries[0].Messages) > 0 {
+		batch := make([]ResultEntry, 0, len(resultsEntries[0].Messages))
+		ackIDs := make([]string, 0, len(resultsEntries[0].Messages))
+
+		for _, msg := range resultsEntries[0].Messages {
+			var log Results
+			if msg.Values["msg"] == nil {
+				continue
+			}
+			if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
+				fmt.Printf("Error unmarshaling result log: %v\n", err)
+				continue
+			}
+			batch = append(batch, log.Data...)
+			ackIDs = append(ackIDs, msg.ID)
+		}
+
+		if len(batch) > 0 {
+			s.logger.Debug("results batch", "batch", batch)
+			if err := s.insertResults(ctx, batch); err != nil {
+				return fmt.Errorf("failed to insert results: %w", err)
+			}
+
+			if err := s.r.XAck(ctx, ResultsStream, fmt.Sprintf("%s-results", s.name), ackIDs...).Err(); err != nil {
+				return fmt.Errorf("failed to acknowledge results: %w", err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
