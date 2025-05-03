@@ -119,11 +119,45 @@ type Results struct {
 	Data    []ResultEntry `json:"data"`
 }
 
-func (s *Shipper) processResults(ctx context.Context) error {
-	resultsEntries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
-		Group:    fmt.Sprintf("%s-results", s.name),
+type StatusEntry struct {
+	CalendarTime   string `json:"calendarTime"`
+	FileName       string `json:"filename"`
+	HostIdentifier string `json:"hostIdentifier"`
+	Line           uint32 `json:"line"`
+	Message        string `json:"message"`
+	Severity       uint   `json:"severity"`
+	UnixTime       int64  `json:"unixTime"`
+	Version        string `json:"version"`
+}
+
+type Statuses struct {
+	LogType string        `json:"log_type"`
+	Data    []StatusEntry `json:"data"`
+}
+
+type LogEntry interface {
+	ResultEntry | StatusEntry
+}
+
+type LogData[T LogEntry] interface {
+	*Results | *Statuses
+	GetData() []T
+}
+
+func (r *Results) GetData() []ResultEntry {
+	return r.Data
+}
+
+func (s *Statuses) GetData() []StatusEntry {
+	return s.Data
+}
+
+// processEntries is a generic function that processes entries from a Redis stream
+func processEntries[T LogEntry, D LogData[T]](s *Shipper, ctx context.Context, stream string, groupSuffix string, newLogData func() D, insertFunc func(context.Context, []T) error) error {
+	entries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group:    fmt.Sprintf("%s-%s", s.name, groupSuffix),
 		Consumer: fmt.Sprintf("%s-consumer", s.name),
-		Streams:  []string{ResultsStream, ">"},
+		Streams:  []string{stream, ">"},
 		Count:    10,
 		Block:    time.Second * 1,
 	}).Result()
@@ -132,36 +166,58 @@ func (s *Shipper) processResults(ctx context.Context) error {
 		return err
 	}
 
-	if len(resultsEntries) > 0 && len(resultsEntries[0].Messages) > 0 {
-		batch := make([]ResultEntry, 0, len(resultsEntries[0].Messages))
-		ackIDs := make([]string, 0, len(resultsEntries[0].Messages))
+	if len(entries) > 0 && len(entries[0].Messages) > 0 {
+		batch := make([]T, 0, len(entries[0].Messages))
+		ackIDs := make([]string, 0, len(entries[0].Messages))
 
-		for _, msg := range resultsEntries[0].Messages {
-			var log Results
+		for _, msg := range entries[0].Messages {
+			logData := newLogData()
 			if msg.Values["msg"] == nil {
 				continue
 			}
-			if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
-				fmt.Printf("Error unmarshaling result log: %v\n", err)
+			if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), logData); err != nil {
+				fmt.Printf("Error unmarshaling log: %v\n", err)
 				continue
 			}
-			batch = append(batch, log.Data...)
+			batch = append(batch, logData.GetData()...)
 			ackIDs = append(ackIDs, msg.ID)
 		}
 
 		if len(batch) > 0 {
-			s.logger.Debug("results batch", "batch", batch)
-			if err := s.insertResults(ctx, batch); err != nil {
-				return fmt.Errorf("failed to insert results: %w", err)
+			s.logger.Debug("batch", "batch", batch)
+			if err := insertFunc(ctx, batch); err != nil {
+				return fmt.Errorf("failed to insert data: %w", err)
 			}
 
-			if err := s.r.XAck(ctx, ResultsStream, fmt.Sprintf("%s-results", s.name), ackIDs...).Err(); err != nil {
-				return fmt.Errorf("failed to acknowledge results: %w", err)
+			if err := s.r.XAck(ctx, stream, fmt.Sprintf("%s-%s", s.name, groupSuffix), ackIDs...).Err(); err != nil {
+				return fmt.Errorf("failed to acknowledge data: %w", err)
 			}
 		}
 	}
 
 	return nil
+}
+
+func (s *Shipper) processResults(ctx context.Context) error {
+	return processEntries(
+		s,
+		ctx,
+		ResultsStream,
+		"results",
+		func() *Results { return &Results{} },
+		s.insertResults,
+	)
+}
+
+func (s *Shipper) processStatus(ctx context.Context) error {
+	return processEntries(
+		s,
+		ctx,
+		StatusStream,
+		"status",
+		func() *Statuses { return &Statuses{} },
+		s.insertStatus,
+	)
 }
 
 func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
@@ -203,67 +259,6 @@ func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
 	}
 
 	return batch.Send()
-}
-
-type StatusEntry struct {
-	CalendarTime   string `json:"calendarTime"`
-	FileName       string `json:"filename"`
-	HostIdentifier string `json:"hostIdentifier"`
-	Line           uint32 `json:"line"`
-	Message        string `json:"message"`
-	Severity       uint   `json:"severity"`
-	UnixTime       int64  `json:"unixTime"`
-	Version        string `json:"version"`
-}
-
-type Statuses struct {
-	LogType string        `json:"log_type"`
-	Data    []StatusEntry `json:"data"`
-}
-
-func (s *Shipper) processStatus(ctx context.Context) error {
-	statusEntries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
-		Group:    fmt.Sprintf("%s-status", s.name),
-		Consumer: fmt.Sprintf("%s-consumer", s.name),
-		Streams:  []string{StatusStream, ">"},
-		Count:    10,
-		Block:    time.Second * 1,
-	}).Result()
-	if err != nil && err != redis.Nil {
-		s.logger.Error("error reading entries from stream", "error", err)
-		return err
-	}
-
-	if len(statusEntries) > 0 && len(statusEntries[0].Messages) > 0 {
-		batch := make([]StatusEntry, 0, len(statusEntries[0].Messages))
-		ackIDs := make([]string, 0, len(statusEntries[0].Messages))
-
-		for _, msg := range statusEntries[0].Messages {
-			var log Statuses
-			if msg.Values["msg"] == nil {
-				continue
-			}
-			if err := json.Unmarshal([]byte(msg.Values["msg"].(string)), &log); err != nil {
-				fmt.Printf("Error unmarshaling result log: %v\n", err)
-				continue
-			}
-			batch = append(batch, log.Data...)
-			ackIDs = append(ackIDs, msg.ID)
-		}
-
-		if len(batch) > 0 {
-			s.logger.Debug("results batch", "batch", batch)
-			if err := s.insertStatus(ctx, batch); err != nil {
-				return fmt.Errorf("failed to insert results: %w", err)
-			}
-
-			if err := s.r.XAck(ctx, ResultsStream, fmt.Sprintf("%s-results", s.name), ackIDs...).Err(); err != nil {
-				return fmt.Errorf("failed to acknowledge results: %w", err)
-			}
-		}
-	}
-
-	return nil
 }
 
 func (s *Shipper) insertStatus(ctx context.Context, logs []StatusEntry) error {
