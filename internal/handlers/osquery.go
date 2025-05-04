@@ -19,18 +19,18 @@ const (
 func (h *Handler) HandleEnrollment(c echo.Context) error {
 	var req EnrollmentRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid enrollment request", err)
+		return wrapError(http.StatusBadRequest, "invalid enrollment request", err, EnrollmentResponse{NodeInvalid: true})
 	}
 
 	SanitizeStruct(&req)
 
 	if req.EnrollSecret != h.cfg.EnrollmentKey {
-		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"))
+		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"), EnrollmentResponse{NodeInvalid: true})
 	}
 
 	nodeKey, err := h.c.EnrollNode(c.Request().Context(), req.ToNodeModel())
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "could not enroll node", err)
+		return wrapError(http.StatusInternalServerError, "could not enroll node", err, EnrollmentResponse{NodeInvalid: true})
 	}
 
 	return c.JSON(http.StatusOK, EnrollmentResponse{
@@ -42,12 +42,12 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 func (h *Handler) HandleCreateQuery(c echo.Context) error {
 	var req CreateQueryRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid create query request", err)
+		return wrapError(http.StatusInternalServerError, "invalid create query request", err, nil)
 	}
 	SanitizeStruct(&req)
 
 	if req.Query == "" {
-		return wrapError(http.StatusBadRequest, "query cannot be empty", fmt.Errorf("empty query"))
+		return wrapError(http.StatusBadRequest, "query cannot be empty", fmt.Errorf("empty query"), nil)
 	}
 
 	sqlKeywords := []string{"SELECT", "FROM", "WHERE", "JOIN", "ORDER BY", "GROUP BY", "HAVING", "LIMIT", "INSERT", "UPDATE", "DELETE"}
@@ -61,12 +61,12 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 	}
 
 	if !validSQL {
-		return wrapError(http.StatusBadRequest, "invalid SQL query", fmt.Errorf("query does not appear to be valid SQL"))
+		return wrapError(http.StatusBadRequest, "invalid SQL query", fmt.Errorf("query does not appear to be valid SQL"), nil)
 	}
 
 	q, err := h.c.CreateQuery(c.Request().Context(), req.Title, req.Query, req.Description)
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "error creating query", err)
+		return wrapError(http.StatusInternalServerError, "error creating query", err, nil)
 	}
 
 	resp := CreateResponse{
@@ -79,11 +79,11 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 func (h *Handler) HandleQueriesPagination(c echo.Context) error {
 	var req PaginateRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err)
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
 
 	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"))
+		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
 	}
 
 	if req.Page > 0 {
@@ -96,7 +96,7 @@ func (h *Handler) HandleQueriesPagination(c echo.Context) error {
 
 	queries, totalCount, pageCount, err := h.c.PaginateQueries(c.Request().Context(), req.Page, req.Count)
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "could not get queries", err)
+		return wrapError(http.StatusInternalServerError, "could not get queries", err, nil)
 	}
 
 	return c.JSON(http.StatusOK, PaginateQueriesResponse{
@@ -109,16 +109,16 @@ func (h *Handler) HandleQueriesPagination(c echo.Context) error {
 func (h *Handler) HandleGetQuery(c echo.Context) error {
 	var req GetRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err)
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
 
 	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
 	q, err := h.c.GetQuery(c.Request().Context(), req.ID)
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting query %s", req.ID), err)
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting query %s", req.ID), err, nil)
 	}
 
 	return c.JSON(http.StatusOK, q)
@@ -127,15 +127,15 @@ func (h *Handler) HandleGetQuery(c echo.Context) error {
 func (h *Handler) HandleDeleteQuery(c echo.Context) error {
 	var req GetRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err)
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
 
 	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
 	if err := h.c.DeleteQuery(c.Request().Context(), req.ID); err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting query %s", req.ID), err)
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting query %s", req.ID), err, nil)
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -144,16 +144,16 @@ func (h *Handler) HandleDeleteQuery(c echo.Context) error {
 func (h *Handler) HandleUpdateQuery(c echo.Context) error {
 	var req UpdateQueryRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err)
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
 
 	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"))
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
 	q, err := h.c.UpdateQuery(c.Request().Context(), req.ID, req.Title, req.Query, req.Description)
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating query %s", req.ID), err)
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating query %s", req.ID), err, nil)
 	}
 
 	return c.JSON(http.StatusOK, q)
@@ -162,20 +162,20 @@ func (h *Handler) HandleUpdateQuery(c echo.Context) error {
 func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 	var req ConfigRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err)
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
 
 	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err)
+		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
 	if _, err := h.c.GetNode(c.Request().Context(), req.NodeKey); err != nil {
-		return wrapError(http.StatusBadRequest, "error getting node details", err)
+		return wrapError(http.StatusBadRequest, "error getting node details", err, EnrollmentResponse{NodeInvalid: true})
 	}
 
 	s, _, _, err := h.c.PaginateSchedules(c.Request().Context(), 0, ScheduleMax)
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "error getting schedules", err)
+		return wrapError(http.StatusInternalServerError, "error getting schedules", err, nil)
 	}
 
 	h.logger.Debug("config", "response", s)
@@ -199,13 +199,13 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 func (h *Handler) HandleLog(c echo.Context) error {
 	var req LogRequest
 	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err)
+		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
 	}
 
 	h.logger.Debug("request", "log", req)
 
 	if err := h.c.LogResults(c.Request().Context(), req.LogType, req.Data); err != nil {
-		return wrapError(http.StatusInternalServerError, "error writing logs", err)
+		return wrapError(http.StatusInternalServerError, "error writing logs", err, nil)
 	}
 
 	return c.NoContent(http.StatusOK)

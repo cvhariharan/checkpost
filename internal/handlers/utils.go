@@ -73,24 +73,26 @@ func SanitizeStruct(obj interface{}) {
 }
 
 type HTTPError struct {
-	code int
-	msg  string
-	err  error
-	file string
-	line int
+	code           int
+	msg            string
+	err            error
+	file           string
+	line           int
+	customResponse interface{}
 }
 
 func (h *HTTPError) Error() string {
 	return h.err.Error()
 }
 
-func wrapError(code int, msg string, err error) error {
+func wrapError(code int, msg string, err error, customResponse interface{}) error {
 	he := &HTTPError{
-		code: code,
-		msg:  msg,
-		err:  err,
-		file: "unknown",
-		line: -1,
+		code:           code,
+		msg:            msg,
+		err:            err,
+		file:           "unknown",
+		line:           -1,
+		customResponse: customResponse,
 	}
 	_, f, l, ok := runtime.Caller(1)
 	if ok {

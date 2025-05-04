@@ -16,6 +16,9 @@ type Core struct {
 	logqueuer *logqueue.StreamLogger
 }
 
+// systemSchedules is a list of scheduled queries created by watcher itself
+var systemSchedules []string
+
 func NewCore(logger *slog.Logger, store *repo.Store, logqueuer *logqueue.StreamLogger) *Core {
 	return &Core{store: store, logger: logger.WithGroup("core"), logqueuer: logqueuer}
 }

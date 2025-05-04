@@ -46,12 +46,14 @@ func (h *Handler) ErrorHandler(err error, c echo.Context) {
 	file := "unknown"
 	line := -1
 	msg := "error processing the request"
+	var customResponse interface{}
 	if he, ok := err.(*HTTPError); ok {
 		code = he.code
 		msg = he.msg
 		err = he.err
 		file = he.file
 		line = he.line
+		customResponse = he.customResponse
 	}
 
 	h.logger.Error("error processing request",
@@ -70,9 +72,13 @@ func (h *Handler) ErrorHandler(err error, c echo.Context) {
 				"error", err)
 		}
 	} else {
-		c.JSON(code, map[string]string{
-			"error": msg,
-		})
+		if customResponse != nil {
+			c.JSON(code, customResponse)
+		} else {
+			c.JSON(code, map[string]string{
+				"error": msg,
+			})
+		}
 	}
 }
 

@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS queries (
     uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
     title TEXT NOT NULL,
     query TEXT NOT NULL,
+    is_system_query BOOLEAN NOT NULL DEFAULT false,
     description TEXT
 );
 
@@ -115,11 +116,12 @@ CREATE TABLE IF NOT EXISTS schedules (
     query_id_fk INT NOT NULL,
     interval INT NOT NULL,
     platform platform_type NOT NULL DEFAULT 'all',
-    version TEXT,
-    shard INT,
+    version TEXT NOT NULL DEFAULT '',
+    shard INT NOT NULL DEFAULT 100,
     denylist BOOLEAN NOT NULL DEFAULT true,
     removed BOOLEAN NOT NULL DEFAULT true,
     snapshot BOOLEAN NOT NULL DEFAULT false,
+    is_system_schedule BOOLEAN NOT NULL DEFAULT false,
     FOREIGN KEY (query_id_fk) REFERENCES queries (id)
 );
 

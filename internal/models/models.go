@@ -77,26 +77,28 @@ type HostDetailsInfo struct {
 }
 
 type Query struct {
-	ID          string `json:"-" db:"id"`
-	UUID        string `json:"uuid" db:"uuid"`
-	Title       string `json:"title" db:"title"`
-	Query       string `json:"query" db:"query"`
-	Description string `json:"description" db:"description"`
+	ID            string `json:"-" db:"id"`
+	UUID          string `json:"uuid" db:"uuid"`
+	Title         string `json:"title" db:"title"`
+	Query         string `json:"query" db:"query"`
+	IsSystemQuery bool   `json:"is_system_query" db:"is_system_query"`
+	Description   string `json:"description" db:"description"`
 }
 
 type Schedule struct {
-	Query    Query  `json:"query"`
-	Query_ID int    `json:"-" db:"query_id_fk"`
-	ID       string `json:"-" db:"id"`
-	UUID     string `json:"uuid" db:"uuid"`
-	Title    string `json:"title" db:"title"`
-	Interval int    `json:"interval" db:"interval"`
-	Removed  bool   `json:"removed" db:"removed"`
-	Snapshot bool   `json:"snapshot" db:"snapshot"`
-	Platform string `json:"platform" db:"platform"`
-	Version  string `json:"version" db:"version"`
-	Shard    int    `json:"shard" db:"shard"`
-	Denylist bool   `json:"denylist" db:"denylist"`
+	Query            Query  `json:"query"`
+	Query_ID         int    `json:"-" db:"query_id_fk"`
+	ID               string `json:"-" db:"id"`
+	UUID             string `json:"uuid" db:"uuid"`
+	Title            string `json:"title" db:"title"`
+	Interval         int    `json:"interval" db:"interval"`
+	Removed          bool   `json:"removed" db:"removed"`
+	Snapshot         bool   `json:"snapshot" db:"snapshot"`
+	Platform         string `json:"platform" db:"platform"`
+	Version          string `json:"version" db:"version"`
+	Shard            int    `json:"shard" db:"shard"`
+	IsSystemSchedule bool   `json:"is_system_schedule" db:"is_system_schedule"`
+	Denylist         bool   `json:"denylist" db:"denylist"`
 }
 
 type Pack struct {
