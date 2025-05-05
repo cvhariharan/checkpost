@@ -14,8 +14,9 @@ const (
 )
 
 type LogMsg struct {
-	LogType string                   `json:"log_type"`
-	Data    []map[string]interface{} `json:"data"`
+	LogType   string                   `json:"log_type"`
+	Data      []map[string]interface{} `json:"data"`
+	SystemLog bool                     `json:"system_message"`
 }
 
 type StreamLogger struct {

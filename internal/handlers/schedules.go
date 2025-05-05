@@ -25,7 +25,7 @@ func (h *Handler) HandleCreateSchedule(c echo.Context) error {
 		Snapshot: req.Snapshot,
 		Platform: req.Platform,
 		Version:  req.Version,
-		Shard:    req.Shard,
+		Shard:    100,
 		Denylist: req.Denylist,
 	}, req.QueryID)
 	if err != nil {
@@ -120,7 +120,7 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 		Snapshot: req.Snapshot,
 		Platform: req.Platform,
 		Version:  req.Version,
-		Shard:    req.Shard,
+		Shard:    100,
 		Denylist: req.Denylist,
 	}, req.QueryID)
 	if err != nil {

@@ -4,13 +4,13 @@ INSERT INTO
 VALUES
     (
         'Disk Usage POSIX',
-        'SELECT path, type, ROUND((blocks_available * blocks_size * 10e-10), 2) AS free_gb, ROUND ((blocks_available * 1.0 / blocks * 1.0) * 100, 2) AS free_perc FROM mounts WHERE path = ''/'';',
+        'SELECT path, type, ROUND((blocks_available * blocks_size * 10e-10), 2) AS free_gb, ROUND((blocks * blocks_size * 10e-10), 2) AS total_gb, ROUND ((blocks_available * 1.0 / blocks * 1.0) * 100, 2) AS free_perc FROM mounts WHERE path = ''/'';',
         'Retrieves disk usage information for the root mount point (POSIX)',
         TRUE
     ),
     (
         'Disk Usage Windows',
-        'SELECT device_id AS path, type, (free_space * 10e-10) AS free_gb, ROUND((free_space * 1.0 / size * 1.0) * 100, 2) AS free_perc FROM logical_drives WHERE device_id = ''C:'';',
+        'SELECT device_id AS path, type, (free_space * 10e-10) AS free_gb, (size * 10e-10) AS total_gb, ROUND((free_space * 1.0 / size * 1.0) * 100, 2) AS free_perc FROM logical_drives WHERE device_id = ''C:'';',
         'Retrieves disk usage information for the C: drive (Windows)',
         TRUE
     );

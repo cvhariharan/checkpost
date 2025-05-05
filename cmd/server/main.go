@@ -115,7 +115,11 @@ func main() {
 
 	logqueuer := logqueue.NewStreamLogger(logger, redisClient)
 
-	c := core.NewCore(logger, s, logqueuer)
+	c, err := core.NewCore(logger, s, logqueuer)
+	if err != nil {
+		log.Fatalf("could not initialize core: %v", err)
+	}
+
 	e := echo.New()
 
 	go runShipper(logger, conn, redisClient)
@@ -262,7 +266,7 @@ func loadOrCreateConfigFile(configFile string) error {
 }
 
 func runShipper(logger *slog.Logger, conn driver.Conn, r redis.UniversalClient) error {
-	s, err := shipper.NewShipper(logger, "clickhouse", conn, r)
+	s, err := shipper.NewClickhouseShipper(logger, "clickhouse", conn, r)
 	if err != nil {
 		logger.Error("error creating shipper", "error", err)
 		return err

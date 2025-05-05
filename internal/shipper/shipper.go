@@ -22,27 +22,39 @@ const (
 	Workers = 4
 )
 
-type Shipper struct {
+type Shipper interface {
+	Run(ctx context.Context) error
+}
+
+type ClickhouseShipper struct {
 	logger *slog.Logger
 	name   string
 	conn   driver.Conn
 	r      redis.UniversalClient
 }
 
-func NewShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.UniversalClient) (*Shipper, error) {
-	if err := r.XGroupCreate(context.Background(), ResultsStream, fmt.Sprintf("%s-results", name), "0").Err(); err != nil {
+func NewClickhouseShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.UniversalClient) (Shipper, error) {
+	// Create consumer groups for results stream if it doesn't exist
+	resultsGroup := fmt.Sprintf("%s-results", name)
+	err := r.XGroupCreateMkStream(context.Background(), ResultsStream, resultsGroup, "0").Err()
+	if err != nil {
+		// Ignore error if group already exists
 		if err.Error() != "BUSYGROUP Consumer Group name already exists" {
-			return nil, err
+			return nil, fmt.Errorf("failed to create results consumer group: %w", err)
 		}
 	}
 
-	if err := r.XGroupCreate(context.Background(), StatusStream, fmt.Sprintf("%s-status", name), "0").Err(); err != nil {
+	// Create consumer groups for status stream if it doesn't exist
+	statusGroup := fmt.Sprintf("%s-status", name)
+	err = r.XGroupCreateMkStream(context.Background(), StatusStream, statusGroup, "0").Err()
+	if err != nil {
+		// Ignore error if group already exists
 		if err.Error() != "BUSYGROUP Consumer Group name already exists" {
-			return nil, err
+			return nil, fmt.Errorf("failed to create status consumer group: %w", err)
 		}
 	}
 
-	return &Shipper{
+	return &ClickhouseShipper{
 		logger: logger.WithGroup("shipper"),
 		name:   name,
 		conn:   conn,
@@ -50,7 +62,7 @@ func NewShipper(logger *slog.Logger, name string, conn driver.Conn, r redis.Univ
 	}, nil
 }
 
-func (s *Shipper) Run(ctx context.Context) error {
+func (s *ClickhouseShipper) Run(ctx context.Context) error {
 	var eg errgroup.Group
 
 	if Workers < 2 {
@@ -73,7 +85,7 @@ func (s *Shipper) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *Shipper) process(ctx context.Context) error {
+func (s *ClickhouseShipper) process(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -153,7 +165,7 @@ func (s *Statuses) GetData() []StatusEntry {
 }
 
 // processEntries is a generic function that processes entries from a Redis stream
-func processEntries[T LogEntry, D LogData[T]](s *Shipper, ctx context.Context, stream string, groupSuffix string, newLogData func() D, insertFunc func(context.Context, []T) error) error {
+func processEntries[T LogEntry, D LogData[T]](s *ClickhouseShipper, ctx context.Context, stream string, groupSuffix string, newLogData func() D, insertFunc func(context.Context, []T) error) error {
 	entries, err := s.r.XReadGroup(ctx, &redis.XReadGroupArgs{
 		Group:    fmt.Sprintf("%s-%s", s.name, groupSuffix),
 		Consumer: fmt.Sprintf("%s-consumer", s.name),
@@ -198,7 +210,7 @@ func processEntries[T LogEntry, D LogData[T]](s *Shipper, ctx context.Context, s
 	return nil
 }
 
-func (s *Shipper) processResults(ctx context.Context) error {
+func (s *ClickhouseShipper) processResults(ctx context.Context) error {
 	return processEntries(
 		s,
 		ctx,
@@ -209,7 +221,7 @@ func (s *Shipper) processResults(ctx context.Context) error {
 	)
 }
 
-func (s *Shipper) processStatus(ctx context.Context) error {
+func (s *ClickhouseShipper) processStatus(ctx context.Context) error {
 	return processEntries(
 		s,
 		ctx,
@@ -220,7 +232,7 @@ func (s *Shipper) processStatus(ctx context.Context) error {
 	)
 }
 
-func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
+func (s *ClickhouseShipper) insertResults(ctx context.Context, logs []ResultEntry) error {
 	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_results")
 	if err != nil {
 		return err
@@ -261,7 +273,7 @@ func (s *Shipper) insertResults(ctx context.Context, logs []ResultEntry) error {
 	return batch.Send()
 }
 
-func (s *Shipper) insertStatus(ctx context.Context, logs []StatusEntry) error {
+func (s *ClickhouseShipper) insertStatus(ctx context.Context, logs []StatusEntry) error {
 	batch, err := s.conn.PrepareBatch(ctx, "INSERT INTO osquery_status")
 	if err != nil {
 		return err

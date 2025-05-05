@@ -262,3 +262,6 @@ UPDATE schedules SET
     snapshot = $9
 WHERE uuid = $10
 RETURNING *;
+
+-- name: get-system-schedules
+SELECT title FROM schedules WHERE is_system_schedule = true;

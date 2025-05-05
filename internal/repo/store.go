@@ -43,6 +43,8 @@ type PreparedQueries struct {
 	GetSchedule          *sqlx.Stmt `query:"get-schedule-by-uuid"`
 	DeleteScheduleByUUID *sqlx.Stmt `query:"delete-schedule-by-uuid"`
 	UpdateScheduleByUUID *sqlx.Stmt `query:"update-schedule-by-uuid"`
+
+	GetSystemSchedules *sqlx.Stmt `query:"get-system-schedules"`
 }
 
 // Store represents the database store
@@ -390,4 +392,12 @@ func (s *Store) UpdateSchedule(ctx context.Context, schedule models.Schedule, qu
 	}
 
 	return q, nil
+}
+
+func (s *Store) GetSystemSchedules(ctx context.Context) ([]string, error) {
+	var scheds []string
+	if err := s.queries.GetSystemSchedules.Select(&scheds); err != nil {
+		return nil, fmt.Errorf("error getting system schedules: %w", err)
+	}
+	return scheds, nil
 }

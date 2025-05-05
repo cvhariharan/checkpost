@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS nodes (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4 (),
-    host_identifier TEXT,
+    host_identifier TEXT NOT NULL,
     os_name TEXT,
     created_at TIMESTAMP
     WITH

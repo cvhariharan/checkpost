@@ -10,17 +10,28 @@ import (
 	"github.com/cvhariharan/watcher/internal/repo"
 )
 
+const MaxLogCount = 1000
+
 type Core struct {
 	store     *repo.Store
 	logger    *slog.Logger
 	logqueuer *logqueue.StreamLogger
+
+	// systemSchedules is a map of scheduled queries created by watcher itself
+	systemSchedulesMap map[string]bool
 }
 
-// systemSchedules is a list of scheduled queries created by watcher itself
-var systemSchedules []string
+func NewCore(logger *slog.Logger, store *repo.Store, logqueuer *logqueue.StreamLogger) (*Core, error) {
+	s, err := store.GetSystemSchedules(context.Background())
+	if err != nil {
+		return nil, err
+	}
 
-func NewCore(logger *slog.Logger, store *repo.Store, logqueuer *logqueue.StreamLogger) *Core {
-	return &Core{store: store, logger: logger.WithGroup("core"), logqueuer: logqueuer}
+	m := make(map[string]bool)
+	for _, sched := range s {
+		m[sched] = true
+	}
+	return &Core{store: store, logger: logger.WithGroup("core"), logqueuer: logqueuer, systemSchedulesMap: m}, nil
 }
 
 func ToNullString(s string) sql.NullString {
@@ -76,5 +87,24 @@ func (c *Core) UpdateSchedule(ctx context.Context, sched models.Schedule, queryI
 }
 
 func (c *Core) LogResults(ctx context.Context, msgType string, data []map[string]interface{}) error {
-	return c.logqueuer.WriteLog(ctx, logqueue.LogMsg{LogType: msgType, Data: data})
+	logsToProcess := data
+	if len(data) > MaxLogCount {
+		logsToProcess = data[:MaxLogCount]
+		c.logger.Warn("log data truncated due to limit", "original_count", len(data), "max_count", MaxLogCount)
+	}
+
+	for _, l := range logsToProcess {
+		var systemLog bool
+		if nameVal, ok := l["name"]; ok {
+			if nameStr, ok := nameVal.(string); ok {
+				if c.systemSchedulesMap[nameStr] {
+					systemLog = true
+				}
+			}
+		}
+		if err := c.logqueuer.WriteLog(ctx, logqueue.LogMsg{LogType: msgType, Data: data, SystemLog: systemLog}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
