@@ -12,6 +12,7 @@
   let loading = true
   let executing = false
   let error = ''
+  let expandedResultRowKey = ''
 
   $: machineId = params.id
 
@@ -64,12 +65,139 @@
   }
 
   function formatResults(results) {
-    if (!results) return 'Awaiting results...'
+    if (results === undefined || results === null) return 'Awaiting results...'
     try {
       return typeof results === 'string' ? results : JSON.stringify(results, null, 2)
     } catch {
       return String(results)
     }
+  }
+
+  function queryResultView(query) {
+    if (query?.results === undefined || query?.results === null) {
+      return { type: 'pending' }
+    }
+
+    return resultView(query.results)
+  }
+
+  function resultView(results) {
+    const parsed = parseStringResult(results)
+    if (parsed !== results) {
+      return resultView(parsed)
+    }
+
+    if (Array.isArray(results)) {
+      if (results.length === 0) {
+        return { type: 'empty', message: 'No rows returned' }
+      }
+
+      if (results.every(isRowObject)) {
+        return tableView(results)
+      }
+
+      return { type: 'fallback', text: formatResults(results) }
+    }
+
+    if (isPlainObject(results)) {
+      for (const key of ['rows', 'results', 'data']) {
+        if (Array.isArray(results[key])) {
+          return resultView(results[key])
+        }
+      }
+
+      if (isRowObject(results)) {
+        return tableView([results])
+      }
+
+      return { type: 'fallback', text: formatResults(results) }
+    }
+
+    return { type: 'fallback', text: formatResults(results) }
+  }
+
+  function tableView(rows) {
+    const columns = resultColumns(rows)
+    if (columns.length === 0) {
+      return { type: 'empty', message: 'Rows returned without columns' }
+    }
+
+    return {
+      type: 'table',
+      rows,
+      columns
+    }
+  }
+
+  function resultColumns(rows) {
+    const seen = new Set()
+    const columns = []
+
+    rows.forEach((row) => {
+      Object.keys(row).forEach((column) => {
+        if (!seen.has(column)) {
+          seen.add(column)
+          columns.push(column)
+        }
+      })
+    })
+
+    return columns
+  }
+
+  function formatCellValue(value) {
+    if (value === undefined) {
+      return ''
+    }
+    if (value === null) {
+      return 'null'
+    }
+    if (typeof value === 'object') {
+      return formatResults(value)
+    }
+
+    return String(value)
+  }
+
+  function resultRowKey(query, rowIndex) {
+    return `${query?.id || query?.timestamp || query?.query || 'query'}:${rowIndex}`
+  }
+
+  function toggleResultRowByKey(key) {
+    expandedResultRowKey = expandedResultRowKey === key ? '' : key
+  }
+
+  function handleResultRowKeydown(event, query, rowIndex) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+    event.preventDefault()
+    toggleResultRowByKey(resultRowKey(query, rowIndex))
+  }
+
+  function parseStringResult(value) {
+    if (typeof value !== 'string') {
+      return value
+    }
+
+    const trimmed = value.trim()
+    if (!trimmed || !['[', '{'].includes(trimmed[0])) {
+      return value
+    }
+
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return value
+    }
+  }
+
+  function isPlainObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+  }
+
+  function isRowObject(value) {
+    return isPlainObject(value) && Object.values(value).every((cell) => cell === null || typeof cell !== 'object')
   }
 
   function isOnline(machine) {
@@ -167,8 +295,8 @@
       <h2>Query History</h2>
       {#each queryHistory as query}
         <article class="card">
-          <div class="hstack justify-between">
-            <code>{query.query}</code>
+          <div class="hstack justify-between query-history-header">
+            <code class="query-text">{query.query}</code>
             <div class="hstack gap-2">
               {#if query.status}
                 <span class="badge" data-variant={query.status === 'complete' ? 'success' : query.status === 'error' ? 'danger' : 'warning'}>{query.status}</span>
@@ -176,7 +304,58 @@
               <small class="text-light">{formatTimestamp(query.timestamp)}</small>
             </div>
           </div>
-          <pre><code>{query.error || formatResults(query.results)}</code></pre>
+          {#if query.error}
+            <pre class="result-fallback"><code>{query.error}</code></pre>
+          {:else}
+            {@const result = queryResultView(query)}
+            {#if result.type === 'pending'}
+              <p class="text-light result-message">Awaiting results...</p>
+            {:else if result.type === 'empty'}
+              <p class="text-light result-message">{result.message}</p>
+            {:else if result.type === 'table'}
+              <div class="table query-results-table">
+                <table>
+                  <thead>
+                    <tr>
+                      {#each result.columns as column}
+                        <th class="result-header">{column}</th>
+                      {/each}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each result.rows as row, rowIndex}
+                      {@const rowKey = resultRowKey(query, rowIndex)}
+                      <tr
+                        class="result-row"
+                        class:expanded-result-row={expandedResultRowKey === rowKey}
+                        data-result-row-key={rowKey}
+                        tabindex="0"
+                        aria-expanded={expandedResultRowKey === rowKey}
+                        title="Click to show full row"
+                        onclick={() => toggleResultRowByKey(rowKey)}
+                        onkeydown={(event) => handleResultRowKeydown(event, query, rowIndex)}
+                      >
+                        {#each result.columns as column}
+                          <td class="result-cell" title={formatCellValue(row[column])}>
+                            <span class="result-cell-content">{formatCellValue(row[column])}</span>
+                          </td>
+                        {/each}
+                      </tr>
+                      {#if expandedResultRowKey === rowKey}
+                        <tr class="result-row-details">
+                          <td colspan={result.columns.length}>
+                            <pre class="result-row-json"><code>{formatResults(row)}</code></pre>
+                          </td>
+                        </tr>
+                      {/if}
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            {:else}
+              <pre class="result-fallback"><code>{result.text}</code></pre>
+            {/if}
+          {/if}
         </article>
       {:else}
         <article class="card align-center text-light">No queries executed yet</article>
@@ -184,3 +363,71 @@
     </section>
   {/if}
 </section>
+
+<style>
+  .query-history-header {
+    align-items: flex-start;
+  }
+
+  .query-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .query-results-table {
+    margin-top: var(--oat-space-3, 1rem);
+  }
+
+  .query-results-table table {
+    width: max-content;
+    min-width: 100%;
+    table-layout: fixed;
+  }
+
+  .result-header,
+  .result-cell {
+    width: 14rem;
+    min-width: 14rem;
+    max-width: 14rem;
+  }
+
+  .expanded-result-row {
+    background-color: rgb(from var(--muted) r g b / .35);
+  }
+
+  .result-row {
+    cursor: pointer;
+  }
+
+  .result-row:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+
+  .result-cell {
+    vertical-align: top;
+  }
+
+  .result-cell-content {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-row-json {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .result-message {
+    margin-top: var(--oat-space-3, 1rem);
+  }
+
+  .result-fallback {
+    margin-top: var(--oat-space-3, 1rem);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+</style>
