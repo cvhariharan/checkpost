@@ -13,28 +13,28 @@ func toModelNode(node repo.Node) models.Node {
 	if node.LastSeenAt.Valid {
 		lastSeen = &node.LastSeenAt.Time
 	}
-	var policyUpdatedAt *time.Time
-	if node.PolicyUpdatedAt.Valid {
-		policyUpdatedAt = &node.PolicyUpdatedAt.Time
+	var lastPolicyCheckAt *time.Time
+	if node.LastPolicyCheckAt.Valid {
+		lastPolicyCheckAt = &node.LastPolicyCheckAt.Time
 	}
 
 	return models.Node{
-		ID:              node.ID,
-		ResourceID:      node.Uuid.String(),
-		UUID:            node.Uuid.String(),
-		NodeKey:         node.NodeKey.String(),
-		HostIdentifier:  node.HostIdentifier,
-		Hostname:        node.Hostname,
-		Platform:        node.Platform,
-		OSName:          node.OsName,
-		OSVersion:       node.OsVersion,
-		OSQueryVersion:  node.OsqueryVersion,
-		HardwareSerial:  node.HardwareSerial,
-		EnrolledAt:      node.EnrolledAt,
-		LastSeenAt:      lastSeen,
-		PolicyUpdatedAt: policyUpdatedAt,
-		CreatedAt:       node.CreatedAt,
-		UpdatedAt:       node.UpdatedAt,
+		ID:                node.ID,
+		ResourceID:        node.Uuid.String(),
+		UUID:              node.Uuid.String(),
+		NodeKey:           node.NodeKey.String(),
+		HostIdentifier:    node.HostIdentifier,
+		Hostname:          node.Hostname,
+		Platform:          node.Platform,
+		OSName:            node.OsName,
+		OSVersion:         node.OsVersion,
+		OSQueryVersion:    node.OsqueryVersion,
+		HardwareSerial:    node.HardwareSerial,
+		EnrolledAt:        node.EnrolledAt,
+		LastSeenAt:        lastSeen,
+		LastPolicyCheckAt: lastPolicyCheckAt,
+		CreatedAt:         node.CreatedAt,
+		UpdatedAt:         node.UpdatedAt,
 	}
 }
 
@@ -43,28 +43,28 @@ func toModelNodeRow(node repo.ListNodesRow) models.Node {
 	if node.LastSeenAt.Valid {
 		lastSeen = &node.LastSeenAt.Time
 	}
-	var policyUpdatedAt *time.Time
-	if node.PolicyUpdatedAt.Valid {
-		policyUpdatedAt = &node.PolicyUpdatedAt.Time
+	var lastPolicyCheckAt *time.Time
+	if node.LastPolicyCheckAt.Valid {
+		lastPolicyCheckAt = &node.LastPolicyCheckAt.Time
 	}
 
 	return models.Node{
-		ID:              node.ID,
-		ResourceID:      node.Uuid.String(),
-		UUID:            node.Uuid.String(),
-		NodeKey:         node.NodeKey.String(),
-		HostIdentifier:  node.HostIdentifier,
-		Hostname:        node.Hostname,
-		Platform:        node.Platform,
-		OSName:          node.OsName,
-		OSVersion:       node.OsVersion,
-		OSQueryVersion:  node.OsqueryVersion,
-		HardwareSerial:  node.HardwareSerial,
-		EnrolledAt:      node.EnrolledAt,
-		LastSeenAt:      lastSeen,
-		PolicyUpdatedAt: policyUpdatedAt,
-		CreatedAt:       node.CreatedAt,
-		UpdatedAt:       node.UpdatedAt,
+		ID:                node.ID,
+		ResourceID:        node.Uuid.String(),
+		UUID:              node.Uuid.String(),
+		NodeKey:           node.NodeKey.String(),
+		HostIdentifier:    node.HostIdentifier,
+		Hostname:          node.Hostname,
+		Platform:          node.Platform,
+		OSName:            node.OsName,
+		OSVersion:         node.OsVersion,
+		OSQueryVersion:    node.OsqueryVersion,
+		HardwareSerial:    node.HardwareSerial,
+		EnrolledAt:        node.EnrolledAt,
+		LastSeenAt:        lastSeen,
+		LastPolicyCheckAt: lastPolicyCheckAt,
+		CreatedAt:         node.CreatedAt,
+		UpdatedAt:         node.UpdatedAt,
 	}
 }
 
@@ -315,22 +315,22 @@ func toModelPolicyMachine(row repo.ListNodesByPolicyResponseRow) models.PolicyMa
 
 	return models.PolicyMachine{
 		Node: models.Node{
-			ID:              row.ID,
-			ResourceID:      row.Uuid.String(),
-			UUID:            row.Uuid.String(),
-			NodeKey:         row.NodeKey.String(),
-			HostIdentifier:  row.HostIdentifier,
-			Hostname:        row.Hostname,
-			Platform:        row.Platform,
-			OSName:          row.OsName,
-			OSVersion:       row.OsVersion,
-			OSQueryVersion:  row.OsqueryVersion,
-			HardwareSerial:  row.HardwareSerial,
-			EnrolledAt:      row.EnrolledAt,
-			LastSeenAt:      timePtrFromNull(row.LastSeenAt),
-			PolicyUpdatedAt: timePtrFromNull(row.PolicyUpdatedAt),
-			CreatedAt:       row.CreatedAt,
-			UpdatedAt:       row.UpdatedAt,
+			ID:                row.ID,
+			ResourceID:        row.Uuid.String(),
+			UUID:              row.Uuid.String(),
+			NodeKey:           row.NodeKey.String(),
+			HostIdentifier:    row.HostIdentifier,
+			Hostname:          row.Hostname,
+			Platform:          row.Platform,
+			OSName:            row.OsName,
+			OSVersion:         row.OsVersion,
+			OSQueryVersion:    row.OsqueryVersion,
+			HardwareSerial:    row.HardwareSerial,
+			EnrolledAt:        row.EnrolledAt,
+			LastSeenAt:        timePtrFromNull(row.LastSeenAt),
+			LastPolicyCheckAt: timePtrFromNull(row.LastPolicyCheckAt),
+			CreatedAt:         row.CreatedAt,
+			UpdatedAt:         row.UpdatedAt,
 		},
 		Response:  row.Response,
 		CheckedAt: timePtrFromNull(row.CheckedAt),

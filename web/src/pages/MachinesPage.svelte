@@ -116,7 +116,7 @@
               </span>
             </td>
             <td>
-              <a href={`/machines/${machine.uuid}/query`} use:link={`/machines/${machine.uuid}/query`}>
+              <a href={`/machines/${machine.uuid}`} use:link={`/machines/${machine.uuid}`}>
                 {hostname(machine)}
               </a>
             </td>
@@ -132,8 +132,8 @@
             <td>{machine.osquery_version || 'Unknown'}</td>
             <td class="align-right">
               <a
-                href={`/machines/${machine.uuid}/query`}
-                use:link={`/machines/${machine.uuid}/query`}
+                href={`/machines/${machine.uuid}`}
+                use:link={`/machines/${machine.uuid}`}
                 class="button small outline"
                 aria-label={`Open ${hostname(machine)}`}
               >

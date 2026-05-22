@@ -116,6 +116,7 @@ func main() {
 
 	api.GET("/machines", h.HandleMachinesPagination)
 	api.GET("/machines/:id/queries", h.HandleMachineQueries)
+	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery)
 	api.GET("/machines/:id/policies", h.HandleMachinePolicies)
 	api.POST("/machines/:id/query", h.HandleExecuteMachineQuery)
 	api.GET("/machines/:id", h.HandleGetMachine)

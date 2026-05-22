@@ -15,6 +15,12 @@ const routes = [
     section: 'machines',
     params: ['id']
   },
+  {
+    path: /^\/machines\/([^/]+)\/?$/,
+    component: MachineQueryPage,
+    section: 'machines',
+    params: ['id']
+  },
   { path: /^\/queries\/?$/, component: QueriesPage, section: 'queries' },
   { path: /^\/packs\/?$/, component: PacksPage, section: 'packs' },
   { path: /^\/policies\/?$/, component: PoliciesPage, section: 'policies' },

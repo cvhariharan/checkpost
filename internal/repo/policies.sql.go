@@ -191,7 +191,7 @@ filtered AS (
         nodes.hardware_serial,
         nodes.enrolled_at,
         nodes.last_seen_at,
-        nodes.policy_updated_at,
+        nodes.last_policy_check_at,
         nodes.created_at,
         nodes.updated_at,
         CASE
@@ -216,7 +216,7 @@ filtered AS (
        AND policy_membership.node_id = nodes.id
 ),
 response_filtered AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, policy_updated_at, created_at, updated_at, response, checked_at, last_error, stale
+    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, response, checked_at, last_error, stale
     FROM filtered
     WHERE $5::text = ''
        OR response = $5::text
@@ -224,7 +224,7 @@ response_filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM response_filtered
 )
-SELECT response_filtered.id, response_filtered.uuid, response_filtered.node_key, response_filtered.host_identifier, response_filtered.hostname, response_filtered.platform, response_filtered.os_name, response_filtered.os_version, response_filtered.osquery_version, response_filtered.hardware_serial, response_filtered.enrolled_at, response_filtered.last_seen_at, response_filtered.policy_updated_at, response_filtered.created_at, response_filtered.updated_at, response_filtered.response, response_filtered.checked_at, response_filtered.last_error, response_filtered.stale, total.total_count
+SELECT response_filtered.id, response_filtered.uuid, response_filtered.node_key, response_filtered.host_identifier, response_filtered.hostname, response_filtered.platform, response_filtered.os_name, response_filtered.os_version, response_filtered.osquery_version, response_filtered.hardware_serial, response_filtered.enrolled_at, response_filtered.last_seen_at, response_filtered.last_policy_check_at, response_filtered.created_at, response_filtered.updated_at, response_filtered.response, response_filtered.checked_at, response_filtered.last_error, response_filtered.stale, total.total_count
 FROM response_filtered, total
 ORDER BY response_filtered.hostname, response_filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -239,26 +239,26 @@ type ListNodesByPolicyResponseParams struct {
 }
 
 type ListNodesByPolicyResponseRow struct {
-	ID              int64          `db:"id" json:"id"`
-	Uuid            uuid.UUID      `db:"uuid" json:"uuid"`
-	NodeKey         uuid.UUID      `db:"node_key" json:"node_key"`
-	HostIdentifier  string         `db:"host_identifier" json:"host_identifier"`
-	Hostname        string         `db:"hostname" json:"hostname"`
-	Platform        string         `db:"platform" json:"platform"`
-	OsName          string         `db:"os_name" json:"os_name"`
-	OsVersion       string         `db:"os_version" json:"os_version"`
-	OsqueryVersion  string         `db:"osquery_version" json:"osquery_version"`
-	HardwareSerial  string         `db:"hardware_serial" json:"hardware_serial"`
-	EnrolledAt      time.Time      `db:"enrolled_at" json:"enrolled_at"`
-	LastSeenAt      sql.NullTime   `db:"last_seen_at" json:"last_seen_at"`
-	PolicyUpdatedAt sql.NullTime   `db:"policy_updated_at" json:"policy_updated_at"`
-	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
-	Response        string         `db:"response" json:"response"`
-	CheckedAt       sql.NullTime   `db:"checked_at" json:"checked_at"`
-	LastError       sql.NullString `db:"last_error" json:"last_error"`
-	Stale           bool           `db:"stale" json:"stale"`
-	TotalCount      int64          `db:"total_count" json:"total_count"`
+	ID                int64          `db:"id" json:"id"`
+	Uuid              uuid.UUID      `db:"uuid" json:"uuid"`
+	NodeKey           uuid.UUID      `db:"node_key" json:"node_key"`
+	HostIdentifier    string         `db:"host_identifier" json:"host_identifier"`
+	Hostname          string         `db:"hostname" json:"hostname"`
+	Platform          string         `db:"platform" json:"platform"`
+	OsName            string         `db:"os_name" json:"os_name"`
+	OsVersion         string         `db:"os_version" json:"os_version"`
+	OsqueryVersion    string         `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial    string         `db:"hardware_serial" json:"hardware_serial"`
+	EnrolledAt        time.Time      `db:"enrolled_at" json:"enrolled_at"`
+	LastSeenAt        sql.NullTime   `db:"last_seen_at" json:"last_seen_at"`
+	LastPolicyCheckAt sql.NullTime   `db:"last_policy_check_at" json:"last_policy_check_at"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	Response          string         `db:"response" json:"response"`
+	CheckedAt         sql.NullTime   `db:"checked_at" json:"checked_at"`
+	LastError         sql.NullString `db:"last_error" json:"last_error"`
+	Stale             bool           `db:"stale" json:"stale"`
+	TotalCount        int64          `db:"total_count" json:"total_count"`
 }
 
 func (q *Queries) ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error) {
@@ -289,7 +289,7 @@ func (q *Queries) ListNodesByPolicyResponse(ctx context.Context, arg ListNodesBy
 			&i.HardwareSerial,
 			&i.EnrolledAt,
 			&i.LastSeenAt,
-			&i.PolicyUpdatedAt,
+			&i.LastPolicyCheckAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Response,
@@ -313,7 +313,7 @@ func (q *Queries) ListNodesByPolicyResponse(ctx context.Context, arg ListNodesBy
 
 const listPoliciesForNode = `-- name: ListPoliciesForNode :many
 WITH target_node AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, policy_updated_at
+    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, last_policy_check_at
     FROM nodes
     WHERE nodes.uuid = $2
 )
@@ -546,12 +546,12 @@ func (q *Queries) ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWi
 	return items, nil
 }
 
-const updateNodePolicyUpdatedAt = `-- name: UpdateNodePolicyUpdatedAt :exec
-UPDATE nodes SET policy_updated_at = now(), updated_at = now() WHERE id = $1
+const updateNodeLastPolicyCheckAt = `-- name: UpdateNodeLastPolicyCheckAt :exec
+UPDATE nodes SET last_policy_check_at = now(), updated_at = now() WHERE id = $1
 `
 
-func (q *Queries) UpdateNodePolicyUpdatedAt(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, updateNodePolicyUpdatedAt, id)
+func (q *Queries) UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, updateNodeLastPolicyCheckAt, id)
 	return err
 }
 

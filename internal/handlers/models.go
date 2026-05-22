@@ -130,6 +130,23 @@ type MachineQueryRequest struct {
 	Query string `json:"query"`
 }
 
+type MachineQueriesRequest struct {
+	ID    string `param:"id"`
+	Page  int    `query:"page"`
+	Count int    `query:"count_per_page"`
+}
+
+type DeleteMachineQueryRequest struct {
+	ID      string `param:"id"`
+	QueryID string `param:"query_id"`
+}
+
+type MachineQueriesResponse struct {
+	Queries    []models.MachineQueryResult `json:"queries"`
+	TotalCount int                         `json:"total_count"`
+	PageCount  int                         `json:"page_count"`
+}
+
 type UpdateQueryRequest struct {
 	ID          string `param:"id"`
 	Title       string `json:"title"`

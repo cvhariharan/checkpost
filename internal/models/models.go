@@ -3,23 +3,23 @@ package models
 import "time"
 
 type Node struct {
-	ID              int64           `json:"-"`
-	ResourceID      string          `json:"id"`
-	UUID            string          `json:"uuid"`
-	NodeKey         string          `json:"node_key"`
-	HostIdentifier  string          `json:"host_identifier"`
-	Hostname        string          `json:"hostname"`
-	Platform        string          `json:"platform"`
-	OSName          string          `json:"os_name"`
-	OSVersion       string          `json:"os_version"`
-	OSQueryVersion  string          `json:"osquery_version"`
-	HardwareSerial  string          `json:"hardware_serial"`
-	EnrolledAt      time.Time       `json:"enrolled_at"`
-	LastSeenAt      *time.Time      `json:"last_seen_at,omitempty"`
-	PolicyUpdatedAt *time.Time      `json:"policy_updated_at,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-	EnrollmentInput HostDetailsInfo `json:"-"`
+	ID                int64           `json:"-"`
+	ResourceID        string          `json:"id"`
+	UUID              string          `json:"uuid"`
+	NodeKey           string          `json:"node_key"`
+	HostIdentifier    string          `json:"host_identifier"`
+	Hostname          string          `json:"hostname"`
+	Platform          string          `json:"platform"`
+	OSName            string          `json:"os_name"`
+	OSVersion         string          `json:"os_version"`
+	OSQueryVersion    string          `json:"osquery_version"`
+	HardwareSerial    string          `json:"hardware_serial"`
+	EnrolledAt        time.Time       `json:"enrolled_at"`
+	LastSeenAt        *time.Time      `json:"last_seen_at,omitempty"`
+	LastPolicyCheckAt *time.Time      `json:"last_policy_check_at,omitempty"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+	EnrollmentInput   HostDetailsInfo `json:"-"`
 }
 
 type NodeEnrollment struct {

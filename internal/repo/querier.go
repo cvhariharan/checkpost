@@ -11,6 +11,8 @@ import (
 )
 
 type Querier interface {
+	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
+	CreateMachineQueryResult(ctx context.Context, arg CreateMachineQueryResultParams) (MachineQueryResult, error)
 	CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error)
 	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
 	CreateQuery(ctx context.Context, arg CreateQueryParams) (Query, error)
@@ -19,10 +21,12 @@ type Querier interface {
 	CreateResultRow(ctx context.Context, arg CreateResultRowParams) (OsqueryResultRow, error)
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
+	DeleteMachineQueryResultByNodeAndUUID(ctx context.Context, arg DeleteMachineQueryResultByNodeAndUUIDParams) (int64, error)
 	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteQueryByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
+	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error)
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
 	GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error)
 	GetQueryByID(ctx context.Context, id int64) (Query, error)
@@ -31,15 +35,18 @@ type Querier interface {
 	GetScheduleWithQueryByUUID(ctx context.Context, argUuid uuid.UUID) (GetScheduleWithQueryByUUIDRow, error)
 	ListEnabledPoliciesForPlatform(ctx context.Context, nodePlatform string) ([]Policy, error)
 	ListEnabledSchedulesWithQueries(ctx context.Context, limit int32) ([]ListEnabledSchedulesWithQueriesRow, error)
+	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
 	ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error)
+	ListPendingMachineQueryResults(ctx context.Context, nodeID int64) ([]MachineQueryResult, error)
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
 	ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error)
 	ListQueries(ctx context.Context, arg ListQueriesParams) ([]ListQueriesRow, error)
 	ListSchedulesWithQueries(ctx context.Context, arg ListSchedulesWithQueriesParams) ([]ListSchedulesWithQueriesRow, error)
 	ListSystemScheduleNames(ctx context.Context) ([]string, error)
+	MarkMachineQueryResultsDispatched(ctx context.Context, ids []int64) error
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
-	UpdateNodePolicyUpdatedAt(ctx context.Context, id int64) error
+	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQueryByUUID(ctx context.Context, arg UpdateQueryByUUIDParams) (Query, error)
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)

@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/config"
-	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
 )
 
@@ -24,13 +22,6 @@ type Core struct {
 	logger *slog.Logger
 
 	systemSchedulesMap map[string]bool
-
-	adHocMu           sync.Mutex
-	adHocPending      map[string][]models.MachineQueryResult
-	adHocHistory      map[string][]models.MachineQueryResult
-	adHocNodeKeyToID  map[string]string
-	adHocWaiters      map[string]chan models.MachineQueryResult
-	adHocQueryTimeout time.Duration
 
 	policyUpdateInterval time.Duration
 	policyStaleAfter     time.Duration
@@ -60,11 +51,6 @@ func NewCore(logger *slog.Logger, store repo.Store, cfg config.AppConfig) (*Core
 		store:                store,
 		logger:               logger.WithGroup("core"),
 		systemSchedulesMap:   m,
-		adHocPending:         make(map[string][]models.MachineQueryResult),
-		adHocHistory:         make(map[string][]models.MachineQueryResult),
-		adHocNodeKeyToID:     make(map[string]string),
-		adHocWaiters:         make(map[string]chan models.MachineQueryResult),
-		adHocQueryTimeout:    20 * time.Second,
 		policyUpdateInterval: policyUpdateInterval,
 		policyStaleAfter:     policyStaleAfter,
 	}, nil

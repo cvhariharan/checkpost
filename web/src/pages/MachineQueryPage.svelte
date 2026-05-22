@@ -1,7 +1,9 @@
 <script>
   import { onMount } from 'svelte'
-  import { executeMachineQuery, fetchMachine, fetchMachinePolicies, fetchMachineQueries } from '@/api.js'
+  import { deleteMachineQuery, executeMachineQuery, fetchMachine, fetchMachinePolicies, fetchMachineQueries } from '@/api.js'
+  import ConfirmDialog from '@/components/common/ConfirmDialog.svelte'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
+  import OatPagination from '@/components/common/OatPagination.svelte'
 
   export let params = {}
 
@@ -10,11 +12,21 @@
   let queryHistory = []
   let policyPosture = []
   let loading = true
+  let historyLoading = false
   let executing = false
   let error = ''
   let expandedResultRowKey = ''
+  let currentQueryPage = 1
+  let queryPageCount = 1
+  let queryTotalCount = 0
+  const queryCountPerPage = 10
+  let deleteDialogOpen = false
+  let queryToDelete = null
+  let deletingQuery = false
 
   $: machineId = params.id
+  $: queryStartResult = queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1
+  $: queryEndResult = Math.min(currentQueryPage * queryCountPerPage, queryTotalCount)
 
   onMount(loadMachine)
 
@@ -24,11 +36,11 @@
     try {
       const [machineData, historyData, policyData] = await Promise.all([
         fetchMachine(machineId),
-        fetchMachineQueries(machineId),
+        fetchMachineQueries(machineId, { page: currentQueryPage, countPerPage: queryCountPerPage }),
         fetchMachinePolicies(machineId)
       ])
       machine = machineData
-      queryHistory = Array.isArray(historyData) ? historyData : historyData.queries || []
+      setQueryHistory(historyData)
       policyPosture = Array.isArray(policyData) ? policyData : policyData.policies || []
     } catch (err) {
       error = err.message || 'Failed to load machine data'
@@ -37,22 +49,77 @@
     }
   }
 
+  function setQueryHistory(data) {
+    queryHistory = Array.isArray(data) ? data : data.queries || []
+    queryTotalCount = Array.isArray(data) ? queryHistory.length : data.total_count || 0
+    queryPageCount = Math.max(1, Array.isArray(data) ? 1 : data.page_count || 1)
+  }
+
+  async function loadQueryHistory(page = currentQueryPage) {
+    historyLoading = true
+    error = ''
+    try {
+      const data = await fetchMachineQueries(machineId, { page, countPerPage: queryCountPerPage })
+      currentQueryPage = page
+      expandedResultRowKey = ''
+      setQueryHistory(data)
+    } catch (err) {
+      error = err.message || 'Failed to load query history'
+    } finally {
+      historyLoading = false
+    }
+  }
+
   async function runQuery() {
     if (!queryText.trim()) return
     executing = true
     error = ''
     try {
-      const result = await executeMachineQuery(machineId, queryText)
-      queryHistory = [result, ...queryHistory]
+      await executeMachineQuery(machineId, queryText)
       queryText = ''
-      if (result.status === 'pending') {
-        setTimeout(loadMachine, 6000)
-      }
+      await loadQueryHistory(1)
+      setTimeout(() => loadQueryHistory(1), 6000)
     } catch (err) {
       error = err.message || 'Query execution failed'
     } finally {
       executing = false
     }
+  }
+
+  async function changeQueryPage(page) {
+    if (page < 1 || page > queryPageCount || page === currentQueryPage || historyLoading) {
+      return
+    }
+    await loadQueryHistory(page)
+  }
+
+  function confirmDeleteQuery(query) {
+    if (!query?.id) return
+    queryToDelete = query
+    deleteDialogOpen = true
+  }
+
+  async function deleteSelectedQuery() {
+    if (!queryToDelete?.id) return
+    deletingQuery = true
+    error = ''
+    try {
+      await deleteMachineQuery(machineId, queryToDelete.id)
+      const targetPage = queryHistory.length === 1 && currentQueryPage > 1
+        ? currentQueryPage - 1
+        : currentQueryPage
+      deleteDialogOpen = false
+      queryToDelete = null
+      await loadQueryHistory(targetPage)
+    } catch (err) {
+      error = err.message || 'Failed to delete query'
+    } finally {
+      deletingQuery = false
+    }
+  }
+
+  function cancelDeleteQuery() {
+    queryToDelete = null
   }
 
   function formatTimestamp(ts) {
@@ -292,77 +359,100 @@
     </article>
 
     <section class="vstack gap-4">
-      <h2>Query History</h2>
-      {#each queryHistory as query}
-        <article class="card">
-          <div class="hstack justify-between query-history-header">
-            <code class="query-text">{query.query}</code>
-            <div class="hstack gap-2">
-              {#if query.status}
-                <span class="badge" data-variant={query.status === 'complete' ? 'success' : query.status === 'error' ? 'danger' : 'warning'}>{query.status}</span>
-              {/if}
-              <small class="text-light">{formatTimestamp(query.timestamp)}</small>
+      <div class="hstack justify-between">
+        <h2>Query History</h2>
+        <p class="text-light">Showing <strong>{queryStartResult}</strong> to <strong>{queryEndResult}</strong> of <strong>{queryTotalCount}</strong> results</p>
+      </div>
+      {#if historyLoading}
+        <article class="card align-center text-light">Loading query history...</article>
+      {:else}
+        {#each queryHistory as query}
+          <article class="card">
+            <div class="hstack justify-between query-history-header">
+              <code class="query-text">{query.query}</code>
+              <div class="hstack gap-2 query-history-actions">
+                {#if query.status}
+                  <span class="badge" data-variant={query.status === 'complete' ? 'success' : query.status === 'error' ? 'danger' : 'warning'}>{query.status}</span>
+                {/if}
+                <small class="text-light">{formatTimestamp(query.timestamp)}</small>
+                <button type="button" class="small outline" data-variant="danger" onclick={() => confirmDeleteQuery(query)} aria-label="Delete query result">Delete</button>
+              </div>
             </div>
-          </div>
-          {#if query.error}
-            <pre class="result-fallback"><code>{query.error}</code></pre>
-          {:else}
-            {@const result = queryResultView(query)}
-            {#if result.type === 'pending'}
-              <p class="text-light result-message">Awaiting results...</p>
-            {:else if result.type === 'empty'}
-              <p class="text-light result-message">{result.message}</p>
-            {:else if result.type === 'table'}
-              <div class="table query-results-table">
-                <table>
-                  <thead>
-                    <tr>
-                      {#each result.columns as column}
-                        <th class="result-header">{column}</th>
-                      {/each}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each result.rows as row, rowIndex}
-                      {@const rowKey = resultRowKey(query, rowIndex)}
-                      <tr
-                        class="result-row"
-                        class:expanded-result-row={expandedResultRowKey === rowKey}
-                        data-result-row-key={rowKey}
-                        tabindex="0"
-                        aria-expanded={expandedResultRowKey === rowKey}
-                        title="Click to show full row"
-                        onclick={() => toggleResultRowByKey(rowKey)}
-                        onkeydown={(event) => handleResultRowKeydown(event, query, rowIndex)}
-                      >
+            {#if query.error}
+              <pre class="result-fallback"><code>{query.error}</code></pre>
+            {:else}
+              {@const result = queryResultView(query)}
+              {#if result.type === 'pending'}
+                <p class="text-light result-message">Awaiting results...</p>
+              {:else if result.type === 'empty'}
+                <p class="text-light result-message">{result.message}</p>
+              {:else if result.type === 'table'}
+                <div class="table query-results-table">
+                  <table>
+                    <thead>
+                      <tr>
                         {#each result.columns as column}
-                          <td class="result-cell" title={formatCellValue(row[column])}>
-                            <span class="result-cell-content">{formatCellValue(row[column])}</span>
-                          </td>
+                          <th class="result-header">{column}</th>
                         {/each}
                       </tr>
-                      {#if expandedResultRowKey === rowKey}
-                        <tr class="result-row-details">
-                          <td colspan={result.columns.length}>
-                            <pre class="result-row-json"><code>{formatResults(row)}</code></pre>
-                          </td>
+                    </thead>
+                    <tbody>
+                      {#each result.rows as row, rowIndex}
+                        {@const rowKey = resultRowKey(query, rowIndex)}
+                        <tr
+                          class="result-row"
+                          class:expanded-result-row={expandedResultRowKey === rowKey}
+                          data-result-row-key={rowKey}
+                          tabindex="0"
+                          aria-expanded={expandedResultRowKey === rowKey}
+                          title="Click to show full row"
+                          onclick={() => toggleResultRowByKey(rowKey)}
+                          onkeydown={(event) => handleResultRowKeydown(event, query, rowIndex)}
+                        >
+                          {#each result.columns as column}
+                            <td class="result-cell" title={formatCellValue(row[column])}>
+                              <span class="result-cell-content">{formatCellValue(row[column])}</span>
+                            </td>
+                          {/each}
                         </tr>
-                      {/if}
-                    {/each}
-                  </tbody>
-                </table>
-              </div>
-            {:else}
-              <pre class="result-fallback"><code>{result.text}</code></pre>
+                        {#if expandedResultRowKey === rowKey}
+                          <tr class="result-row-details">
+                            <td colspan={result.columns.length}>
+                              <pre class="result-row-json"><code>{formatResults(row)}</code></pre>
+                            </td>
+                          </tr>
+                        {/if}
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {:else}
+                <pre class="result-fallback"><code>{result.text}</code></pre>
+              {/if}
             {/if}
-          {/if}
-        </article>
-      {:else}
-        <article class="card align-center text-light">No queries executed yet</article>
-      {/each}
+          </article>
+        {:else}
+          <article class="card align-center text-light">No queries executed yet</article>
+        {/each}
+      {/if}
+      {#if queryTotalCount > 0}
+        <footer class="hstack justify-end">
+          <OatPagination currentPage={currentQueryPage} pageCount={queryPageCount} disabled={historyLoading} label="Query history pagination" onPageChange={changeQueryPage} />
+        </footer>
+      {/if}
     </section>
   {/if}
 </section>
+
+<ConfirmDialog
+  bind:open={deleteDialogOpen}
+  title="Delete Query Result"
+  message="Are you sure you want to delete this query result? This action cannot be undone."
+  confirmingLabel="Deleting..."
+  confirming={deletingQuery}
+  onConfirm={deleteSelectedQuery}
+  onCancel={cancelDeleteQuery}
+/>
 
 <style>
   .query-history-header {

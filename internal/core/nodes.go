@@ -41,12 +41,30 @@ func (c *Core) GetNode(ctx context.Context, req models.NodeKeyRequest) (models.N
 	return toModelNode(node), nil
 }
 
+func (c *Core) RecordNodeHeartbeat(ctx context.Context, req models.NodeKeyRequest) error {
+	id, err := uuid.Parse(req.NodeKey)
+	if err != nil {
+		return fmt.Errorf("parse node key: %w", err)
+	}
+
+	if err := c.store.TouchNode(ctx, id); err != nil {
+		return fmt.Errorf("touch node: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models.Node, error) {
 	if strings.TrimSpace(req.ID) == "" {
 		return models.Node{}, fmt.Errorf("node id cannot be empty")
 	}
 
-	node, err := c.store.GetNodeByUUID(ctx, req.ID)
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return models.Node{}, fmt.Errorf("parse node uuid: %w", err)
+	}
+
+	node, err := c.store.GetNodeByUUID(ctx, id)
 	if err != nil {
 		return models.Node{}, fmt.Errorf("get node: %w", err)
 	}

@@ -24,6 +24,9 @@ RETURNING *;
 -- name: GetNodeByKey :one
 SELECT * FROM nodes WHERE node_key = $1;
 
+-- name: GetNodeByUUID :one
+SELECT * FROM nodes WHERE uuid = $1;
+
 -- name: TouchNode :exec
 UPDATE nodes SET last_seen_at = now(), updated_at = now() WHERE node_key = $1;
 

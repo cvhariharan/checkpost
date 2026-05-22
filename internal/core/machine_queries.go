@@ -2,29 +2,92 @@ package core
 
 import (
 	"context"
-	"time"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/watcher/internal/repo"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 )
 
-func (c *Core) ListMachineQueries(ctx context.Context, req models.NodeIdentity) ([]models.MachineQueryResult, error) {
+func (c *Core) ListMachineQueries(ctx context.Context, req models.NodeIdentity, pageReq models.PageRequest) (models.Page[models.MachineQueryResult], error) {
 	node, err := c.GetNodeByID(ctx, req)
 	if err != nil {
-		return nil, err
+		return models.Page[models.MachineQueryResult]{}, err
 	}
 
-	c.adHocMu.Lock()
-	defer c.adHocMu.Unlock()
+	nodeUUID, err := uuid.Parse(node.UUID)
+	if err != nil {
+		return models.Page[models.MachineQueryResult]{}, fmt.Errorf("parse node uuid: %w", err)
+	}
 
-	history := c.adHocHistory[node.UUID]
-	out := make([]models.MachineQueryResult, len(history))
-	copy(out, history)
-	return out, nil
+	page := pageReq.Page
+	countPerPage := pageReq.Count
+	if countPerPage <= 0 {
+		countPerPage = 10
+	}
+	if page < 0 {
+		page = 0
+	}
+
+	rows, err := c.store.ListMachineQueryResultsByNodeUUID(ctx, repo.ListMachineQueryResultsByNodeUUIDParams{
+		NodeUuid:    nodeUUID,
+		LimitCount:  int32(countPerPage),
+		OffsetCount: int32(page * countPerPage),
+	})
+	if err != nil {
+		return models.Page[models.MachineQueryResult]{}, fmt.Errorf("list machine query results: %w", err)
+	}
+
+	out := make([]models.MachineQueryResult, 0, len(rows))
+	totalCount := 0
+	for _, row := range rows {
+		out = append(out, toModelMachineQueryResultRow(row))
+		totalCount = int(row.TotalCount)
+	}
+	return models.Page[models.MachineQueryResult]{
+		Items:      out,
+		TotalCount: totalCount,
+		PageCount:  pageCountFor(totalCount, countPerPage),
+	}, nil
+}
+
+func (c *Core) DeleteMachineQuery(ctx context.Context, nodeReq models.NodeIdentity, queryReq models.ResourceID) error {
+	node, err := c.GetNodeByID(ctx, nodeReq)
+	if err != nil {
+		return err
+	}
+
+	nodeUUID, err := uuid.Parse(node.UUID)
+	if err != nil {
+		return fmt.Errorf("parse node uuid: %w", err)
+	}
+
+	queryUUID, err := uuid.Parse(queryReq.UUID)
+	if err != nil {
+		return fmt.Errorf("parse query uuid: %w", err)
+	}
+
+	rows, err := c.store.DeleteMachineQueryResultByNodeAndUUID(ctx, repo.DeleteMachineQueryResultByNodeAndUUIDParams{
+		NodeUuid:  nodeUUID,
+		QueryUuid: queryUUID,
+	})
+	if err != nil {
+		return fmt.Errorf("delete machine query result: %w", err)
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryRequest) (models.MachineQueryResult, error) {
-	if err := validateQuery(req.Query); err != nil {
+	query := strings.TrimSpace(req.Query)
+	if err := validateQuery(query); err != nil {
 		return models.MachineQueryResult{}, err
 	}
 
@@ -33,58 +96,112 @@ func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryR
 		return models.MachineQueryResult{}, err
 	}
 
-	result := models.MachineQueryResult{
-		ID:        uuid.NewString(),
-		Query:     req.Query,
-		Status:    "pending",
-		Timestamp: time.Now().UTC(),
+	queryID := uuid.New()
+	created, err := c.store.CreateMachineQueryResult(ctx, repo.CreateMachineQueryResultParams{
+		Uuid:   queryID,
+		NodeID: node.ID,
+		Query:  query,
+	})
+	if err != nil {
+		return models.MachineQueryResult{}, fmt.Errorf("create machine query result: %w", err)
 	}
-	waiter := make(chan models.MachineQueryResult, 1)
 
-	c.adHocMu.Lock()
-	c.adHocPending[node.NodeKey] = append(c.adHocPending[node.NodeKey], result)
-	c.adHocHistory[node.UUID] = append([]models.MachineQueryResult{result}, c.adHocHistory[node.UUID]...)
-	c.adHocNodeKeyToID[node.NodeKey] = node.UUID
-	c.adHocWaiters[result.ID] = waiter
-	c.adHocMu.Unlock()
+	return toModelMachineQueryResult(created), nil
+}
 
-	select {
-	case completed := <-waiter:
-		return completed, nil
-	case <-ctx.Done():
-		return result, ctx.Err()
-	case <-time.After(c.adHocQueryTimeout):
-		return result, nil
+func (c *Core) pendingMachineQueries(ctx context.Context, node models.Node) ([]models.MachineQueryResult, error) {
+	rows, err := c.store.ListPendingMachineQueryResults(ctx, node.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list pending machine query results: %w", err)
+	}
+
+	ids := make([]int64, 0, len(rows))
+	out := make([]models.MachineQueryResult, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		out = append(out, toModelMachineQueryResult(row))
+	}
+
+	if err := c.store.MarkMachineQueryResultsDispatched(ctx, ids); err != nil {
+		return nil, fmt.Errorf("mark machine query results dispatched: %w", err)
+	}
+
+	return out, nil
+}
+
+func (c *Core) completeAdHocResult(ctx context.Context, queryID string, rows interface{}, errMsg string) (models.MachineQueryResult, bool, error) {
+	parsedID, err := uuid.Parse(queryID)
+	if err != nil {
+		c.logger.Debug("ignoring malformed ad-hoc query id", "query_id", queryID, "error", err)
+		return models.MachineQueryResult{}, false, nil
+	}
+
+	rowsForStorage := rows
+	if rowsForStorage == nil && errMsg == "" {
+		rowsForStorage = []interface{}{}
+	}
+
+	resultJSON, err := json.Marshal(rowsForStorage)
+	if err != nil {
+		return models.MachineQueryResult{}, true, fmt.Errorf("marshal ad-hoc query result: %w", err)
+	}
+
+	completed, err := c.store.CompleteMachineQueryResult(ctx, repo.CompleteMachineQueryResultParams{
+		Uuid:    parsedID,
+		Results: string(resultJSON),
+		Error:   errMsg,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.logger.Debug("ignoring result for unknown ad-hoc query", "query_id", queryID)
+			return models.MachineQueryResult{}, false, nil
+		}
+		return models.MachineQueryResult{}, true, fmt.Errorf("complete machine query result: %w", err)
+	}
+
+	return toModelMachineQueryResult(completed), true, nil
+}
+
+func toModelMachineQueryResult(row repo.MachineQueryResult) models.MachineQueryResult {
+	timestamp := row.CreatedAt
+	if row.CompletedAt.Valid {
+		timestamp = row.CompletedAt.Time
+	}
+
+	return models.MachineQueryResult{
+		ID:        row.Uuid.String(),
+		Query:     row.Query,
+		Status:    row.Status,
+		Timestamp: timestamp,
+		Results:   decodeMachineQueryResults(row.Results),
+		Error:     row.Error,
 	}
 }
 
-func (c *Core) updateAdHocResultLocked(nodeUUID, queryID string, rows interface{}, errMsg string) models.MachineQueryResult {
-	status := "complete"
-	if errMsg != "" {
-		status = "error"
+func toModelMachineQueryResultRow(row repo.ListMachineQueryResultsByNodeUUIDRow) models.MachineQueryResult {
+	timestamp := row.CreatedAt
+	if row.CompletedAt.Valid {
+		timestamp = row.CompletedAt.Time
 	}
 
-	history := c.adHocHistory[nodeUUID]
-	for i, item := range history {
-		if item.ID != queryID {
-			continue
-		}
+	return models.MachineQueryResult{
+		ID:        row.Uuid.String(),
+		Query:     row.Query,
+		Status:    row.Status,
+		Timestamp: timestamp,
+		Results:   decodeMachineQueryResults(row.Results),
+		Error:     row.Error,
+	}
+}
 
-		history[i].Status = status
-		history[i].Results = rows
-		history[i].Error = errMsg
-		history[i].Timestamp = time.Now().UTC()
-		c.adHocHistory[nodeUUID] = history
-		return history[i]
+func decodeMachineQueryResults(raw pqtype.NullRawMessage) interface{} {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil
 	}
 
-	completed := models.MachineQueryResult{
-		ID:        queryID,
-		Status:    status,
-		Timestamp: time.Now().UTC(),
-		Results:   rows,
-		Error:     errMsg,
+	var out interface{}
+	if err := json.Unmarshal(raw.RawMessage, &out); err != nil {
+		return string(raw.RawMessage)
 	}
-	c.adHocHistory[nodeUUID] = append([]models.MachineQueryResult{completed}, history...)
-	return completed
+	return out
 }

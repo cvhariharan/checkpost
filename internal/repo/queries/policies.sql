@@ -127,8 +127,8 @@ ON CONFLICT (policy_id, node_id) DO UPDATE SET
     checked_at = EXCLUDED.checked_at,
     updated_at = now();
 
--- name: UpdateNodePolicyUpdatedAt :exec
-UPDATE nodes SET policy_updated_at = now(), updated_at = now() WHERE id = $1;
+-- name: UpdateNodeLastPolicyCheckAt :exec
+UPDATE nodes SET last_policy_check_at = now(), updated_at = now() WHERE id = $1;
 
 -- name: ListPoliciesForNode :many
 WITH target_node AS (
@@ -191,7 +191,7 @@ filtered AS (
         nodes.hardware_serial,
         nodes.enrolled_at,
         nodes.last_seen_at,
-        nodes.policy_updated_at,
+        nodes.last_policy_check_at,
         nodes.created_at,
         nodes.updated_at,
         CASE

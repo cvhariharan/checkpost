@@ -22,6 +22,9 @@ func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyReq
 	if err != nil {
 		return nil, err
 	}
+	if err := c.RecordNodeHeartbeat(ctx, req); err != nil {
+		return nil, err
+	}
 
 	policyDue := c.nodePolicyDue(node)
 	var policies []repo.Policy
@@ -32,11 +35,10 @@ func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyReq
 		}
 	}
 
-	c.adHocMu.Lock()
-	pending := c.adHocPending[node.NodeKey]
-	delete(c.adHocPending, node.NodeKey)
-	c.adHocNodeKeyToID[node.NodeKey] = node.UUID
-	c.adHocMu.Unlock()
+	pending, err := c.pendingMachineQueries(ctx, node)
+	if err != nil {
+		return nil, err
+	}
 
 	queries := make(map[string]string, len(pending))
 	for _, item := range pending {
@@ -61,28 +63,34 @@ func (c *Core) WriteDistributedQueryResults(ctx context.Context, req models.Node
 	if err != nil {
 		return err
 	}
+	if err := c.RecordNodeHeartbeat(ctx, req); err != nil {
+		return err
+	}
 
-	c.deliverAdHocResults(node, results, statuses, messages)
+	adHocErr := c.deliverAdHocResults(ctx, node, results, statuses, messages)
+	policyErr := c.recordPolicyResults(ctx, node, results, statuses, messages)
 
-	return c.recordPolicyResults(ctx, node, results, statuses, messages)
+	if adHocErr != nil {
+		return adHocErr
+	}
+	return policyErr
 }
 
-func (c *Core) deliverAdHocResults(node models.Node, results map[string]interface{}, statuses, messages map[string]string) {
-	c.adHocMu.Lock()
-	defer c.adHocMu.Unlock()
-
-	c.adHocNodeKeyToID[node.NodeKey] = node.UUID
+func (c *Core) deliverAdHocResults(ctx context.Context, node models.Node, results map[string]interface{}, statuses, messages map[string]string) error {
+	var firstErr error
 	for queryID, rows := range results {
 		if isPolicyDistributedQuery(queryID) {
 			continue
 		}
-		completed := c.updateAdHocResultLocked(node.UUID, queryID, rows, distributedErrorMessage(statuses[queryID], messages[queryID]))
-		if waiter, ok := c.adHocWaiters[queryID]; ok {
-			waiter <- completed
-			close(waiter)
-			delete(c.adHocWaiters, queryID)
+		_, _, err := c.completeAdHocResult(ctx, queryID, rows, distributedErrorMessage(statuses[queryID], messages[queryID]))
+		if err != nil {
+			c.logger.Error("record ad-hoc query result", "node_id", node.ID, "query_id", queryID, "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
 		}
 	}
+	return firstErr
 }
 
 func distributedErrorMessage(status, message string) string {
@@ -108,10 +116,6 @@ func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBat
 	node, err := c.store.GetNodeByKey(ctx, nodeID)
 	if err != nil {
 		return fmt.Errorf("get node for log ingestion: %w", err)
-	}
-
-	if err := c.store.TouchNode(ctx, nodeID); err != nil {
-		return fmt.Errorf("touch node: %w", err)
 	}
 
 	logs := batch.Data

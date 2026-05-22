@@ -224,9 +224,9 @@ func (c *Core) recordPolicyResults(ctx context.Context, node models.Node, result
 		return firstErr
 	}
 
-	if err := c.store.UpdateNodePolicyUpdatedAt(ctx, node.ID); err != nil {
-		err = fmt.Errorf("update node policy timestamp: %w", err)
-		c.logger.Error("update node policy timestamp", "node_id", node.ID, "error", err)
+	if err := c.store.UpdateNodeLastPolicyCheckAt(ctx, node.ID); err != nil {
+		err = fmt.Errorf("update node policy check timestamp: %w", err)
+		c.logger.Error("update node policy check timestamp", "node_id", node.ID, "error", err)
 		if firstErr == nil {
 			firstErr = err
 		}
@@ -397,11 +397,11 @@ func hasSQLKeywordPrefix(s, keyword string) bool {
 }
 
 func (c *Core) nodePolicyDue(node models.Node) bool {
-	if node.PolicyUpdatedAt == nil {
+	if node.LastPolicyCheckAt == nil {
 		return true
 	}
 	interval := c.policyUpdateInterval + deterministicPolicyJitter(node.UUID, c.policyUpdateInterval)
-	return time.Since(*node.PolicyUpdatedAt) >= interval
+	return time.Since(*node.LastPolicyCheckAt) >= interval
 }
 
 func deterministicPolicyJitter(key string, interval time.Duration) time.Duration {

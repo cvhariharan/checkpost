@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { deleteQuery as apiDeleteQuery, fetchQueries } from '@/api.js'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
+  import OatPagination from '@/components/common/OatPagination.svelte'
   import SearchInput from '@/components/common/SearchInput.svelte'
   import QueryFormDialog from '@/components/queries/QueryFormDialog.svelte'
 
@@ -167,13 +168,7 @@
 
   <footer class="hstack justify-between">
     <p class="text-light">Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of <strong>{totalCount}</strong> results</p>
-    <nav class="hstack gap-2" aria-label="Pagination">
-      <button type="button" class="small outline" disabled={currentPage === 1} onclick={() => changePage(currentPage - 1)}>Previous</button>
-      {#each Array.from({ length: pageCount }, (_, index) => index + 1) as page}
-        <button type="button" class="small" class:outline={currentPage !== page} onclick={() => changePage(page)}>{page}</button>
-      {/each}
-      <button type="button" class="small outline" disabled={currentPage === pageCount} onclick={() => changePage(currentPage + 1)}>Next</button>
-    </nav>
+    <OatPagination {currentPage} {pageCount} onPageChange={changePage} />
   </footer>
 </section>
 

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { deletePolicy as apiDeletePolicy, fetchPolicies, fetchPolicyMachines } from '@/api.js'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
+  import OatPagination from '@/components/common/OatPagination.svelte'
   import SearchInput from '@/components/common/SearchInput.svelte'
   import PolicyFormDialog from '@/components/policies/PolicyFormDialog.svelte'
   import { link } from '@/routes.js'
@@ -227,13 +228,7 @@
 
   <footer class="hstack justify-between">
     <p class="text-light">Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of <strong>{totalCount}</strong> results</p>
-    <nav class="hstack gap-2" aria-label="Pagination">
-      <button type="button" class="small outline" disabled={currentPage === 1} onclick={() => changePage(currentPage - 1)}>Previous</button>
-      {#each Array.from({ length: pageCount }, (_, index) => index + 1) as page}
-        <button type="button" class="small" class:outline={currentPage !== page} onclick={() => changePage(page)}>{page}</button>
-      {/each}
-      <button type="button" class="small outline" disabled={currentPage === pageCount} onclick={() => changePage(currentPage + 1)}>Next</button>
-    </nav>
+    <OatPagination {currentPage} {pageCount} onPageChange={changePage} />
   </footer>
 
   {#if machinePolicy}
@@ -282,7 +277,7 @@
                   <td>{formatTimestamp(machine.checked_at)}</td>
                   <td>{machine.last_error || ''}</td>
                   <td class="align-right">
-                    <a href={`/machines/${machine.uuid}/query`} use:link={`/machines/${machine.uuid}/query`} class="button small outline">Open</a>
+                    <a href={`/machines/${machine.uuid}`} use:link={`/machines/${machine.uuid}`} class="button small outline">Open</a>
                   </td>
                 </tr>
               {:else}
@@ -296,10 +291,9 @@
       </div>
 
       {#if machinePageCount > 1}
-        <footer class="hstack justify-end gap-2">
+        <footer class="hstack justify-between">
           <span class="text-light">{machineTotalCount} machines</span>
-          <button type="button" class="small outline" disabled={machinePage === 1} onclick={() => changeMachinePage(machinePage - 1)}>Previous</button>
-          <button type="button" class="small outline" disabled={machinePage === machinePageCount} onclick={() => changeMachinePage(machinePage + 1)}>Next</button>
+          <OatPagination currentPage={machinePage} pageCount={machinePageCount} disabled={machinesLoading} label="Policy machines pagination" onPageChange={changeMachinePage} />
         </footer>
       {/if}
     </section>

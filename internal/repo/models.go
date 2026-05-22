@@ -9,24 +9,39 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 )
 
+type MachineQueryResult struct {
+	ID           int64                 `db:"id" json:"id"`
+	Uuid         uuid.UUID             `db:"uuid" json:"uuid"`
+	NodeID       int64                 `db:"node_id" json:"node_id"`
+	Query        string                `db:"query" json:"query"`
+	Status       string                `db:"status" json:"status"`
+	Results      pqtype.NullRawMessage `db:"results" json:"results"`
+	Error        string                `db:"error" json:"error"`
+	DispatchedAt sql.NullTime          `db:"dispatched_at" json:"dispatched_at"`
+	CompletedAt  sql.NullTime          `db:"completed_at" json:"completed_at"`
+	CreatedAt    time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time             `db:"updated_at" json:"updated_at"`
+}
+
 type Node struct {
-	ID              int64        `db:"id" json:"id"`
-	Uuid            uuid.UUID    `db:"uuid" json:"uuid"`
-	NodeKey         uuid.UUID    `db:"node_key" json:"node_key"`
-	HostIdentifier  string       `db:"host_identifier" json:"host_identifier"`
-	Hostname        string       `db:"hostname" json:"hostname"`
-	Platform        string       `db:"platform" json:"platform"`
-	OsName          string       `db:"os_name" json:"os_name"`
-	OsVersion       string       `db:"os_version" json:"os_version"`
-	OsqueryVersion  string       `db:"osquery_version" json:"osquery_version"`
-	HardwareSerial  string       `db:"hardware_serial" json:"hardware_serial"`
-	EnrolledAt      time.Time    `db:"enrolled_at" json:"enrolled_at"`
-	LastSeenAt      sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
-	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
-	PolicyUpdatedAt sql.NullTime `db:"policy_updated_at" json:"policy_updated_at"`
+	ID                int64        `db:"id" json:"id"`
+	Uuid              uuid.UUID    `db:"uuid" json:"uuid"`
+	NodeKey           uuid.UUID    `db:"node_key" json:"node_key"`
+	HostIdentifier    string       `db:"host_identifier" json:"host_identifier"`
+	Hostname          string       `db:"hostname" json:"hostname"`
+	Platform          string       `db:"platform" json:"platform"`
+	OsName            string       `db:"os_name" json:"os_name"`
+	OsVersion         string       `db:"os_version" json:"os_version"`
+	OsqueryVersion    string       `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial    string       `db:"hardware_serial" json:"hardware_serial"`
+	EnrolledAt        time.Time    `db:"enrolled_at" json:"enrolled_at"`
+	LastSeenAt        sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
+	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
 }
 
 type OsqueryResultBatch struct {

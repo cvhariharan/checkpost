@@ -9,53 +9,20 @@ import (
 type Store interface {
 	Querier
 
-	GetNodeByUUID(ctx context.Context, id string) (Node, error)
-
 	InsertResultBatchTx(ctx context.Context, params InsertResultBatchTxParams) error
 	InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error
 }
 
 type PostgresStore struct {
-	db *sql.DB
 	*Queries
+	db *sql.DB
 }
 
-func NewPostgresStore(db *sql.DB) *PostgresStore {
+func NewPostgresStore(db *sql.DB) Store {
 	return &PostgresStore{
-		db:      db,
 		Queries: New(db),
+		db:      db,
 	}
-}
-
-func (s *PostgresStore) GetNodeByUUID(ctx context.Context, id string) (Node, error) {
-	row := s.db.QueryRowContext(ctx, `
-		SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, policy_updated_at
-		FROM nodes
-		WHERE uuid = $1
-	`, id)
-
-	var node Node
-	if err := row.Scan(
-		&node.ID,
-		&node.Uuid,
-		&node.NodeKey,
-		&node.HostIdentifier,
-		&node.Hostname,
-		&node.Platform,
-		&node.OsName,
-		&node.OsVersion,
-		&node.OsqueryVersion,
-		&node.HardwareSerial,
-		&node.EnrolledAt,
-		&node.LastSeenAt,
-		&node.CreatedAt,
-		&node.UpdatedAt,
-		&node.PolicyUpdatedAt,
-	); err != nil {
-		return Node{}, err
-	}
-
-	return node, nil
 }
 
 type InsertResultBatchTxParams struct {

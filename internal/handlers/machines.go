@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -60,7 +62,7 @@ func (h *Handler) HandleGetMachine(c echo.Context) error {
 }
 
 func (h *Handler) HandleMachineQueries(c echo.Context) error {
-	var req GetRequest
+	var req MachineQueriesRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
@@ -68,14 +70,28 @@ func (h *Handler) HandleMachineQueries(c echo.Context) error {
 	if req.ID == "" {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
+	if req.Page < 0 || req.Count < 0 {
+		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	}
+	if req.Page > 0 {
+		req.Page -= 1
+	}
+	if req.Count == 0 {
+		req.Count = CountPerPage
+	}
 
-	queries, err := h.c.ListMachineQueries(c.Request().Context(), models.NodeIdentity{ID: req.ID})
+	page, err := h.c.ListMachineQueries(c.Request().Context(), models.NodeIdentity{ID: req.ID}, models.PageRequest{
+		Page:  req.Page,
+		Count: req.Count,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting machine queries %s", req.ID), err, nil)
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"queries": queries,
+	return c.JSON(http.StatusOK, MachineQueriesResponse{
+		Queries:    page.Items,
+		TotalCount: page.TotalCount,
+		PageCount:  page.PageCount,
 	})
 }
 
@@ -97,6 +113,29 @@ func (h *Handler) HandleMachinePolicies(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"policies": policies,
 	})
+}
+
+func (h *Handler) HandleDeleteMachineQuery(c echo.Context) error {
+	var req DeleteMachineQueryRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+	if req.QueryID == "" {
+		return wrapError(http.StatusBadRequest, "query id cannot be empty", fmt.Errorf("query id is empty"), nil)
+	}
+
+	if err := h.c.DeleteMachineQuery(c.Request().Context(), models.NodeIdentity{ID: req.ID}, models.ResourceID{UUID: req.QueryID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return wrapError(http.StatusNotFound, fmt.Sprintf("query %s not found for machine %s", req.QueryID, req.ID), err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting machine query %s", req.QueryID), err, nil)
+	}
+
+	return c.NoContent(http.StatusOK)
 }
 
 func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {

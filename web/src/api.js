@@ -135,8 +135,15 @@ export async function fetchMachine(id) {
   return handleResponse(res);
 }
 
-export async function fetchMachineQueries(id) {
-  const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/queries`);
+export async function fetchMachineQueries(id, { page = 1, countPerPage = 10 } = {}) {
+  const res = await fetch(apiUrl(`/machines/${encodeURIComponent(id)}/queries`, { page, count_per_page: countPerPage }));
+  return handleResponse(res);
+}
+
+export async function deleteMachineQuery(machineId, queryId) {
+  const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(machineId)}/queries/${encodeURIComponent(queryId)}`, {
+    method: 'DELETE',
+  });
   return handleResponse(res);
 }
 
