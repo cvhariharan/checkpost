@@ -18,22 +18,24 @@ func (h *Handler) HandleCreateSchedule(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
-	scheduleUUID, err := h.c.CreateSchedule(c.Request().Context(), models.Schedule{
-		Title:    req.Title,
-		Interval: req.Interval,
-		Removed:  req.Removed,
-		Snapshot: req.Snapshot,
-		Platform: req.Platform,
-		Version:  req.Version,
-		Shard:    100,
-		Denylist: req.Denylist,
-	}, req.QueryID)
+	sched, err := h.c.CreateSchedule(c.Request().Context(), models.CreateSchedule{
+		QueryUUID:       req.QueryID,
+		Name:            req.Title,
+		IntervalSeconds: req.Interval,
+		Removed:         req.Removed,
+		Snapshot:        req.Snapshot,
+		Platform:        req.Platform,
+		Version:         req.Version,
+		Shard:           req.Shard,
+		Denylist:        req.Denylist,
+		Enabled:         true,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error creating schedule", err, nil)
 	}
 
 	return c.JSON(http.StatusCreated, CreateResponse{
-		ID: scheduleUUID,
+		ID: sched.UUID,
 	})
 }
 
@@ -55,15 +57,18 @@ func (h *Handler) HandleSchedulesPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	schedules, totalCount, pageCount, err := h.c.PaginateSchedules(c.Request().Context(), req.Page, req.Count)
+	page, err := h.c.PaginateSchedules(c.Request().Context(), models.PageRequest{
+		Page:  req.Page,
+		Count: req.Count,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get queries", err, nil)
 	}
 
 	return c.JSON(http.StatusOK, PaginateSchedulesResponse{
-		Schedules:  schedules,
-		TotalCount: totalCount,
-		PageCount:  pageCount,
+		Schedules:  page.Items,
+		TotalCount: page.TotalCount,
+		PageCount:  page.PageCount,
 	})
 }
 
@@ -77,7 +82,7 @@ func (h *Handler) HandleGetSchedule(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	q, err := h.c.GetSchedule(c.Request().Context(), req.ID)
+	q, err := h.c.GetSchedule(c.Request().Context(), models.ResourceID{UUID: req.ID})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting schedule %s", req.ID), err, nil)
 	}
@@ -95,7 +100,7 @@ func (h *Handler) HandleDeleteSchedule(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	if err := h.c.DeleteSchedule(c.Request().Context(), req.ID); err != nil {
+	if err := h.c.DeleteSchedule(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting schedule %s", req.ID), err, nil)
 	}
 
@@ -112,17 +117,19 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	q, err := h.c.UpdateSchedule(c.Request().Context(), models.Schedule{
-		UUID:     req.ID,
-		Title:    req.Title,
-		Interval: req.Interval,
-		Removed:  req.Removed,
-		Snapshot: req.Snapshot,
-		Platform: req.Platform,
-		Version:  req.Version,
-		Shard:    100,
-		Denylist: req.Denylist,
-	}, req.QueryID)
+	q, err := h.c.UpdateSchedule(c.Request().Context(), models.UpdateSchedule{
+		UUID:            req.ID,
+		QueryUUID:       req.QueryID,
+		Name:            req.Title,
+		IntervalSeconds: req.Interval,
+		Removed:         req.Removed,
+		Snapshot:        req.Snapshot,
+		Platform:        req.Platform,
+		Version:         req.Version,
+		Shard:           req.Shard,
+		Denylist:        req.Denylist,
+		Enabled:         true,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating schedule %s", req.ID), err, nil)
 	}

@@ -1,10 +1,9 @@
 package config
 
 type Config struct {
-	AppConfig    `koanf:",squash"`
-	OIDCConfig   `koanf:",squash"`
-	DBConfig     `koanf:",squash"`
-	ValkeyConfig `koanf:",squash"`
+	AppConfig  `koanf:",squash"`
+	OIDCConfig `koanf:",squash"`
+	DBConfig   `koanf:",squash"`
 }
 
 type AppConfig struct {
@@ -30,10 +29,4 @@ type DBConfig struct {
 	Port     int    `koanf:"db.port"`
 	User     string `koanf:"db.user"`
 	Password string `koanf:"db.password"`
-}
-
-type ValkeyConfig struct {
-	Host     string `koanf:"valkey.host"`
-	Port     int    `koanf:"valkey.port"`
-	Password string `koanf:"valkey.password"`
 }

@@ -1,6 +1,35 @@
 services:
+  watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "1323:1323"
+    environment:
+      - WATCHER_APP__ROOT_URL=https://localhost:1323
+      - WATCHER_APP__USE_TLS=true
+      - WATCHER_APP__HTTP_TLS_CERT=/etc/watcher/tls/server_cert.pem
+      - WATCHER_APP__HTTP_TLS_KEY=/etc/watcher/tls/server_key.pem
+      - WATCHER_APP__ENROLLMENT_KEY=secret-key
+      - WATCHER_DB__HOST=postgres
+      - WATCHER_DB__PORT=5432
+      - WATCHER_DB__USER=watcher
+      - WATCHER_DB__PASSWORD=watcher
+      - WATCHER_DB__DBNAME=watcher
+    volumes:
+      - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,Z"
+      - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,Z"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - watcher
+
   postgres:
-    image: postgres:17.0-alpine3.20
+    image: postgres:18-alpine
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -16,37 +45,15 @@ services:
     volumes:
       - type: volume
         source: watcher-db-data
-        target: /var/lib/postgresql/data
-
-  valkey:
-    image: valkey/valkey:8.0.1-alpine3.20
-    ports:
-      - 6379:6379
-    volumes:
-      - type: volume
-        source: valkey-data
-        target: /data
-
-  clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:latest
-    restart: unless-stopped
-    ports:
-      - "8123:8123"
-      - "9000:9000"
-    environment:
-      - CLICKHOUSE_DB=watcher
-      - CLICKHOUSE_USER=watcher
-      - CLICKHOUSE_PASSWORD=watcher
-      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
-    volumes:
-      - type: volume
-        source: clickhouse-data
-        target: /var/lib/clickhouse
+        target: /var/lib/postgresql
 
   osquery:
     build:
       context: ./testdata
       dockerfile: Dockerfile.osquery
+    depends_on:
+      watcher:
+        condition: service_started
     volumes:
       - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem:ro,Z"
       - "osquery-db:/var/osquery/osquery.db"
@@ -60,16 +67,17 @@ services:
         "--enroll_tls_endpoint=/api/v1/osquery/enroll",
         "--config_tls_endpoint=/api/v1/osquery/config",
         "--logger_tls_endpoint=/api/v1/osquery/logger",
-        "--tls_hostname=host.docker.internal:1323",
+        "--disable_distributed=false",
+        "--distributed_plugin=tls",
+        "--distributed_tls_read_endpoint=/api/v1/osquery/distributed/read",
+        "--distributed_tls_write_endpoint=/api/v1/osquery/distributed/write",
+        "--distributed_interval=5",
+        "--tls_hostname=watcher:1323",
         "--tls_server_certs=/etc/osquery-tls/certs/server.pem",
         "--disable_enrollment=false",
         "--enroll_secret_env=ENROLLMENT_SECRET",
         "--config_refresh=30",
       ]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 volumes:
   watcher-db-data:
-  valkey-data:
   osquery-db:
-  clickhouse-data:

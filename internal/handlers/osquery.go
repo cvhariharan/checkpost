@@ -3,8 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
+	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/labstack/echo/v4"
 )
 
@@ -28,13 +28,13 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"), EnrollmentResponse{NodeInvalid: true})
 	}
 
-	nodeKey, err := h.c.EnrollNode(c.Request().Context(), req.ToNodeModel())
+	creds, err := h.c.EnrollNode(c.Request().Context(), req.ToNodeModel())
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not enroll node", err, EnrollmentResponse{NodeInvalid: true})
 	}
 
 	return c.JSON(http.StatusOK, EnrollmentResponse{
-		NodeKey:     nodeKey,
+		NodeKey:     creds.NodeKey,
 		NodeInvalid: false,
 	})
 }
@@ -46,25 +46,11 @@ func (h *Handler) HandleCreateQuery(c echo.Context) error {
 	}
 	SanitizeStruct(&req)
 
-	if req.Query == "" {
-		return wrapError(http.StatusBadRequest, "query cannot be empty", fmt.Errorf("empty query"), nil)
-	}
-
-	sqlKeywords := []string{"SELECT", "FROM", "WHERE", "JOIN", "ORDER BY", "GROUP BY", "HAVING", "LIMIT", "INSERT", "UPDATE", "DELETE"}
-	validSQL := false
-
-	for _, keyword := range sqlKeywords {
-		if strings.Contains(strings.ToUpper(req.Query), keyword) {
-			validSQL = true
-			break
-		}
-	}
-
-	if !validSQL {
-		return wrapError(http.StatusBadRequest, "invalid SQL query", fmt.Errorf("query does not appear to be valid SQL"), nil)
-	}
-
-	q, err := h.c.CreateQuery(c.Request().Context(), req.Title, req.Query, req.Description)
+	q, err := h.c.CreateQuery(c.Request().Context(), models.CreateQuery{
+		Name:        req.Title,
+		SQL:         req.Query,
+		Description: req.Description,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error creating query", err, nil)
 	}
@@ -94,15 +80,18 @@ func (h *Handler) HandleQueriesPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	queries, totalCount, pageCount, err := h.c.PaginateQueries(c.Request().Context(), req.Page, req.Count)
+	page, err := h.c.PaginateQueries(c.Request().Context(), models.PageRequest{
+		Page:  req.Page,
+		Count: req.Count,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get queries", err, nil)
 	}
 
 	return c.JSON(http.StatusOK, PaginateQueriesResponse{
-		Queries:    queries,
-		TotalCount: totalCount,
-		PageCount:  pageCount,
+		Queries:    page.Items,
+		TotalCount: page.TotalCount,
+		PageCount:  page.PageCount,
 	})
 }
 
@@ -116,7 +105,7 @@ func (h *Handler) HandleGetQuery(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	q, err := h.c.GetQuery(c.Request().Context(), req.ID)
+	q, err := h.c.GetQuery(c.Request().Context(), models.ResourceID{UUID: req.ID})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting query %s", req.ID), err, nil)
 	}
@@ -134,7 +123,7 @@ func (h *Handler) HandleDeleteQuery(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	if err := h.c.DeleteQuery(c.Request().Context(), req.ID); err != nil {
+	if err := h.c.DeleteQuery(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting query %s", req.ID), err, nil)
 	}
 
@@ -151,7 +140,12 @@ func (h *Handler) HandleUpdateQuery(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	q, err := h.c.UpdateQuery(c.Request().Context(), req.ID, req.Title, req.Query, req.Description)
+	q, err := h.c.UpdateQuery(c.Request().Context(), models.UpdateQuery{
+		UUID:        req.ID,
+		Name:        req.Title,
+		SQL:         req.Query,
+		Description: req.Description,
+	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating query %s", req.ID), err, nil)
 	}
@@ -169,11 +163,11 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
-	if _, err := h.c.GetNode(c.Request().Context(), req.NodeKey); err != nil {
+	if _, err := h.c.GetNode(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}); err != nil {
 		return wrapError(http.StatusBadRequest, "error getting node details", err, EnrollmentResponse{NodeInvalid: true})
 	}
 
-	s, _, _, err := h.c.PaginateSchedules(c.Request().Context(), 0, ScheduleMax)
+	s, err := h.c.ListEnabledSchedules(c.Request().Context(), models.ScheduleListRequest{Limit: ScheduleMax})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error getting schedules", err, nil)
 	}
@@ -204,8 +198,47 @@ func (h *Handler) HandleLog(c echo.Context) error {
 
 	h.logger.Debug("request", "log", req)
 
-	if err := h.c.LogResults(c.Request().Context(), req.LogType, req.Data); err != nil {
+	if err := h.c.IngestOsqueryLogs(c.Request().Context(), models.OsqueryLogBatch{
+		NodeKey: req.NodeKey,
+		LogType: req.LogType,
+		Data:    req.Data,
+	}); err != nil {
 		return wrapError(http.StatusInternalServerError, "error writing logs", err, nil)
+	}
+
+	return c.NoContent(http.StatusOK)
+}
+
+func (h *Handler) HandleDistributedRead(c echo.Context) error {
+	var req DistributedReadRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	}
+
+	queries, err := h.c.ReadDistributedQueries(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey})
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, "error reading distributed queries", err, nil)
+	}
+
+	return c.JSON(http.StatusOK, DistributedReadResponse{Queries: queries})
+}
+
+func (h *Handler) HandleDistributedWrite(c echo.Context) error {
+	var req DistributedWriteRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	}
+
+	if err := h.c.WriteDistributedQueryResults(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, req.Queries); err != nil {
+		return wrapError(http.StatusInternalServerError, "error writing distributed query results", err, nil)
 	}
 
 	return c.NoContent(http.StatusOK)

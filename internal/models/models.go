@@ -1,12 +1,32 @@
 package models
 
+import "time"
+
 type Node struct {
-	NodeKey        string        `json:"node_key" db:"uuid"`
-	HostIdentifier string        `json:"host_identifier" db:"host_identifier"`
-	OSVersion      OSVersionInfo `json:"os_version"`
-	OSQuery        OsqueryInfo   `json:"osquery_info"`
-	System         SystemInfo    `json:"system_info"`
-	Platform       PlatformInfo  `json:"platform_info"`
+	ID              int64           `json:"-"`
+	UUID            string          `json:"uuid"`
+	NodeKey         string          `json:"node_key"`
+	HostIdentifier  string          `json:"host_identifier"`
+	Hostname        string          `json:"hostname"`
+	Platform        string          `json:"platform"`
+	OSName          string          `json:"os_name"`
+	OSVersion       string          `json:"os_version"`
+	OSQueryVersion  string          `json:"osquery_version"`
+	HardwareSerial  string          `json:"hardware_serial"`
+	EnrolledAt      time.Time       `json:"enrolled_at"`
+	LastSeenAt      *time.Time      `json:"last_seen_at,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	EnrollmentInput HostDetailsInfo `json:"-"`
+}
+
+type NodeEnrollment struct {
+	HostIdentifier string
+	HostDetails    HostDetailsInfo
+}
+
+type NodeCredentials struct {
+	NodeKey string `json:"node_key"`
 }
 
 type OSVersionInfo struct {
@@ -77,28 +97,152 @@ type HostDetailsInfo struct {
 }
 
 type Query struct {
-	ID            string `json:"-" db:"id"`
-	UUID          string `json:"uuid" db:"uuid"`
-	Title         string `json:"title" db:"title"`
-	Query         string `json:"query" db:"query"`
-	IsSystemQuery bool   `json:"is_system_query" db:"is_system_query"`
-	Description   string `json:"description" db:"description"`
+	ID          int64     `json:"-"`
+	UUID        string    `json:"uuid"`
+	Name        string    `json:"name"`
+	SQL         string    `json:"sql"`
+	Title       string    `json:"title"`
+	Query       string    `json:"query"`
+	IsSystem    bool      `json:"is_system"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type CreateQuery struct {
+	Name        string
+	SQL         string
+	Description string
+	IsSystem    bool
+}
+
+type UpdateQuery struct {
+	UUID        string
+	Name        string
+	SQL         string
+	Description string
 }
 
 type Schedule struct {
-	Query            Query  `json:"query"`
-	Query_ID         int    `json:"-" db:"query_id_fk"`
-	ID               string `json:"-" db:"id"`
-	UUID             string `json:"uuid" db:"uuid"`
-	Title            string `json:"title" db:"title"`
-	Interval         int    `json:"interval" db:"interval"`
-	Removed          bool   `json:"removed" db:"removed"`
-	Snapshot         bool   `json:"snapshot" db:"snapshot"`
-	Platform         string `json:"platform" db:"platform"`
-	Version          string `json:"version" db:"version"`
-	Shard            int    `json:"shard" db:"shard"`
-	IsSystemSchedule bool   `json:"is_system_schedule" db:"is_system_schedule"`
-	Denylist         bool   `json:"denylist" db:"denylist"`
+	ID              int64     `json:"-"`
+	UUID            string    `json:"uuid"`
+	QueryID         string    `json:"query_id"`
+	Query           Query     `json:"query"`
+	Name            string    `json:"name"`
+	Title           string    `json:"title"`
+	IntervalSeconds int       `json:"interval_seconds"`
+	Interval        int       `json:"interval"`
+	Removed         bool      `json:"removed"`
+	Snapshot        bool      `json:"snapshot"`
+	Platform        string    `json:"platform"`
+	Version         string    `json:"version"`
+	Shard           int       `json:"shard"`
+	Enabled         bool      `json:"enabled"`
+	IsSystem        bool      `json:"is_system"`
+	Denylist        bool      `json:"denylist"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type CreateSchedule struct {
+	QueryUUID       string
+	Name            string
+	IntervalSeconds int
+	Removed         bool
+	Snapshot        bool
+	Platform        string
+	Version         string
+	Shard           int
+	Denylist        bool
+	Enabled         bool
+	IsSystem        bool
+}
+
+type UpdateSchedule struct {
+	UUID            string
+	QueryUUID       string
+	Name            string
+	IntervalSeconds int
+	Removed         bool
+	Snapshot        bool
+	Platform        string
+	Version         string
+	Shard           int
+	Denylist        bool
+	Enabled         bool
+}
+
+type PageRequest struct {
+	Page  int
+	Count int
+}
+
+type Page[T any] struct {
+	Items      []T
+	TotalCount int
+	PageCount  int
+}
+
+type ResourceID struct {
+	UUID string
+}
+
+type NodeIdentity struct {
+	ID string
+}
+
+type MachineQueryRequest struct {
+	NodeUUID string
+	Query    string
+}
+
+type MachineQueryResult struct {
+	ID        string      `json:"id"`
+	Query     string      `json:"query"`
+	Status    string      `json:"status"`
+	Timestamp time.Time   `json:"timestamp"`
+	Results   interface{} `json:"results,omitempty"`
+	Error     string      `json:"error,omitempty"`
+}
+
+type NodeKeyRequest struct {
+	NodeKey string
+}
+
+type ScheduleListRequest struct {
+	Limit int
+}
+
+type OsqueryLogBatch struct {
+	NodeKey string
+	LogType string
+	Data    []map[string]interface{}
+}
+
+type OsqueryResultBatch struct {
+	NodeID       int64
+	ScheduleName string
+	Action       string
+	CalendarTime string
+	Counter      int64
+	Epoch        int64
+	Numerics     bool
+	UnixTime     time.Time
+	IsSystem     bool
+	Rows         []OsqueryResultRow
+}
+
+type OsqueryResultRow map[string]string
+
+type OsqueryStatusLog struct {
+	NodeID       int64
+	CalendarTime string
+	FileName     string
+	Line         int32
+	Message      string
+	Severity     int32
+	UnixTime     time.Time
+	Version      string
 }
 
 type Pack struct {

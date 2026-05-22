@@ -57,13 +57,10 @@ type EnrollmentRequest struct {
 	HostDetails models.HostDetailsInfo `json:"host_details"`
 }
 
-func (e EnrollmentRequest) ToNodeModel() models.Node {
-	return models.Node{
+func (e EnrollmentRequest) ToNodeModel() models.NodeEnrollment {
+	return models.NodeEnrollment{
 		HostIdentifier: e.HostIdentifier,
-		OSVersion:      e.HostDetails.OSVersion,
-		OSQuery:        e.HostDetails.OSQuery,
-		Platform:       e.HostDetails.Platform,
-		System:         e.HostDetails.System,
+		HostDetails:    e.HostDetails,
 	}
 }
 
@@ -79,7 +76,7 @@ type CreateQueryRequest struct {
 }
 
 type CreateResponse struct {
-	ID string `json:"string"`
+	ID string `json:"id"`
 }
 
 type PaginateRequest struct {
@@ -93,8 +90,19 @@ type PaginateQueriesResponse struct {
 	PageCount  int            `json:"page_count"`
 }
 
+type PaginateMachinesResponse struct {
+	Machines   []models.Node `json:"machines"`
+	TotalCount int           `json:"total_count"`
+	PageCount  int           `json:"page_count"`
+}
+
 type GetRequest struct {
 	ID string `param:"id"`
+}
+
+type MachineQueryRequest struct {
+	ID    string `param:"id"`
+	Query string `json:"query"`
 }
 
 type UpdateQueryRequest struct {
@@ -105,12 +113,12 @@ type UpdateQueryRequest struct {
 }
 
 type CreateScheduleRequest struct {
-	QueryID  string `json:"query_id" validate:"required,uuid4"`
+	QueryID  string `json:"query_id" validate:"required,uuid"`
 	Title    string `json:"title" validate:"required,ascii"`
 	Interval int    `json:"interval" validate:"required,lte=604800"`
 	Removed  bool   `json:"removed"`
 	Snapshot bool   `json:"snapshot"`
-	Platform string `json:"platform" validate:"oneof=darwin linux posiz windows any all"`
+	Platform string `json:"platform" validate:"oneof=darwin linux posix windows any all"`
 	Version  string `json:"version"`
 	Shard    int    `json:"shard" validate:"lte=100"`
 	Denylist bool   `json:"denylist"`
@@ -124,26 +132,26 @@ type PaginateSchedulesResponse struct {
 
 type UpdateScheduleRequest struct {
 	ID       string `param:"id"`
-	QueryID  string `json:"query_id" validate:"required,uuid4"`
+	QueryID  string `json:"query_id" validate:"required,uuid"`
 	Title    string `json:"title" validate:"required,ascii"`
 	Interval int    `json:"interval" validate:"required,lte=604800"`
 	Removed  bool   `json:"removed"`
 	Snapshot bool   `json:"snapshot"`
-	Platform string `json:"platform" validate:"oneof=darwin linux posiz windows any all"`
+	Platform string `json:"platform" validate:"oneof=darwin linux posix windows any all"`
 	Version  string `json:"version"`
 	Shard    int    `json:"shard" validate:"lte=100"`
 	Denylist bool   `json:"denylist"`
 }
 
 type ConfigRequest struct {
-	NodeKey string `json:"node_key" validate:"required,uuid4"`
+	NodeKey string `json:"node_key" validate:"required,uuid"`
 }
 
 type ScheduleConfig struct {
 	Query    string `json:"query"`
 	Interval int    `json:"interval"`
 	Platform string `json:"platform"`
-	Snapshot bool 	`json:"snapshot"`
+	Snapshot bool   `json:"snapshot"`
 }
 
 type OSQueryConfigResponse struct {
@@ -154,4 +162,17 @@ type LogRequest struct {
 	NodeKey string                   `json:"node_key"`
 	Data    []map[string]interface{} `json:"data"`
 	LogType string                   `json:"log_type"`
+}
+
+type DistributedReadRequest struct {
+	NodeKey string `json:"node_key" validate:"required,uuid"`
+}
+
+type DistributedReadResponse struct {
+	Queries map[string]string `json:"queries"`
+}
+
+type DistributedWriteRequest struct {
+	NodeKey string                 `json:"node_key" validate:"required,uuid"`
+	Queries map[string]interface{} `json:"queries"`
 }

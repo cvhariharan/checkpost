@@ -18,14 +18,3 @@ host = '127.0.0.1'
 password = 'watcher'
 port = 5432
 user = 'watcher'
-
-[valkey]
-host = 'localhost'
-password = ''
-port = 6379
-
-[clickhouse]
-host = 'localhost:9000'
-user = 'watcher'
-db = 'watcher'
-password = 'watcher'

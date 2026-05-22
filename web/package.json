@@ -1,0 +1,18 @@
+{
+  "name": "watcher-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@knadh/oat": "0.6.1",
+    "svelte": "5.55.9"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.1.2",
+    "vite": "8.0.14"
+  }
+}

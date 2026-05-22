@@ -1,37 +1,34 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
+	"strings"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
-	"github.com/cvhariharan/watcher/internal/logqueue"
 	"github.com/cvhariharan/watcher/internal/repo"
-	"github.com/cvhariharan/watcher/internal/shipper"
+	webassets "github.com/cvhariharan/watcher/web"
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/clickhouse"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jmoiron/sqlx"
-	"github.com/knadh/goyesql/v2"
-	goyesqlx "github.com/knadh/goyesql/v2/sqlx"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/confmap"
+	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 	"github.com/labstack/echo/v4"
-	"github.com/redis/go-redis/v9"
+	_ "github.com/lib/pq"
 )
 
 var k = koanf.New(".")
@@ -61,83 +58,40 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	db, err := sqlx.Connect("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
+	if err := loadEnvConfig(); err != nil {
+		log.Fatalf("could not load env config: %v", err)
+	}
+
+	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
 	if err != nil {
-		log.Fatalf("could not connect to database: %v", err)
+		log.Fatalf("could not open database: %v", err)
 	}
 	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("could not connect to database: %v", err)
+	}
 
 	if err := runDBMigration(db); err != nil {
 		log.Fatalf("could not complete db migration: %v", err)
 	}
 
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{k.String("clickhouse.host")},
-		Auth: clickhouse.Auth{
-			Database: k.String("clickhouse.db"),
-			Username: k.String("clickhouse.user"),
-			Password: k.String("clickhouse.password"),
-		},
-		Settings: clickhouse.Settings{
-			"allow_experimental_json_type":              1,
-			"output_format_json_quote_64bit_integers":   0,
-			"output_format_native_write_json_as_string": 1,
-		},
-	})
-	defer conn.Close()
-	if err != nil {
-		log.Fatalf("error connecting to clickhouse: %v", err)
-	}
-
-	if err := runCHMigration(); err != nil {
-		log.Fatalf("could not complete clickhouse migration: %v", err)
-	}
-
-	var pq repo.PreparedQueries
-	queries := goyesql.MustParseFile("queries.sql")
-	err = goyesqlx.ScanToStruct(&pq, queries, db)
-	if err != nil {
-		log.Fatalf("could not set up prepared queries: %v", err)
-	}
-
-	s := repo.NewPostgresStore(logger, db, pq)
+	store := repo.NewPostgresStore(db)
 
 	var cfg config.Config
 	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf", FlatPaths: true}); err != nil {
 		log.Fatal(err)
 	}
 
-	redisClient := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs:    []string{fmt.Sprintf("%s:%d", k.String("valkey.host"), k.Int("valkey.port"))},
-		Password: k.String("valkey.password"),
-	})
-	defer redisClient.Close()
-
-	logqueuer := logqueue.NewStreamLogger(logger, redisClient)
-
-	c, err := core.NewCore(logger, s, logqueuer)
+	c, err := core.NewCore(logger, store)
 	if err != nil {
 		log.Fatalf("could not initialize core: %v", err)
 	}
 
 	e := echo.New()
 
-	go runShipper(logger, conn, redisClient)
-
 	h := handlers.NewHandler(logger, cfg.AppConfig, c)
-	e.Renderer = handlers.NewTemplateRenderer()
 	e.HTTPErrorHandler = h.ErrorHandler
-
-	e.Static("/static", "web/static")
-
-	e.GET("/", func(c echo.Context) error {
-		return c.Redirect(301, "/machines")
-	})
-
-	e.GET("/machines", h.HandleMachines)
-	e.GET("/queries", h.HandleQueries)
-	e.GET("/packs", h.HandlePacks)
-	e.GET("/schedules", h.HandleSchedules)
 
 	api := e.Group("/api/v1")
 
@@ -153,10 +107,33 @@ func main() {
 	api.DELETE("/schedule/:id", h.HandleDeleteSchedule)
 	api.PUT("/schedule/:id", h.HandleUpdateSchedule)
 
+	api.GET("/machines", h.HandleMachinesPagination)
+	api.GET("/machines/:id/queries", h.HandleMachineQueries)
+	api.POST("/machines/:id/query", h.HandleExecuteMachineQuery)
+	api.GET("/machines/:id", h.HandleGetMachine)
+
+	api.GET("/packs", h.HandlePacksList)
+
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 	osqueryAPI.POST("/config", h.HandleOSQueryConfig)
 	osqueryAPI.POST("/logger", h.HandleLog)
+	osqueryAPI.POST("/distributed/read", h.HandleDistributedRead)
+	osqueryAPI.POST("/distributed/write", h.HandleDistributedWrite)
+
+	buildFS, err := fs.Sub(webassets.StaticFiles, "dist")
+	if err != nil {
+		log.Fatalf("could not load embedded frontend: %v", err)
+	}
+	e.GET("/assets/*", echo.WrapHandler(http.StripPrefix("/", http.FileServer(http.FS(buildFS)))))
+	e.GET("/*", func(c echo.Context) error {
+		indexFile, err := buildFS.Open("index.html")
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to open index.html")
+		}
+		defer indexFile.Close()
+		return c.Stream(http.StatusOK, "text/html; charset=utf-8", indexFile)
+	})
 
 	if cfg.UseTLS {
 		e.Logger.Fatal(e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath))
@@ -165,8 +142,8 @@ func main() {
 	}
 }
 
-func runDBMigration(db *sqlx.DB) error {
-	driver, err := postgres.WithInstance(db.DB, &postgres.Config{})
+func runDBMigration(db *sql.DB) error {
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return fmt.Errorf("failed to create postgres driver instance: %w", err)
 	}
@@ -181,52 +158,11 @@ func runDBMigration(db *sqlx.DB) error {
 		return fmt.Errorf("failed to get migration version: %w", err)
 	}
 
-	// If database is in a dirty state, force the version
 	if dirty {
-		if err := m.Force(int(version)); err != nil {
-			return fmt.Errorf("failed to force migration version: %w", err)
-		}
+		return fmt.Errorf("database migration is dirty at version %d", version)
 	}
 
-	// Attempt to migrate to the latest version
 	if err := m.Up(); err != nil {
-		// ErrNoChange means we're at the latest version
-		if errors.Is(err, migrate.ErrNoChange) {
-			return nil
-		}
-		return fmt.Errorf("failed to run migrations: %w", err)
-	}
-
-	return nil
-}
-
-func runCHMigration() error {
-	driverURL := fmt.Sprintf("clickhouse://%s:%s@%s/%s",
-		k.String("clickhouse.user"),
-		k.String("clickhouse.password"),
-		k.String("clickhouse.host"),
-		k.String("clickhouse.db"))
-
-	m, err := migrate.New("file://migrations/clickhouse", driverURL)
-	if err != nil {
-		return fmt.Errorf("failed to create migration instance: %w", err)
-	}
-
-	version, dirty, err := m.Version()
-	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
-		return fmt.Errorf("failed to get migration version: %w", err)
-	}
-
-	// If database is in a dirty state, force the version
-	if dirty {
-		if err := m.Force(int(version)); err != nil {
-			return fmt.Errorf("failed to force migration version: %w", err)
-		}
-	}
-
-	// Attempt to migrate to the latest version
-	if err := m.Up(); err != nil {
-		// ErrNoChange means we're at the latest version
 		if errors.Is(err, migrate.ErrNoChange) {
 			return nil
 		}
@@ -240,7 +176,6 @@ func loadOrCreateConfigFile(configFile string) error {
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		log.Println("config file not found, creating default config file")
 
-		// Write the default config to file
 		f, err := os.Create(configFile)
 		if err != nil {
 			return fmt.Errorf("error creating config file: %v", err)
@@ -265,19 +200,14 @@ func loadOrCreateConfigFile(configFile string) error {
 	return nil
 }
 
-func runShipper(logger *slog.Logger, conn driver.Conn, r redis.UniversalClient) error {
-	s, err := shipper.NewClickhouseShipper(logger, "clickhouse", conn, r)
-	if err != nil {
-		logger.Error("error creating shipper", "error", err)
-		return err
-	}
+func loadEnvConfig() error {
+	const prefix = "WATCHER_"
 
-	if err := s.Run(context.Background()); err != nil {
-		logger.Error("error running shipper", "error", err)
-		return err
-	}
-
-	return nil
+	return k.Load(env.Provider(prefix, ".", func(s string) string {
+		key := strings.TrimPrefix(s, prefix)
+		key = strings.ToLower(key)
+		return strings.ReplaceAll(key, "__", ".")
+	}), nil)
 }
 
 func setDefaultConfig() error {
@@ -302,18 +232,10 @@ func setDefaultConfig() error {
 		"app.secure_cookie_key": hex.EncodeToString(key),
 		"app.enrollment_key":    hex.EncodeToString(enrollmentKey),
 
-		"clickhouse.host":     "localhost:9000",
-		"clickhouse.db":       "watcher",
-		"clickhouse.user":     "watcher",
-		"clickhouse.password": "watcher",
-
 		"db.dbname":   "watcher",
 		"db.host":     "localhost",
 		"db.port":     5432,
 		"db.password": "watcher",
 		"db.user":     "watcher",
-
-		"valkey.host": "localhost",
-		"valkey.port": 6379,
 	}, "."), nil)
 }

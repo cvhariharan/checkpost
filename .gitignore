@@ -1,1 +1,27 @@
+# Local configuration
 config.toml
+.env
+.env.*
+!.env.example
+
+# Go build and test artifacts
+/server
+/bin/
+/tmp/
+*.test
+*.out
+*.prof
+coverage.out
+
+# Frontend dependencies and build output
+web/node_modules/
+web/dist/
+web/.vite/
+web/.svelte-kit/
+
+# Local development TLS material
+testdata/server_cert.pem
+testdata/server_key.pem
+
+# Logs
+*.log
