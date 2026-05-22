@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -8,37 +10,28 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func (h *Handler) HandleCreatePolicy(c echo.Context) error {
-	var req CreatePolicyRequest
+func (h *Handler) HandleCreateGroup(c echo.Context) error {
+	var req CreateGroupRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
 	}
+	SanitizeStruct(&req)
 	if err := h.validate.Struct(req); err != nil {
 		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
-	enabled := true
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-
-	policy, err := h.c.CreatePolicy(c.Request().Context(), models.CreatePolicy{
+	group, err := h.c.CreateGroup(c.Request().Context(), models.CreateGroup{
 		Name:        req.Title,
-		Query:       req.Query,
 		Description: req.Description,
-		Resolution:  req.Resolution,
-		Platform:    req.Platform,
-		Enabled:     enabled,
-		GroupIDs:    req.GroupIDs,
 	})
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "error creating policy", err, nil)
+		return wrapError(http.StatusInternalServerError, "error creating group", err, nil)
 	}
 
-	return c.JSON(http.StatusCreated, CreateResponse{ID: policy.UUID})
+	return c.JSON(http.StatusCreated, CreateResponse{ID: group.UUID})
 }
 
-func (h *Handler) HandlePoliciesPagination(c echo.Context) error {
+func (h *Handler) HandleGroupsPagination(c echo.Context) error {
 	var req PaginateRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
@@ -53,19 +46,19 @@ func (h *Handler) HandlePoliciesPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	page, err := h.c.PaginatePolicies(c.Request().Context(), models.PageRequest{Page: req.Page, Count: req.Count})
+	page, err := h.c.PaginateGroups(c.Request().Context(), models.PageRequest{Page: req.Page, Count: req.Count})
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "could not get policies", err, nil)
+		return wrapError(http.StatusInternalServerError, "could not get groups", err, nil)
 	}
 
-	return c.JSON(http.StatusOK, PaginatePoliciesResponse{
-		Policies:   page.Items,
+	return c.JSON(http.StatusOK, PaginateGroupsResponse{
+		Groups:     page.Items,
 		TotalCount: page.TotalCount,
 		PageCount:  page.PageCount,
 	})
 }
 
-func (h *Handler) HandleGetPolicy(c echo.Context) error {
+func (h *Handler) HandleGetGroup(c echo.Context) error {
 	var req GetRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
@@ -74,19 +67,20 @@ func (h *Handler) HandleGetPolicy(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	policy, err := h.c.GetPolicy(c.Request().Context(), models.ResourceID{UUID: req.ID})
+	group, err := h.c.GetGroup(c.Request().Context(), models.ResourceID{UUID: req.ID})
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting policy %s", req.ID), err, nil)
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting group %s", req.ID), err, nil)
 	}
 
-	return c.JSON(http.StatusOK, policy)
+	return c.JSON(http.StatusOK, group)
 }
 
-func (h *Handler) HandleUpdatePolicy(c echo.Context) error {
-	var req UpdatePolicyRequest
+func (h *Handler) HandleUpdateGroup(c echo.Context) error {
+	var req UpdateGroupRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
+	SanitizeStruct(&req)
 	if req.ID == "" {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
@@ -94,29 +88,19 @@ func (h *Handler) HandleUpdatePolicy(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
-	enabled := true
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-
-	policy, err := h.c.UpdatePolicy(c.Request().Context(), models.UpdatePolicy{
+	group, err := h.c.UpdateGroup(c.Request().Context(), models.UpdateGroup{
 		UUID:        req.ID,
 		Name:        req.Title,
-		Query:       req.Query,
 		Description: req.Description,
-		Resolution:  req.Resolution,
-		Platform:    req.Platform,
-		Enabled:     enabled,
-		GroupIDs:    req.GroupIDs,
 	})
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating policy %s", req.ID), err, nil)
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating group %s", req.ID), err, nil)
 	}
 
-	return c.JSON(http.StatusOK, policy)
+	return c.JSON(http.StatusOK, group)
 }
 
-func (h *Handler) HandleDeletePolicy(c echo.Context) error {
+func (h *Handler) HandleDeleteGroup(c echo.Context) error {
 	var req GetRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
@@ -125,15 +109,18 @@ func (h *Handler) HandleDeletePolicy(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
 	}
 
-	if err := h.c.DeletePolicy(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting policy %s", req.ID), err, nil)
+	if err := h.c.DeleteGroup(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return wrapError(http.StatusNotFound, fmt.Sprintf("group %s not found", req.ID), err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting group %s", req.ID), err, nil)
 	}
 
 	return c.NoContent(http.StatusOK)
 }
 
-func (h *Handler) HandlePolicyMachines(c echo.Context) error {
-	var req PolicyMachinesRequest
+func (h *Handler) HandleGroupMachines(c echo.Context) error {
+	var req GroupMachinesRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
@@ -150,17 +137,16 @@ func (h *Handler) HandlePolicyMachines(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	page, err := h.c.PaginatePolicyMachines(c.Request().Context(), models.PolicyMachinesRequest{
-		PolicyUUID: req.ID,
-		Response:   req.Response,
-		Page:       req.Page,
-		Count:      req.Count,
+	page, err := h.c.PaginateGroupMachines(c.Request().Context(), models.GroupMachinesRequest{
+		GroupUUID: req.ID,
+		Page:      req.Page,
+		Count:     req.Count,
 	})
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting policy machines %s", req.ID), err, nil)
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting group machines %s", req.ID), err, nil)
 	}
 
-	return c.JSON(http.StatusOK, PolicyMachinesResponse{
+	return c.JSON(http.StatusOK, GroupMachinesResponse{
 		Machines:   page.Items,
 		TotalCount: page.TotalCount,
 		PageCount:  page.PageCount,

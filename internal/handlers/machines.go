@@ -115,6 +115,42 @@ func (h *Handler) HandleMachinePolicies(c echo.Context) error {
 	})
 }
 
+func (h *Handler) HandleMachineGroups(c echo.Context) error {
+	var req MachineGroupsRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
+	}
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+
+	groups, err := h.c.ListGroupsForNode(c.Request().Context(), models.NodeIdentity{ID: req.ID})
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting machine groups %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, MachineGroupsResponse{Groups: groups})
+}
+
+func (h *Handler) HandleReplaceMachineGroups(c echo.Context) error {
+	var req ReplaceMachineGroupsRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
+	}
+	SanitizeStruct(&req)
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+
+	groups, err := h.c.ReplaceGroupsForNode(c.Request().Context(), models.NodeIdentity{ID: req.ID}, req.GroupIDs)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating machine groups %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, MachineGroupsResponse{Groups: groups})
+}
+
 func (h *Handler) HandleDeleteMachineQuery(c echo.Context) error {
 	var req DeleteMachineQueryRequest
 	if err := c.Bind(&req); err != nil {

@@ -141,6 +141,13 @@
     return machine.hostname || machine.host_identifier || 'Unknown'
   }
 
+  function targetLabel(policy) {
+    if (policy.target_all_machines || !policy.groups?.length) {
+      return 'All machines'
+    }
+    return policy.groups.map((group) => group.name).join(', ')
+  }
+
   async function changeMachinePage(page) {
     if (machinePolicy && page > 0 && page <= machinePageCount) {
       await openMachines(machinePolicy, machineResponse, page)
@@ -171,6 +178,7 @@
         <tr>
           <th>Name</th>
           <th>Platform</th>
+          <th>Targets</th>
           <th>Status</th>
           <th class="align-right">Passing</th>
           <th class="align-right">Failing</th>
@@ -189,6 +197,7 @@
               {/if}
             </td>
             <td><span class="badge outline">{policy.platform}</span></td>
+            <td>{targetLabel(policy)}</td>
             <td>
               <span class="badge" data-variant={policy.enabled ? 'success' : 'warning'}>
                 {policy.enabled ? 'Enabled' : 'Disabled'}
@@ -219,7 +228,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="8" class="align-center text-light">No policies found</td>
+            <td colspan="9" class="align-center text-light">No policies found</td>
           </tr>
         {/each}
       </tbody>

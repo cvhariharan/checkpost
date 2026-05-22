@@ -12,19 +12,27 @@ import (
 
 type Querier interface {
 	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
+	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
+	CreateGroupMembership(ctx context.Context, arg CreateGroupMembershipParams) error
 	CreateMachineQueryResult(ctx context.Context, arg CreateMachineQueryResultParams) (MachineQueryResult, error)
 	CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error)
 	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
+	CreatePolicyGroup(ctx context.Context, arg CreatePolicyGroupParams) error
 	CreateQuery(ctx context.Context, arg CreateQueryParams) (Query, error)
 	CreateResultBatch(ctx context.Context, arg CreateResultBatchParams) (OsqueryResultBatch, error)
 	CreateResultCell(ctx context.Context, arg CreateResultCellParams) error
 	CreateResultRow(ctx context.Context, arg CreateResultRowParams) (OsqueryResultRow, error)
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
+	DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeleteGroupMembershipsForNode(ctx context.Context, nodeUuid uuid.UUID) error
 	DeleteMachineQueryResultByNodeAndUUID(ctx context.Context, arg DeleteMachineQueryResultByNodeAndUUIDParams) (int64, error)
 	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error
 	DeleteQueryByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
+	GetGroupWithCountsByUUID(ctx context.Context, groupUuid uuid.UUID) (GetGroupWithCountsByUUIDRow, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
 	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error)
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
@@ -33,10 +41,14 @@ type Querier interface {
 	GetQueryByUUID(ctx context.Context, argUuid uuid.UUID) (Query, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
 	GetScheduleWithQueryByUUID(ctx context.Context, argUuid uuid.UUID) (GetScheduleWithQueryByUUIDRow, error)
-	ListEnabledPoliciesForPlatform(ctx context.Context, nodePlatform string) ([]Policy, error)
+	ListEnabledPoliciesForNode(ctx context.Context, arg ListEnabledPoliciesForNodeParams) ([]Policy, error)
 	ListEnabledSchedulesWithQueries(ctx context.Context, limit int32) ([]ListEnabledSchedulesWithQueriesRow, error)
+	ListGroupsForNode(ctx context.Context, nodeUuid uuid.UUID) ([]Group, error)
+	ListGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) ([]Group, error)
+	ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error)
 	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
+	ListNodesByGroup(ctx context.Context, arg ListNodesByGroupParams) ([]ListNodesByGroupRow, error)
 	ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error)
 	ListPendingMachineQueryResults(ctx context.Context, nodeID int64) ([]MachineQueryResult, error)
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
@@ -46,6 +58,7 @@ type Querier interface {
 	ListSystemScheduleNames(ctx context.Context) ([]string, error)
 	MarkMachineQueryResultsDispatched(ctx context.Context, ids []int64) error
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
+	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
 	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQueryByUUID(ctx context.Context, arg UpdateQueryByUUIDParams) (Query, error)

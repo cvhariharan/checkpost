@@ -17,6 +17,7 @@ type Node struct {
 	EnrolledAt        time.Time       `json:"enrolled_at"`
 	LastSeenAt        *time.Time      `json:"last_seen_at,omitempty"`
 	LastPolicyCheckAt *time.Time      `json:"last_policy_check_at,omitempty"`
+	Groups            []Group         `json:"groups,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 	EnrollmentInput   HostDetailsInfo `json:"-"`
@@ -186,6 +187,8 @@ type Policy struct {
 	Platform           string     `json:"platform"`
 	Enabled            bool       `json:"enabled"`
 	IsSystem           bool       `json:"is_system"`
+	Groups             []Group    `json:"groups,omitempty"`
+	TargetAllMachines  bool       `json:"target_all_machines"`
 	PassingCount       int        `json:"passing_count"`
 	FailingCount       int        `json:"failing_count"`
 	UnknownCount       int        `json:"unknown_count"`
@@ -202,6 +205,7 @@ type CreatePolicy struct {
 	Platform    string
 	Enabled     bool
 	IsSystem    bool
+	GroupIDs    []string
 }
 
 type UpdatePolicy struct {
@@ -212,6 +216,36 @@ type UpdatePolicy struct {
 	Resolution  string
 	Platform    string
 	Enabled     bool
+	GroupIDs    []string
+}
+
+type Group struct {
+	ID           int64     `json:"-"`
+	ResourceID   string    `json:"id"`
+	UUID         string    `json:"uuid"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	MachineCount int       `json:"machine_count"`
+	PolicyCount  int       `json:"policy_count"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type CreateGroup struct {
+	Name        string
+	Description string
+}
+
+type UpdateGroup struct {
+	UUID        string
+	Name        string
+	Description string
+}
+
+type GroupMachinesRequest struct {
+	GroupUUID string
+	Page      int
+	Count     int
 }
 
 type PolicyPosture struct {

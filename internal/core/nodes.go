@@ -69,7 +69,11 @@ func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models
 		return models.Node{}, fmt.Errorf("get node: %w", err)
 	}
 
-	return toModelNode(node), nil
+	out := toModelNode(node)
+	if err := c.attachGroupsToNode(ctx, &out); err != nil {
+		return models.Node{}, err
+	}
+	return out, nil
 }
 
 func (c *Core) PaginateNodes(ctx context.Context, req models.PageRequest) (models.Page[models.Node], error) {
@@ -95,6 +99,10 @@ func (c *Core) PaginateNodes(ctx context.Context, req models.PageRequest) (model
 	for _, row := range rows {
 		out = append(out, toModelNodeRow(row))
 		totalCount = int(row.TotalCount)
+	}
+
+	if err := c.attachGroupsToNodes(ctx, out); err != nil {
+		return models.Page[models.Node]{}, err
 	}
 
 	return models.Page[models.Node]{

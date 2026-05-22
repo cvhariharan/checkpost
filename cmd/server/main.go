@@ -114,10 +114,19 @@ func main() {
 	api.PUT("/policy/:id", h.HandleUpdatePolicy)
 	api.GET("/policy/:id/machines", h.HandlePolicyMachines)
 
+	api.POST("/group", h.HandleCreateGroup)
+	api.GET("/groups", h.HandleGroupsPagination)
+	api.GET("/group/:id", h.HandleGetGroup)
+	api.DELETE("/group/:id", h.HandleDeleteGroup)
+	api.PUT("/group/:id", h.HandleUpdateGroup)
+	api.GET("/group/:id/machines", h.HandleGroupMachines)
+
 	api.GET("/machines", h.HandleMachinesPagination)
 	api.GET("/machines/:id/queries", h.HandleMachineQueries)
 	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery)
 	api.GET("/machines/:id/policies", h.HandleMachinePolicies)
+	api.GET("/machines/:id/groups", h.HandleMachineGroups)
+	api.PUT("/machines/:id/groups", h.HandleReplaceMachineGroups)
 	api.POST("/machines/:id/query", h.HandleExecuteMachineQuery)
 	api.GET("/machines/:id", h.HandleGetMachine)
 

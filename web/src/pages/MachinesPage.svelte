@@ -103,6 +103,7 @@
           <th>Operating System</th>
           <th>Last Seen</th>
           <th>Tags</th>
+          <th>Groups</th>
           <th>Version</th>
           <th class="align-right">Actions</th>
         </tr>
@@ -129,6 +130,13 @@
                 {/each}
               </div>
             </td>
+            <td>
+              <div class="hstack gap-2">
+                {#each machine.groups || [] as group}
+                  <span class="badge outline">{group.name}</span>
+                {/each}
+              </div>
+            </td>
             <td>{machine.osquery_version || 'Unknown'}</td>
             <td class="align-right">
               <a
@@ -143,7 +151,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="7" class="align-center text-light">No machines found</td>
+            <td colspan="8" class="align-center text-light">No machines found</td>
           </tr>
         {/each}
       </tbody>

@@ -245,19 +245,20 @@ func scheduleFromParts(id int64, uuid, name string, interval int, platform, vers
 
 func toModelPolicy(policy repo.Policy) models.Policy {
 	return models.Policy{
-		ID:          policy.ID,
-		ResourceID:  policy.Uuid.String(),
-		UUID:        policy.Uuid.String(),
-		Name:        policy.Name,
-		Title:       policy.Name,
-		Query:       policy.Query,
-		Description: policy.Description,
-		Resolution:  policy.Resolution,
-		Platform:    policy.Platform,
-		Enabled:     policy.Enabled,
-		IsSystem:    policy.IsSystem,
-		CreatedAt:   policy.CreatedAt,
-		UpdatedAt:   policy.UpdatedAt,
+		ID:                policy.ID,
+		ResourceID:        policy.Uuid.String(),
+		UUID:              policy.Uuid.String(),
+		Name:              policy.Name,
+		Title:             policy.Name,
+		Query:             policy.Query,
+		Description:       policy.Description,
+		Resolution:        policy.Resolution,
+		Platform:          policy.Platform,
+		Enabled:           policy.Enabled,
+		IsSystem:          policy.IsSystem,
+		TargetAllMachines: true,
+		CreatedAt:         policy.CreatedAt,
+		UpdatedAt:         policy.UpdatedAt,
 	}
 }
 
@@ -274,6 +275,7 @@ func toModelPolicyRow(row repo.ListPoliciesWithCountsRow) models.Policy {
 		Platform:           row.Platform,
 		Enabled:            row.Enabled,
 		IsSystem:           row.IsSystem,
+		TargetAllMachines:  true,
 		PassingCount:       int(row.PassingCount),
 		FailingCount:       int(row.FailingCount),
 		UnknownCount:       int(row.UnknownCount),
@@ -286,19 +288,20 @@ func toModelPolicyRow(row repo.ListPoliciesWithCountsRow) models.Policy {
 func toModelPolicyPosture(row repo.ListPoliciesForNodeRow) models.PolicyPosture {
 	return models.PolicyPosture{
 		Policy: models.Policy{
-			ID:          row.ID,
-			ResourceID:  row.Uuid.String(),
-			UUID:        row.Uuid.String(),
-			Name:        row.Name,
-			Title:       row.Name,
-			Query:       row.Query,
-			Description: row.Description,
-			Resolution:  row.Resolution,
-			Platform:    row.Platform,
-			Enabled:     row.Enabled,
-			IsSystem:    row.IsSystem,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:                row.ID,
+			ResourceID:        row.Uuid.String(),
+			UUID:              row.Uuid.String(),
+			Name:              row.Name,
+			Title:             row.Name,
+			Query:             row.Query,
+			Description:       row.Description,
+			Resolution:        row.Resolution,
+			Platform:          row.Platform,
+			Enabled:           row.Enabled,
+			IsSystem:          row.IsSystem,
+			TargetAllMachines: true,
+			CreatedAt:         row.CreatedAt,
+			UpdatedAt:         row.UpdatedAt,
 		},
 		Response:  row.Response,
 		CheckedAt: timePtrFromNull(row.CheckedAt),
@@ -329,6 +332,7 @@ func toModelPolicyMachine(row repo.ListNodesByPolicyResponseRow) models.PolicyMa
 			EnrolledAt:        row.EnrolledAt,
 			LastSeenAt:        timePtrFromNull(row.LastSeenAt),
 			LastPolicyCheckAt: timePtrFromNull(row.LastPolicyCheckAt),
+			Groups:            nil,
 			CreatedAt:         row.CreatedAt,
 			UpdatedAt:         row.UpdatedAt,
 		},
@@ -336,6 +340,67 @@ func toModelPolicyMachine(row repo.ListNodesByPolicyResponseRow) models.PolicyMa
 		CheckedAt: timePtrFromNull(row.CheckedAt),
 		LastError: lastError,
 		Stale:     row.Stale,
+	}
+}
+
+func toModelGroup(group repo.Group) models.Group {
+	return models.Group{
+		ID:          group.ID,
+		ResourceID:  group.Uuid.String(),
+		UUID:        group.Uuid.String(),
+		Name:        group.Name,
+		Description: group.Description,
+		CreatedAt:   group.CreatedAt,
+		UpdatedAt:   group.UpdatedAt,
+	}
+}
+
+func toModelGroupRow(row repo.ListGroupsWithCountsRow) models.Group {
+	return models.Group{
+		ID:           row.ID,
+		ResourceID:   row.Uuid.String(),
+		UUID:         row.Uuid.String(),
+		Name:         row.Name,
+		Description:  row.Description,
+		MachineCount: int(row.MachineCount),
+		PolicyCount:  int(row.PolicyCount),
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toModelGroupCountRow(row repo.GetGroupWithCountsByUUIDRow) models.Group {
+	return models.Group{
+		ID:           row.ID,
+		ResourceID:   row.Uuid.String(),
+		UUID:         row.Uuid.String(),
+		Name:         row.Name,
+		Description:  row.Description,
+		MachineCount: int(row.MachineCount),
+		PolicyCount:  int(row.PolicyCount),
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toModelNodeFromGroupRow(row repo.ListNodesByGroupRow) models.Node {
+	return models.Node{
+		ID:                row.ID,
+		ResourceID:        row.Uuid.String(),
+		UUID:              row.Uuid.String(),
+		NodeKey:           row.NodeKey.String(),
+		HostIdentifier:    row.HostIdentifier,
+		Hostname:          row.Hostname,
+		Platform:          row.Platform,
+		OSName:            row.OsName,
+		OSVersion:         row.OsVersion,
+		OSQueryVersion:    row.OsqueryVersion,
+		HardwareSerial:    row.HardwareSerial,
+		EnrolledAt:        row.EnrolledAt,
+		LastSeenAt:        timePtrFromNull(row.LastSeenAt),
+		LastPolicyCheckAt: timePtrFromNull(row.LastPolicyCheckAt),
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
 	}
 }
 

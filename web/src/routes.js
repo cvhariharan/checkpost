@@ -5,6 +5,7 @@ import QueriesPage from './pages/QueriesPage.svelte'
 import PacksPage from './pages/PacksPage.svelte'
 import PoliciesPage from './pages/PoliciesPage.svelte'
 import SchedulesPage from './pages/SchedulesPage.svelte'
+import GroupsPage from './pages/GroupsPage.svelte'
 import ErrorPage from './pages/ErrorPage.svelte'
 
 const routes = [
@@ -23,6 +24,7 @@ const routes = [
   },
   { path: /^\/queries\/?$/, component: QueriesPage, section: 'queries' },
   { path: /^\/packs\/?$/, component: PacksPage, section: 'packs' },
+  { path: /^\/groups\/?$/, component: GroupsPage, section: 'groups' },
   { path: /^\/policies\/?$/, component: PoliciesPage, section: 'policies' },
   { path: /^\/schedules\/?$/, component: SchedulesPage, section: 'schedules' },
   { path: /^\/error\/?$/, component: ErrorPage, section: 'error' }

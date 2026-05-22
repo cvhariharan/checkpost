@@ -28,20 +28,32 @@ func (c *Core) CreatePolicy(ctx context.Context, req models.CreatePolicy) (model
 		return models.Policy{}, err
 	}
 
-	policy, err := c.store.CreatePolicy(ctx, repo.CreatePolicyParams{
-		Name:        strings.TrimSpace(req.Name),
-		Query:       strings.TrimSpace(req.Query),
-		Description: req.Description,
-		Resolution:  req.Resolution,
-		Platform:    defaultString(req.Platform, "all"),
-		Enabled:     req.Enabled,
-		IsSystem:    req.IsSystem,
+	groupUUIDs, err := parseUUIDList(req.GroupIDs, "group")
+	if err != nil {
+		return models.Policy{}, err
+	}
+
+	policy, err := c.store.CreatePolicyTx(ctx, repo.CreatePolicyTxParams{
+		Policy: repo.CreatePolicyParams{
+			Name:        strings.TrimSpace(req.Name),
+			Query:       strings.TrimSpace(req.Query),
+			Description: req.Description,
+			Resolution:  req.Resolution,
+			Platform:    defaultString(req.Platform, "all"),
+			Enabled:     req.Enabled,
+			IsSystem:    req.IsSystem,
+		},
+		GroupUUIDs: groupUUIDs,
 	})
 	if err != nil {
 		return models.Policy{}, fmt.Errorf("create policy: %w", err)
 	}
 
-	return toModelPolicy(policy), nil
+	out := toModelPolicy(policy)
+	if err := c.attachGroupsToPolicy(ctx, &out); err != nil {
+		return models.Policy{}, err
+	}
+	return out, nil
 }
 
 func (c *Core) GetPolicy(ctx context.Context, req models.ResourceID) (models.Policy, error) {
@@ -55,7 +67,11 @@ func (c *Core) GetPolicy(ctx context.Context, req models.ResourceID) (models.Pol
 		return models.Policy{}, fmt.Errorf("get policy: %w", err)
 	}
 
-	return toModelPolicy(policy), nil
+	out := toModelPolicy(policy)
+	if err := c.attachGroupsToPolicy(ctx, &out); err != nil {
+		return models.Policy{}, err
+	}
+	return out, nil
 }
 
 func (c *Core) PaginatePolicies(ctx context.Context, req models.PageRequest) (models.Page[models.Policy], error) {
@@ -84,6 +100,10 @@ func (c *Core) PaginatePolicies(ctx context.Context, req models.PageRequest) (mo
 		totalCount = int(row.TotalCount)
 	}
 
+	if err := c.attachGroupsToPolicies(ctx, out); err != nil {
+		return models.Page[models.Policy]{}, err
+	}
+
 	return models.Page[models.Policy]{
 		Items:      out,
 		TotalCount: totalCount,
@@ -101,20 +121,32 @@ func (c *Core) UpdatePolicy(ctx context.Context, req models.UpdatePolicy) (model
 		return models.Policy{}, fmt.Errorf("parse policy uuid: %w", err)
 	}
 
-	policy, err := c.store.UpdatePolicyByUUID(ctx, repo.UpdatePolicyByUUIDParams{
-		Uuid:        policyID,
-		Name:        strings.TrimSpace(req.Name),
-		Query:       strings.TrimSpace(req.Query),
-		Description: req.Description,
-		Resolution:  req.Resolution,
-		Platform:    defaultString(req.Platform, "all"),
-		Enabled:     req.Enabled,
+	groupUUIDs, err := parseUUIDList(req.GroupIDs, "group")
+	if err != nil {
+		return models.Policy{}, err
+	}
+
+	policy, err := c.store.UpdatePolicyTx(ctx, repo.UpdatePolicyTxParams{
+		Policy: repo.UpdatePolicyByUUIDParams{
+			Uuid:        policyID,
+			Name:        strings.TrimSpace(req.Name),
+			Query:       strings.TrimSpace(req.Query),
+			Description: req.Description,
+			Resolution:  req.Resolution,
+			Platform:    defaultString(req.Platform, "all"),
+			Enabled:     req.Enabled,
+		},
+		GroupUUIDs: groupUUIDs,
 	})
 	if err != nil {
 		return models.Policy{}, fmt.Errorf("update policy: %w", err)
 	}
 
-	return toModelPolicy(policy), nil
+	out := toModelPolicy(policy)
+	if err := c.attachGroupsToPolicy(ctx, &out); err != nil {
+		return models.Policy{}, err
+	}
+	return out, nil
 }
 
 func (c *Core) DeletePolicy(ctx context.Context, req models.ResourceID) error {
@@ -150,6 +182,9 @@ func (c *Core) ListPoliciesForNode(ctx context.Context, req models.NodeIdentity)
 	out := make([]models.PolicyPosture, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, toModelPolicyPosture(row))
+	}
+	if err := c.attachGroupsToPolicyPostures(ctx, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -194,11 +229,26 @@ func (c *Core) PaginatePolicyMachines(ctx context.Context, req models.PolicyMach
 		totalCount = int(row.TotalCount)
 	}
 
+	for i := range out {
+		if err := c.attachGroupsToNode(ctx, &out[i].Node); err != nil {
+			return models.Page[models.PolicyMachine]{}, err
+		}
+	}
+
 	return models.Page[models.PolicyMachine]{
 		Items:      out,
 		TotalCount: totalCount,
 		PageCount:  pageCountFor(totalCount, countPerPage),
 	}, nil
+}
+
+func (c *Core) attachGroupsToPolicyPostures(ctx context.Context, policies []models.PolicyPosture) error {
+	for i := range policies {
+		if err := c.attachGroupsToPolicy(ctx, &policies[i].Policy); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Core) recordPolicyResults(ctx context.Context, node models.Node, results map[string]interface{}, statuses, messages map[string]string) error {

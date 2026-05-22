@@ -64,7 +64,7 @@ func (s *fakePolicyStore) TouchNode(ctx context.Context, nodeKey uuid.UUID) erro
 	return nil
 }
 
-func (s *fakePolicyStore) ListEnabledPoliciesForPlatform(ctx context.Context, nodePlatform string) ([]repo.Policy, error) {
+func (s *fakePolicyStore) ListEnabledPoliciesForNode(ctx context.Context, arg repo.ListEnabledPoliciesForNodeParams) ([]repo.Policy, error) {
 	if s.listPoliciesErr != nil {
 		return nil, s.listPoliciesErr
 	}
@@ -76,6 +76,14 @@ func (s *fakePolicyStore) GetPolicyByUUID(ctx context.Context, policyUUID uuid.U
 		return repo.Policy{}, s.getPolicyErr
 	}
 	return s.policy, nil
+}
+
+func (s *fakePolicyStore) ListGroupsForNode(ctx context.Context, nodeUUID uuid.UUID) ([]repo.Group, error) {
+	return nil, nil
+}
+
+func (s *fakePolicyStore) ListGroupsForPolicy(ctx context.Context, policyUUID uuid.UUID) ([]repo.Group, error) {
+	return nil, nil
 }
 
 func (s *fakePolicyStore) UpsertPolicyMembership(ctx context.Context, arg repo.UpsertPolicyMembershipParams) error {

@@ -173,22 +173,24 @@ type PaginateSchedulesResponse struct {
 }
 
 type CreatePolicyRequest struct {
-	Title       string `json:"title" validate:"required"`
-	Query       string `json:"query" validate:"required"`
-	Description string `json:"description"`
-	Resolution  string `json:"resolution"`
-	Platform    string `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
-	Enabled     *bool  `json:"enabled"`
+	Title       string   `json:"title" validate:"required"`
+	Query       string   `json:"query" validate:"required"`
+	Description string   `json:"description"`
+	Resolution  string   `json:"resolution"`
+	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Enabled     *bool    `json:"enabled"`
+	GroupIDs    []string `json:"group_ids"`
 }
 
 type UpdatePolicyRequest struct {
-	ID          string `param:"id"`
-	Title       string `json:"title" validate:"required"`
-	Query       string `json:"query" validate:"required"`
-	Description string `json:"description"`
-	Resolution  string `json:"resolution"`
-	Platform    string `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
-	Enabled     *bool  `json:"enabled"`
+	ID          string   `param:"id"`
+	Title       string   `json:"title" validate:"required"`
+	Query       string   `json:"query" validate:"required"`
+	Description string   `json:"description"`
+	Resolution  string   `json:"resolution"`
+	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Enabled     *bool    `json:"enabled"`
+	GroupIDs    []string `json:"group_ids"`
 }
 
 type PaginatePoliciesResponse struct {
@@ -208,6 +210,48 @@ type PolicyMachinesResponse struct {
 	Machines   []models.PolicyMachine `json:"machines"`
 	TotalCount int                    `json:"total_count"`
 	PageCount  int                    `json:"page_count"`
+}
+
+type CreateGroupRequest struct {
+	Title       string `json:"title" validate:"required"`
+	Description string `json:"description"`
+}
+
+type UpdateGroupRequest struct {
+	ID          string `param:"id"`
+	Title       string `json:"title" validate:"required"`
+	Description string `json:"description"`
+}
+
+type PaginateGroupsResponse struct {
+	Groups     []models.Group `json:"groups"`
+	TotalCount int            `json:"total_count"`
+	PageCount  int            `json:"page_count"`
+}
+
+type MachineGroupsRequest struct {
+	ID string `param:"id"`
+}
+
+type ReplaceMachineGroupsRequest struct {
+	ID       string   `param:"id"`
+	GroupIDs []string `json:"group_ids"`
+}
+
+type MachineGroupsResponse struct {
+	Groups []models.Group `json:"groups"`
+}
+
+type GroupMachinesRequest struct {
+	ID    string `param:"id"`
+	Page  int    `query:"page"`
+	Count int    `query:"count_per_page"`
+}
+
+type GroupMachinesResponse struct {
+	Machines   []models.Node `json:"machines"`
+	TotalCount int           `json:"total_count"`
+	PageCount  int           `json:"page_count"`
 }
 
 type UpdateScheduleRequest struct {

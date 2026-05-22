@@ -96,6 +96,34 @@ export async function fetchPolicies({ page = 1, countPerPage = 10 } = {}) {
   return handleResponse(res);
 }
 
+export async function fetchGroups({ page = 1, countPerPage = 10 } = {}) {
+  const res = await fetch(apiUrl('/groups', { page, count_per_page: countPerPage }));
+  return handleResponse(res);
+}
+
+export async function createGroup(payload) {
+  const res = await fetch(`${BASE_URL}/group`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
+
+export async function updateGroup(uuid, payload) {
+  const res = await fetch(`${BASE_URL}/group/${encodeURIComponent(uuid)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteGroup(uuid) {
+  const res = await fetch(`${BASE_URL}/group/${encodeURIComponent(uuid)}`, { method: 'DELETE' });
+  return handleResponse(res);
+}
+
 export async function createPolicy(payload) {
   const res = await fetch(`${BASE_URL}/policy`, {
     method: 'POST',
@@ -149,6 +177,20 @@ export async function deleteMachineQuery(machineId, queryId) {
 
 export async function fetchMachinePolicies(id) {
   const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/policies`);
+  return handleResponse(res);
+}
+
+export async function fetchMachineGroups(id) {
+  const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/groups`);
+  return handleResponse(res);
+}
+
+export async function updateMachineGroups(id, group_ids) {
+  const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/groups`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ group_ids }),
+  });
   return handleResponse(res);
 }
 

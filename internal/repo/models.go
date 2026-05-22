@@ -12,6 +12,21 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type Group struct {
+	ID          int64     `db:"id" json:"id"`
+	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type GroupMembership struct {
+	GroupID   int64     `db:"group_id" json:"group_id"`
+	NodeID    int64     `db:"node_id" json:"node_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 type MachineQueryResult struct {
 	ID           int64                 `db:"id" json:"id"`
 	Uuid         uuid.UUID             `db:"uuid" json:"uuid"`
@@ -98,6 +113,12 @@ type Policy struct {
 	IsSystem    bool      `db:"is_system" json:"is_system"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type PolicyGroup struct {
+	PolicyID  int64     `db:"policy_id" json:"policy_id"`
+	GroupID   int64     `db:"group_id" json:"group_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 type PolicyMembership struct {

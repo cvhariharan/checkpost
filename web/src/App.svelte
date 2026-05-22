@@ -4,6 +4,7 @@
 
   const navItems = [
     { href: '/machines', label: 'Machines', section: 'machines' },
+    { href: '/groups', label: 'Groups', section: 'groups' },
     { href: '/queries', label: 'Queries', section: 'queries' },
     { href: '/packs', label: 'Packs', section: 'packs' },
     { href: '/policies', label: 'Policies', section: 'policies' },

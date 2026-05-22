@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte'
-  import { deleteMachineQuery, executeMachineQuery, fetchMachine, fetchMachinePolicies, fetchMachineQueries } from '@/api.js'
+  import { deleteMachineQuery, executeMachineQuery, fetchGroups, fetchMachine, fetchMachinePolicies, fetchMachineQueries, updateMachineGroups } from '@/api.js'
+  import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.svelte'
   import ConfirmDialog from '@/components/common/ConfirmDialog.svelte'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
   import OatPagination from '@/components/common/OatPagination.svelte'
@@ -23,6 +24,9 @@
   let deleteDialogOpen = false
   let queryToDelete = null
   let deletingQuery = false
+  let availableGroups = []
+  let selectedGroupIds = []
+  let savingGroups = false
 
   $: machineId = params.id
   $: queryStartResult = queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1
@@ -34,14 +38,17 @@
     loading = true
     error = ''
     try {
-      const [machineData, historyData, policyData] = await Promise.all([
+      const [machineData, historyData, policyData, groupData] = await Promise.all([
         fetchMachine(machineId),
         fetchMachineQueries(machineId, { page: currentQueryPage, countPerPage: queryCountPerPage }),
-        fetchMachinePolicies(machineId)
+        fetchMachinePolicies(machineId),
+        fetchGroups({ page: 1, countPerPage: 1000 })
       ])
       machine = machineData
+      selectedGroupIds = (machineData.groups || []).map((group) => group.uuid)
       setQueryHistory(historyData)
       policyPosture = Array.isArray(policyData) ? policyData : policyData.policies || []
+      availableGroups = groupData.groups || []
     } catch (err) {
       error = err.message || 'Failed to load machine data'
     } finally {
@@ -280,6 +287,19 @@
   function machineOS(machine) {
     return [machine?.os_name, machine?.os_version].filter(Boolean).join(' ') || machine?.platform || ''
   }
+
+  async function saveGroups() {
+    savingGroups = true
+    error = ''
+    try {
+      await updateMachineGroups(machineId, selectedGroupIds)
+      await loadMachine()
+    } catch (err) {
+      error = err.message || 'Failed to update machine groups'
+    } finally {
+      savingGroups = false
+    }
+  }
 </script>
 
 <section class="vstack gap-4">
@@ -299,6 +319,28 @@
     </header>
 
     <ErrorMessage message={error} onClose={() => (error = '')} />
+
+    <article class="card">
+      <header class="hstack justify-between">
+        <div>
+          <h2>Groups</h2>
+          <p class="text-light">{selectedGroupIds.length === 0 ? 'No groups assigned' : `${selectedGroupIds.length} groups assigned`}</p>
+        </div>
+        <button type="button" class="small" disabled={savingGroups} onclick={saveGroups}>
+          {savingGroups ? 'Saving...' : 'Save Groups'}
+        </button>
+      </header>
+      <div class="vstack gap-3">
+        <MultiSelectDropdown
+          label="Assigned Groups"
+          options={availableGroups}
+          bind:value={selectedGroupIds}
+          placeholder="No groups assigned"
+          searchPlaceholder="Search groups..."
+          emptyLabel="No groups available yet"
+        />
+      </div>
+    </article>
 
     <section class="vstack gap-3">
       <h2>Policy Posture</h2>

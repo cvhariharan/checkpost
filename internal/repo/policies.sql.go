@@ -123,7 +123,7 @@ func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Polic
 	return i, err
 }
 
-const listEnabledPoliciesForPlatform = `-- name: ListEnabledPoliciesForPlatform :many
+const listEnabledPoliciesForNode = `-- name: ListEnabledPoliciesForNode :many
 SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
 FROM policies
 WHERE enabled = true
@@ -133,11 +133,30 @@ WHERE enabled = true
     OR (platform = 'linux' AND $1 NOT IN ('', 'darwin', 'windows'))
     OR (platform = 'posix' AND $1 NOT IN ('', 'windows'))
   )
+  AND (
+    NOT EXISTS (
+        SELECT 1
+        FROM policy_groups
+        WHERE policy_groups.policy_id = policies.id
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM policy_groups
+        JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+        WHERE policy_groups.policy_id = policies.id
+          AND group_membership.node_id = $2
+    )
+  )
 ORDER BY name
 `
 
-func (q *Queries) ListEnabledPoliciesForPlatform(ctx context.Context, nodePlatform string) ([]Policy, error) {
-	rows, err := q.db.QueryContext(ctx, listEnabledPoliciesForPlatform, nodePlatform)
+type ListEnabledPoliciesForNodeParams struct {
+	NodePlatform string `db:"node_platform" json:"node_platform"`
+	NodeID       int64  `db:"node_id" json:"node_id"`
+}
+
+func (q *Queries) ListEnabledPoliciesForNode(ctx context.Context, arg ListEnabledPoliciesForNodeParams) ([]Policy, error) {
+	rows, err := q.db.QueryContext(ctx, listEnabledPoliciesForNode, arg.NodePlatform, arg.NodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -214,6 +233,20 @@ filtered AS (
     LEFT JOIN policy_membership
         ON policy_membership.policy_id = target_policy.id
        AND policy_membership.node_id = nodes.id
+    WHERE (
+        NOT EXISTS (
+            SELECT 1
+            FROM policy_groups
+            WHERE policy_groups.policy_id = target_policy.id
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM policy_groups
+            JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+            WHERE policy_groups.policy_id = target_policy.id
+              AND group_membership.node_id = nodes.id
+        )
+    )
 ),
 response_filtered AS (
     SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, response, checked_at, last_error, stale
@@ -347,6 +380,20 @@ JOIN policies ON policies.enabled = true
         OR (policies.platform = 'linux' AND target_node.platform NOT IN ('', 'darwin', 'windows'))
         OR (policies.platform = 'posix' AND target_node.platform NOT IN ('', 'windows'))
     )
+    AND (
+        NOT EXISTS (
+            SELECT 1
+            FROM policy_groups
+            WHERE policy_groups.policy_id = policies.id
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM policy_groups
+            JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+            WHERE policy_groups.policy_id = policies.id
+              AND group_membership.node_id = target_node.id
+        )
+    )
 LEFT JOIN policy_membership
     ON policy_membership.policy_id = policies.id
    AND policy_membership.node_id = target_node.id
@@ -420,6 +467,32 @@ WITH filtered AS (
     SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
     FROM policies
 ),
+effective_targets AS (
+    SELECT
+        filtered.id AS policy_id,
+        nodes.id AS node_id
+    FROM filtered
+    JOIN nodes ON (
+        filtered.platform IN ('all', 'any')
+        OR filtered.platform = nodes.platform
+        OR (filtered.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
+        OR (filtered.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
+    )
+    WHERE (
+        NOT EXISTS (
+            SELECT 1
+            FROM policy_groups
+            WHERE policy_groups.policy_id = filtered.id
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM policy_groups
+            JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+            WHERE policy_groups.policy_id = filtered.id
+              AND group_membership.node_id = nodes.id
+        )
+    )
+),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
@@ -435,16 +508,16 @@ SELECT
     filtered.is_system,
     filtered.created_at,
     filtered.updated_at,
-    count(nodes.id) FILTER (
+    count(effective_targets.node_id) FILTER (
         WHERE policy_membership.passes = true
           AND policy_membership.checked_at >= now() - $1::text::interval
     )::bigint AS passing_count,
-    count(nodes.id) FILTER (
+    count(effective_targets.node_id) FILTER (
         WHERE policy_membership.passes = false
           AND policy_membership.checked_at >= now() - $1::text::interval
     )::bigint AS failing_count,
-    count(nodes.id) FILTER (
-        WHERE nodes.id IS NOT NULL
+    count(effective_targets.node_id) FILTER (
+        WHERE effective_targets.node_id IS NOT NULL
           AND (
             policy_membership.policy_id IS NULL
             OR policy_membership.passes IS NULL
@@ -455,15 +528,10 @@ SELECT
     total.total_count
 FROM filtered
 CROSS JOIN total
-LEFT JOIN nodes ON (
-    filtered.platform IN ('all', 'any')
-    OR filtered.platform = nodes.platform
-    OR (filtered.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
-    OR (filtered.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
-)
+LEFT JOIN effective_targets ON effective_targets.policy_id = filtered.id
 LEFT JOIN policy_membership
     ON policy_membership.policy_id = filtered.id
-   AND policy_membership.node_id = nodes.id
+   AND policy_membership.node_id = effective_targets.node_id
 GROUP BY
     filtered.id,
     filtered.uuid,

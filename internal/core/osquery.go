@@ -29,7 +29,10 @@ func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyReq
 	policyDue := c.nodePolicyDue(node)
 	var policies []repo.Policy
 	if policyDue {
-		policies, err = c.store.ListEnabledPoliciesForPlatform(ctx, strings.ToLower(strings.TrimSpace(node.Platform)))
+		policies, err = c.store.ListEnabledPoliciesForNode(ctx, repo.ListEnabledPoliciesForNodeParams{
+			NodeID:       node.ID,
+			NodePlatform: strings.ToLower(strings.TrimSpace(node.Platform)),
+		})
 		if err != nil {
 			return nil, fmt.Errorf("list enabled policies for node: %w", err)
 		}

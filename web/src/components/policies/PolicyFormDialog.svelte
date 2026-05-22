@@ -1,6 +1,7 @@
 <script>
-  import { createPolicy, updatePolicy } from '@/api.js'
+  import { createPolicy, fetchGroups, updatePolicy } from '@/api.js'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
+  import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.svelte'
 
   export let open = false
   export let policy = null
@@ -15,6 +16,8 @@
   let resolution = ''
   let platform = 'all'
   let enabled = true
+  let groupIds = []
+  let availableGroups = []
   let error = ''
   let isSubmitting = false
 
@@ -23,6 +26,7 @@
     if (preparedFor !== key) {
       loadForm(policy)
       preparedFor = key
+      loadGroups()
     }
     if (!dialog.open) dialog.showModal()
   }
@@ -39,8 +43,18 @@
     resolution = record?.resolution || ''
     platform = record?.platform || 'all'
     enabled = record?.enabled ?? true
+    groupIds = (record?.groups || []).map((group) => group.uuid)
     error = ''
     isSubmitting = false
+  }
+
+  async function loadGroups() {
+    try {
+      const data = await fetchGroups({ page: 1, countPerPage: 1000 })
+      availableGroups = data.groups || []
+    } catch (err) {
+      error = err.message || 'Failed to load groups'
+    }
   }
 
   function handleClose() {
@@ -52,7 +66,7 @@
     isSubmitting = true
     error = ''
     try {
-      const payload = { title, query, description, resolution, platform, enabled }
+      const payload = { title, query, description, resolution, platform, enabled, group_ids: groupIds }
       if (policy?.uuid) {
         await updatePolicy(policy.uuid, payload)
       } else {
@@ -109,6 +123,19 @@
           <option value="windows">Windows</option>
         </select>
       </label>
+
+      <div class="vstack gap-2">
+        <p>Targets</p>
+        <p class="text-light">{groupIds.length === 0 ? 'All machines for this platform' : `${groupIds.length} groups selected`}</p>
+        <MultiSelectDropdown
+          label="Groups"
+          options={availableGroups}
+          bind:value={groupIds}
+          placeholder="All machines for this platform"
+          searchPlaceholder="Search groups..."
+          emptyLabel="No groups available yet"
+        />
+      </div>
 
       <label>
         <input type="checkbox" bind:checked={enabled} />
