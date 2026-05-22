@@ -12,6 +12,7 @@ services:
       - WATCHER_APP__HTTP_TLS_CERT=/etc/watcher/tls/server_cert.pem
       - WATCHER_APP__HTTP_TLS_KEY=/etc/watcher/tls/server_key.pem
       - WATCHER_APP__ENROLLMENT_KEY=secret-key
+      - WATCHER_APP__POLICY_UPDATE_INTERVAL=5s
       - WATCHER_DB__HOST=postgres
       - WATCHER_DB__PORT=5432
       - WATCHER_DB__USER=watcher

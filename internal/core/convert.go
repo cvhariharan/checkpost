@@ -1,6 +1,7 @@
 package core
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
@@ -12,22 +13,28 @@ func toModelNode(node repo.Node) models.Node {
 	if node.LastSeenAt.Valid {
 		lastSeen = &node.LastSeenAt.Time
 	}
+	var policyUpdatedAt *time.Time
+	if node.PolicyUpdatedAt.Valid {
+		policyUpdatedAt = &node.PolicyUpdatedAt.Time
+	}
 
 	return models.Node{
-		ID:             node.ID,
-		UUID:           node.Uuid.String(),
-		NodeKey:        node.NodeKey.String(),
-		HostIdentifier: node.HostIdentifier,
-		Hostname:       node.Hostname,
-		Platform:       node.Platform,
-		OSName:         node.OsName,
-		OSVersion:      node.OsVersion,
-		OSQueryVersion: node.OsqueryVersion,
-		HardwareSerial: node.HardwareSerial,
-		EnrolledAt:     node.EnrolledAt,
-		LastSeenAt:     lastSeen,
-		CreatedAt:      node.CreatedAt,
-		UpdatedAt:      node.UpdatedAt,
+		ID:              node.ID,
+		ResourceID:      node.Uuid.String(),
+		UUID:            node.Uuid.String(),
+		NodeKey:         node.NodeKey.String(),
+		HostIdentifier:  node.HostIdentifier,
+		Hostname:        node.Hostname,
+		Platform:        node.Platform,
+		OSName:          node.OsName,
+		OSVersion:       node.OsVersion,
+		OSQueryVersion:  node.OsqueryVersion,
+		HardwareSerial:  node.HardwareSerial,
+		EnrolledAt:      node.EnrolledAt,
+		LastSeenAt:      lastSeen,
+		PolicyUpdatedAt: policyUpdatedAt,
+		CreatedAt:       node.CreatedAt,
+		UpdatedAt:       node.UpdatedAt,
 	}
 }
 
@@ -36,22 +43,28 @@ func toModelNodeRow(node repo.ListNodesRow) models.Node {
 	if node.LastSeenAt.Valid {
 		lastSeen = &node.LastSeenAt.Time
 	}
+	var policyUpdatedAt *time.Time
+	if node.PolicyUpdatedAt.Valid {
+		policyUpdatedAt = &node.PolicyUpdatedAt.Time
+	}
 
 	return models.Node{
-		ID:             node.ID,
-		UUID:           node.Uuid.String(),
-		NodeKey:        node.NodeKey.String(),
-		HostIdentifier: node.HostIdentifier,
-		Hostname:       node.Hostname,
-		Platform:       node.Platform,
-		OSName:         node.OsName,
-		OSVersion:      node.OsVersion,
-		OSQueryVersion: node.OsqueryVersion,
-		HardwareSerial: node.HardwareSerial,
-		EnrolledAt:     node.EnrolledAt,
-		LastSeenAt:     lastSeen,
-		CreatedAt:      node.CreatedAt,
-		UpdatedAt:      node.UpdatedAt,
+		ID:              node.ID,
+		ResourceID:      node.Uuid.String(),
+		UUID:            node.Uuid.String(),
+		NodeKey:         node.NodeKey.String(),
+		HostIdentifier:  node.HostIdentifier,
+		Hostname:        node.Hostname,
+		Platform:        node.Platform,
+		OSName:          node.OsName,
+		OSVersion:       node.OsVersion,
+		OSQueryVersion:  node.OsqueryVersion,
+		HardwareSerial:  node.HardwareSerial,
+		EnrolledAt:      node.EnrolledAt,
+		LastSeenAt:      lastSeen,
+		PolicyUpdatedAt: policyUpdatedAt,
+		CreatedAt:       node.CreatedAt,
+		UpdatedAt:       node.UpdatedAt,
 	}
 }
 
@@ -227,5 +240,121 @@ func scheduleFromParts(id int64, uuid, name string, interval int, platform, vers
 		Denylist:        denylist,
 		CreatedAt:       createdAt,
 		UpdatedAt:       updatedAt,
+	}
+}
+
+func toModelPolicy(policy repo.Policy) models.Policy {
+	return models.Policy{
+		ID:          policy.ID,
+		ResourceID:  policy.Uuid.String(),
+		UUID:        policy.Uuid.String(),
+		Name:        policy.Name,
+		Title:       policy.Name,
+		Query:       policy.Query,
+		Description: policy.Description,
+		Resolution:  policy.Resolution,
+		Platform:    policy.Platform,
+		Enabled:     policy.Enabled,
+		IsSystem:    policy.IsSystem,
+		CreatedAt:   policy.CreatedAt,
+		UpdatedAt:   policy.UpdatedAt,
+	}
+}
+
+func toModelPolicyRow(row repo.ListPoliciesWithCountsRow) models.Policy {
+	return models.Policy{
+		ID:                 row.ID,
+		ResourceID:         row.Uuid.String(),
+		UUID:               row.Uuid.String(),
+		Name:               row.Name,
+		Title:              row.Name,
+		Query:              row.Query,
+		Description:        row.Description,
+		Resolution:         row.Resolution,
+		Platform:           row.Platform,
+		Enabled:            row.Enabled,
+		IsSystem:           row.IsSystem,
+		PassingCount:       int(row.PassingCount),
+		FailingCount:       int(row.FailingCount),
+		UnknownCount:       int(row.UnknownCount),
+		LastCountUpdatedAt: timePtrFromValue(row.LastCountUpdatedAt),
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
+	}
+}
+
+func toModelPolicyPosture(row repo.ListPoliciesForNodeRow) models.PolicyPosture {
+	return models.PolicyPosture{
+		Policy: models.Policy{
+			ID:          row.ID,
+			ResourceID:  row.Uuid.String(),
+			UUID:        row.Uuid.String(),
+			Name:        row.Name,
+			Title:       row.Name,
+			Query:       row.Query,
+			Description: row.Description,
+			Resolution:  row.Resolution,
+			Platform:    row.Platform,
+			Enabled:     row.Enabled,
+			IsSystem:    row.IsSystem,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+		},
+		Response:  row.Response,
+		CheckedAt: timePtrFromNull(row.CheckedAt),
+		LastError: row.LastError.String,
+		Stale:     row.Stale,
+	}
+}
+
+func toModelPolicyMachine(row repo.ListNodesByPolicyResponseRow) models.PolicyMachine {
+	lastError := ""
+	if row.LastError.Valid {
+		lastError = row.LastError.String
+	}
+
+	return models.PolicyMachine{
+		Node: models.Node{
+			ID:              row.ID,
+			ResourceID:      row.Uuid.String(),
+			UUID:            row.Uuid.String(),
+			NodeKey:         row.NodeKey.String(),
+			HostIdentifier:  row.HostIdentifier,
+			Hostname:        row.Hostname,
+			Platform:        row.Platform,
+			OSName:          row.OsName,
+			OSVersion:       row.OsVersion,
+			OSQueryVersion:  row.OsqueryVersion,
+			HardwareSerial:  row.HardwareSerial,
+			EnrolledAt:      row.EnrolledAt,
+			LastSeenAt:      timePtrFromNull(row.LastSeenAt),
+			PolicyUpdatedAt: timePtrFromNull(row.PolicyUpdatedAt),
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
+		},
+		Response:  row.Response,
+		CheckedAt: timePtrFromNull(row.CheckedAt),
+		LastError: lastError,
+		Stale:     row.Stale,
+	}
+}
+
+func timePtrFromNull(value sql.NullTime) *time.Time {
+	if value.Valid {
+		return &value.Time
+	}
+	return nil
+}
+
+func timePtrFromValue(value interface{}) *time.Time {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case time.Time:
+		return &v
+	case *time.Time:
+		return v
+	default:
+		return nil
 	}
 }

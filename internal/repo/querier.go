@@ -12,27 +12,38 @@ import (
 
 type Querier interface {
 	CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error)
+	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
 	CreateQuery(ctx context.Context, arg CreateQueryParams) (Query, error)
 	CreateResultBatch(ctx context.Context, arg CreateResultBatchParams) (OsqueryResultBatch, error)
 	CreateResultCell(ctx context.Context, arg CreateResultCellParams) error
 	CreateResultRow(ctx context.Context, arg CreateResultRowParams) (OsqueryResultRow, error)
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
+	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteQueryByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
+	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
+	GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error)
 	GetQueryByID(ctx context.Context, id int64) (Query, error)
 	GetQueryByUUID(ctx context.Context, argUuid uuid.UUID) (Query, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
 	GetScheduleWithQueryByUUID(ctx context.Context, argUuid uuid.UUID) (GetScheduleWithQueryByUUIDRow, error)
+	ListEnabledPoliciesForPlatform(ctx context.Context, nodePlatform string) ([]Policy, error)
 	ListEnabledSchedulesWithQueries(ctx context.Context, limit int32) ([]ListEnabledSchedulesWithQueriesRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
+	ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error)
+	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
+	ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error)
 	ListQueries(ctx context.Context, arg ListQueriesParams) ([]ListQueriesRow, error)
 	ListSchedulesWithQueries(ctx context.Context, arg ListSchedulesWithQueriesParams) ([]ListSchedulesWithQueriesRow, error)
 	ListSystemScheduleNames(ctx context.Context) ([]string, error)
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
+	UpdateNodePolicyUpdatedAt(ctx context.Context, id int64) error
+	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQueryByUUID(ctx context.Context, arg UpdateQueryByUUIDParams) (Query, error)
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
+	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -237,7 +237,12 @@ func (h *Handler) HandleDistributedWrite(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
-	if err := h.c.WriteDistributedQueryResults(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, req.Queries); err != nil {
+	statuses := make(map[string]string, len(req.Statuses))
+	for k, v := range req.Statuses {
+		statuses[k] = string(v)
+	}
+
+	if err := h.c.WriteDistributedQueryResults(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, req.Queries, statuses, req.Messages); err != nil {
 		return wrapError(http.StatusInternalServerError, "error writing distributed query results", err, nil)
 	}
 

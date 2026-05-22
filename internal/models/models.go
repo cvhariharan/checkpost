@@ -4,6 +4,7 @@ import "time"
 
 type Node struct {
 	ID              int64           `json:"-"`
+	ResourceID      string          `json:"id"`
 	UUID            string          `json:"uuid"`
 	NodeKey         string          `json:"node_key"`
 	HostIdentifier  string          `json:"host_identifier"`
@@ -15,6 +16,7 @@ type Node struct {
 	HardwareSerial  string          `json:"hardware_serial"`
 	EnrolledAt      time.Time       `json:"enrolled_at"`
 	LastSeenAt      *time.Time      `json:"last_seen_at,omitempty"`
+	PolicyUpdatedAt *time.Time      `json:"policy_updated_at,omitempty"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
 	EnrollmentInput HostDetailsInfo `json:"-"`
@@ -170,6 +172,69 @@ type UpdateSchedule struct {
 	Shard           int
 	Denylist        bool
 	Enabled         bool
+}
+
+type Policy struct {
+	ID                 int64      `json:"-"`
+	ResourceID         string     `json:"id"`
+	UUID               string     `json:"uuid"`
+	Name               string     `json:"name"`
+	Title              string     `json:"title"`
+	Query              string     `json:"query"`
+	Description        string     `json:"description"`
+	Resolution         string     `json:"resolution"`
+	Platform           string     `json:"platform"`
+	Enabled            bool       `json:"enabled"`
+	IsSystem           bool       `json:"is_system"`
+	PassingCount       int        `json:"passing_count"`
+	FailingCount       int        `json:"failing_count"`
+	UnknownCount       int        `json:"unknown_count"`
+	LastCountUpdatedAt *time.Time `json:"last_count_updated_at,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
+}
+
+type CreatePolicy struct {
+	Name        string
+	Query       string
+	Description string
+	Resolution  string
+	Platform    string
+	Enabled     bool
+	IsSystem    bool
+}
+
+type UpdatePolicy struct {
+	UUID        string
+	Name        string
+	Query       string
+	Description string
+	Resolution  string
+	Platform    string
+	Enabled     bool
+}
+
+type PolicyPosture struct {
+	Policy
+	Response  string     `json:"response"`
+	CheckedAt *time.Time `json:"checked_at,omitempty"`
+	LastError string     `json:"last_error,omitempty"`
+	Stale     bool       `json:"stale"`
+}
+
+type PolicyMachine struct {
+	Node
+	Response  string     `json:"response"`
+	CheckedAt *time.Time `json:"checked_at,omitempty"`
+	LastError string     `json:"last_error,omitempty"`
+	Stale     bool       `json:"stale"`
+}
+
+type PolicyMachinesRequest struct {
+	PolicyUUID string
+	Response   string
+	Page       int
+	Count      int
 }
 
 type PageRequest struct {

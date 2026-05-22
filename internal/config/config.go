@@ -15,6 +15,9 @@ type AppConfig struct {
 	UseTLS          bool   `koanf:"app.use_tls"`
 	SecureCookieKey string `koanf:"app.secure_cookie_key"`
 	EnrollmentKey   string `koanf:"app.enrollment_key"`
+
+	PolicyUpdateInterval string `koanf:"app.policy_update_interval"`
+	PolicyStaleAfter     string `koanf:"app.policy_stale_after"`
 }
 
 type OIDCConfig struct {

@@ -115,7 +115,11 @@
                 {machineStatus(machine)}
               </span>
             </td>
-            <td>{hostname(machine)}</td>
+            <td>
+              <a href={`/machines/${machine.uuid}/query`} use:link={`/machines/${machine.uuid}/query`}>
+                {hostname(machine)}
+              </a>
+            </td>
             <td>{osLabel(machine)}</td>
             <td>{formatTimestamp(machine.last_seen_at || machine.enrolled_at)}</td>
             <td>
@@ -127,8 +131,13 @@
             </td>
             <td>{machine.osquery_version || 'Unknown'}</td>
             <td class="align-right">
-              <a href={`/machines/${machine.uuid}/query`} use:link={`/machines/${machine.uuid}/query`} class="button small outline">
-                Query
+              <a
+                href={`/machines/${machine.uuid}/query`}
+                use:link={`/machines/${machine.uuid}/query`}
+                class="button small outline"
+                aria-label={`Open ${hostname(machine)}`}
+              >
+                Open
               </a>
             </td>
           </tr>

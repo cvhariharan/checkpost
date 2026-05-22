@@ -12,20 +12,21 @@ import (
 )
 
 type Node struct {
-	ID             int64        `db:"id" json:"id"`
-	Uuid           uuid.UUID    `db:"uuid" json:"uuid"`
-	NodeKey        uuid.UUID    `db:"node_key" json:"node_key"`
-	HostIdentifier string       `db:"host_identifier" json:"host_identifier"`
-	Hostname       string       `db:"hostname" json:"hostname"`
-	Platform       string       `db:"platform" json:"platform"`
-	OsName         string       `db:"os_name" json:"os_name"`
-	OsVersion      string       `db:"os_version" json:"os_version"`
-	OsqueryVersion string       `db:"osquery_version" json:"osquery_version"`
-	HardwareSerial string       `db:"hardware_serial" json:"hardware_serial"`
-	EnrolledAt     time.Time    `db:"enrolled_at" json:"enrolled_at"`
-	LastSeenAt     sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
-	CreatedAt      time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time    `db:"updated_at" json:"updated_at"`
+	ID              int64        `db:"id" json:"id"`
+	Uuid            uuid.UUID    `db:"uuid" json:"uuid"`
+	NodeKey         uuid.UUID    `db:"node_key" json:"node_key"`
+	HostIdentifier  string       `db:"host_identifier" json:"host_identifier"`
+	Hostname        string       `db:"hostname" json:"hostname"`
+	Platform        string       `db:"platform" json:"platform"`
+	OsName          string       `db:"os_name" json:"os_name"`
+	OsVersion       string       `db:"os_version" json:"os_version"`
+	OsqueryVersion  string       `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial  string       `db:"hardware_serial" json:"hardware_serial"`
+	EnrolledAt      time.Time    `db:"enrolled_at" json:"enrolled_at"`
+	LastSeenAt      sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
+	PolicyUpdatedAt sql.NullTime `db:"policy_updated_at" json:"policy_updated_at"`
 }
 
 type OsqueryResultBatch struct {
@@ -68,6 +69,29 @@ type OsqueryStatusLog struct {
 	UnixTime     sql.NullTime `db:"unix_time" json:"unix_time"`
 	Version      string       `db:"version" json:"version"`
 	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+}
+
+type Policy struct {
+	ID          int64     `db:"id" json:"id"`
+	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
+	Name        string    `db:"name" json:"name"`
+	Query       string    `db:"query" json:"query"`
+	Description string    `db:"description" json:"description"`
+	Resolution  string    `db:"resolution" json:"resolution"`
+	Platform    string    `db:"platform" json:"platform"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
+	IsSystem    bool      `db:"is_system" json:"is_system"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type PolicyMembership struct {
+	PolicyID  int64        `db:"policy_id" json:"policy_id"`
+	NodeID    int64        `db:"node_id" json:"node_id"`
+	Passes    sql.NullBool `db:"passes" json:"passes"`
+	LastError string       `db:"last_error" json:"last_error"`
+	CheckedAt time.Time    `db:"checked_at" json:"checked_at"`
+	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
 }
 
 type Query struct {

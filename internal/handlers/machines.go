@@ -79,6 +79,26 @@ func (h *Handler) HandleMachineQueries(c echo.Context) error {
 	})
 }
 
+func (h *Handler) HandleMachinePolicies(c echo.Context) error {
+	var req GetRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+
+	policies, err := h.c.ListPoliciesForNode(c.Request().Context(), models.NodeIdentity{ID: req.ID})
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting machine policies %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"policies": policies,
+	})
+}
+
 func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {
 	var req MachineQueryRequest
 	if err := c.Bind(&req); err != nil {

@@ -6,6 +6,8 @@ http_tls_key = 'testdata/server_key.pem'
 root_url = 'http://localhost:1323'
 secure_cookie_key = 'cddc196bdf9e76c9a343ed8fb33a553e'
 use_tls = false
+policy_update_interval = '1h'
+policy_stale_after = '2h'
 
 [app.oidc]
 issuer = ''

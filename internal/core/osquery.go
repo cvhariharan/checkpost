@@ -4,13 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
 	"math"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
@@ -20,492 +17,82 @@ import (
 
 const MaxLogCount = 1000
 
-var (
-	ErrInvalidLogType = errors.New("invalid log type")
-	ErrInvalidQuery   = errors.New("invalid query")
-)
-
-type Core struct {
-	store  repo.Store
-	logger *slog.Logger
-
-	systemSchedulesMap map[string]bool
-
-	adHocMu           sync.Mutex
-	adHocPending      map[string][]models.MachineQueryResult
-	adHocHistory      map[string][]models.MachineQueryResult
-	adHocNodeKeyToID  map[string]string
-	adHocWaiters      map[string]chan models.MachineQueryResult
-	adHocQueryTimeout time.Duration
-}
-
-func NewCore(logger *slog.Logger, store repo.Store) (*Core, error) {
-	schedules, err := store.ListSystemScheduleNames(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("load system schedules: %w", err)
-	}
-
-	m := make(map[string]bool, len(schedules))
-	for _, sched := range schedules {
-		m[sched] = true
-	}
-
-	return &Core{
-		store:              store,
-		logger:             logger.WithGroup("core"),
-		systemSchedulesMap: m,
-		adHocPending:       make(map[string][]models.MachineQueryResult),
-		adHocHistory:       make(map[string][]models.MachineQueryResult),
-		adHocNodeKeyToID:   make(map[string]string),
-		adHocWaiters:       make(map[string]chan models.MachineQueryResult),
-		adHocQueryTimeout:  20 * time.Second,
-	}, nil
-}
-
-func (c *Core) EnrollNode(ctx context.Context, node models.NodeEnrollment) (models.NodeCredentials, error) {
-	created, err := c.store.CreateNode(ctx, repo.CreateNodeParams{
-		HostIdentifier: node.HostIdentifier,
-		Hostname:       firstNonEmpty(node.HostDetails.System.Hostname, node.HostDetails.System.ComputerName, node.HostDetails.System.LocalHostname, node.HostIdentifier),
-		Platform:       firstNonEmpty(node.HostDetails.OSVersion.Platform, node.HostDetails.Platform.Vendor),
-		OsName:         node.HostDetails.OSVersion.Name,
-		OsVersion:      node.HostDetails.OSVersion.Version,
-		OsqueryVersion: node.HostDetails.OSQuery.Version,
-		HardwareSerial: node.HostDetails.System.HardwareSerial,
-	})
-	if err != nil {
-		return models.NodeCredentials{}, fmt.Errorf("create node: %w", err)
-	}
-
-	return models.NodeCredentials{NodeKey: created.NodeKey.String()}, nil
-}
-
-func (c *Core) GetNode(ctx context.Context, req models.NodeKeyRequest) (models.Node, error) {
-	id, err := uuid.Parse(req.NodeKey)
-	if err != nil {
-		return models.Node{}, fmt.Errorf("parse node key: %w", err)
-	}
-
-	node, err := c.store.GetNodeByKey(ctx, id)
-	if err != nil {
-		return models.Node{}, fmt.Errorf("get node: %w", err)
-	}
-
-	return toModelNode(node), nil
-}
-
-func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models.Node, error) {
-	if strings.TrimSpace(req.ID) == "" {
-		return models.Node{}, fmt.Errorf("node id cannot be empty")
-	}
-
-	node, err := c.store.GetNodeByUUID(ctx, req.ID)
-	if err != nil {
-		return models.Node{}, fmt.Errorf("get node: %w", err)
-	}
-
-	return toModelNode(node), nil
-}
-
-func (c *Core) PaginateNodes(ctx context.Context, req models.PageRequest) (models.Page[models.Node], error) {
-	page := req.Page
-	countPerPage := req.Count
-	if countPerPage <= 0 {
-		countPerPage = 10
-	}
-	if page < 0 {
-		page = 0
-	}
-
-	rows, err := c.store.ListNodes(ctx, repo.ListNodesParams{
-		Limit:  int32(countPerPage),
-		Offset: int32(page * countPerPage),
-	})
-	if err != nil {
-		return models.Page[models.Node]{}, fmt.Errorf("list nodes: %w", err)
-	}
-
-	out := make([]models.Node, 0, len(rows))
-	totalCount := 0
-	for _, row := range rows {
-		out = append(out, toModelNodeRow(row))
-		totalCount = int(row.TotalCount)
-	}
-
-	return models.Page[models.Node]{
-		Items:      out,
-		TotalCount: totalCount,
-		PageCount:  pageCountFor(totalCount, countPerPage),
-	}, nil
-}
-
-func (c *Core) ListMachineQueries(ctx context.Context, req models.NodeIdentity) ([]models.MachineQueryResult, error) {
-	node, err := c.GetNodeByID(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	c.adHocMu.Lock()
-	defer c.adHocMu.Unlock()
-
-	history := c.adHocHistory[node.UUID]
-	out := make([]models.MachineQueryResult, len(history))
-	copy(out, history)
-	return out, nil
-}
-
-func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryRequest) (models.MachineQueryResult, error) {
-	if err := validateQuery(req.Query); err != nil {
-		return models.MachineQueryResult{}, err
-	}
-
-	node, err := c.GetNodeByID(ctx, models.NodeIdentity{ID: req.NodeUUID})
-	if err != nil {
-		return models.MachineQueryResult{}, err
-	}
-
-	result := models.MachineQueryResult{
-		ID:        uuid.NewString(),
-		Query:     req.Query,
-		Status:    "pending",
-		Timestamp: time.Now().UTC(),
-	}
-	waiter := make(chan models.MachineQueryResult, 1)
-
-	c.adHocMu.Lock()
-	c.adHocPending[node.NodeKey] = append(c.adHocPending[node.NodeKey], result)
-	c.adHocHistory[node.UUID] = append([]models.MachineQueryResult{result}, c.adHocHistory[node.UUID]...)
-	c.adHocNodeKeyToID[node.NodeKey] = node.UUID
-	c.adHocWaiters[result.ID] = waiter
-	c.adHocMu.Unlock()
-
-	select {
-	case completed := <-waiter:
-		return completed, nil
-	case <-ctx.Done():
-		return result, ctx.Err()
-	case <-time.After(c.adHocQueryTimeout):
-		return result, nil
-	}
-}
-
 func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyRequest) (map[string]string, error) {
 	node, err := c.GetNode(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	c.adHocMu.Lock()
-	defer c.adHocMu.Unlock()
+	policyDue := c.nodePolicyDue(node)
+	var policies []repo.Policy
+	if policyDue {
+		policies, err = c.store.ListEnabledPoliciesForPlatform(ctx, strings.ToLower(strings.TrimSpace(node.Platform)))
+		if err != nil {
+			return nil, fmt.Errorf("list enabled policies for node: %w", err)
+		}
+	}
 
+	c.adHocMu.Lock()
 	pending := c.adHocPending[node.NodeKey]
 	delete(c.adHocPending, node.NodeKey)
 	c.adHocNodeKeyToID[node.NodeKey] = node.UUID
+	c.adHocMu.Unlock()
 
 	queries := make(map[string]string, len(pending))
 	for _, item := range pending {
 		queries[item.ID] = item.Query
 	}
+
+	if policyDue {
+		if len(policies) == 0 {
+			queries[noPoliciesQueryID] = "SELECT 1"
+		} else {
+			for _, policy := range policies {
+				queries[fmt.Sprintf(policyQueryFormat, policy.Uuid.String())] = policy.Query
+			}
+		}
+	}
+
 	return queries, nil
 }
 
-func (c *Core) WriteDistributedQueryResults(ctx context.Context, req models.NodeKeyRequest, results map[string]interface{}) error {
+func (c *Core) WriteDistributedQueryResults(ctx context.Context, req models.NodeKeyRequest, results map[string]interface{}, statuses map[string]string, messages map[string]string) error {
 	node, err := c.GetNode(ctx, req)
 	if err != nil {
 		return err
 	}
 
+	c.deliverAdHocResults(node, results, statuses, messages)
+
+	return c.recordPolicyResults(ctx, node, results, statuses, messages)
+}
+
+func (c *Core) deliverAdHocResults(node models.Node, results map[string]interface{}, statuses, messages map[string]string) {
 	c.adHocMu.Lock()
 	defer c.adHocMu.Unlock()
 
 	c.adHocNodeKeyToID[node.NodeKey] = node.UUID
 	for queryID, rows := range results {
-		completed := c.updateAdHocResultLocked(node.UUID, queryID, rows, "")
+		if isPolicyDistributedQuery(queryID) {
+			continue
+		}
+		completed := c.updateAdHocResultLocked(node.UUID, queryID, rows, distributedErrorMessage(statuses[queryID], messages[queryID]))
 		if waiter, ok := c.adHocWaiters[queryID]; ok {
 			waiter <- completed
 			close(waiter)
 			delete(c.adHocWaiters, queryID)
 		}
 	}
-
-	return nil
 }
 
-func (c *Core) updateAdHocResultLocked(nodeUUID, queryID string, rows interface{}, errMsg string) models.MachineQueryResult {
-	status := "complete"
-	if errMsg != "" {
-		status = "error"
+func distributedErrorMessage(status, message string) string {
+	if status == "" || status == "0" {
+		return ""
 	}
-
-	history := c.adHocHistory[nodeUUID]
-	for i, item := range history {
-		if item.ID != queryID {
-			continue
-		}
-
-		history[i].Status = status
-		history[i].Results = rows
-		history[i].Error = errMsg
-		history[i].Timestamp = time.Now().UTC()
-		c.adHocHistory[nodeUUID] = history
-		return history[i]
+	if msg := strings.TrimSpace(message); msg != "" {
+		return msg
 	}
-
-	completed := models.MachineQueryResult{
-		ID:        queryID,
-		Status:    status,
-		Timestamp: time.Now().UTC(),
-		Results:   rows,
-		Error:     errMsg,
-	}
-	c.adHocHistory[nodeUUID] = append([]models.MachineQueryResult{completed}, history...)
-	return completed
-}
-
-func (c *Core) CreateQuery(ctx context.Context, req models.CreateQuery) (models.Query, error) {
-	if err := validateQuery(req.SQL); err != nil {
-		return models.Query{}, err
-	}
-
-	q, err := c.store.CreateQuery(ctx, repo.CreateQueryParams{
-		Name:        req.Name,
-		Sql:         req.SQL,
-		Description: req.Description,
-		IsSystem:    req.IsSystem,
-	})
-	if err != nil {
-		return models.Query{}, fmt.Errorf("create query: %w", err)
-	}
-
-	return toModelQuery(q), nil
-}
-
-func (c *Core) GetQuery(ctx context.Context, req models.ResourceID) (models.Query, error) {
-	queryID, err := uuid.Parse(req.UUID)
-	if err != nil {
-		return models.Query{}, fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	q, err := c.store.GetQueryByUUID(ctx, queryID)
-	if err != nil {
-		return models.Query{}, fmt.Errorf("get query: %w", err)
-	}
-
-	return toModelQuery(q), nil
-}
-
-func (c *Core) PaginateQueries(ctx context.Context, req models.PageRequest) (models.Page[models.Query], error) {
-	page := req.Page
-	countPerPage := req.Count
-	if countPerPage <= 0 {
-		countPerPage = 10
-	}
-	if page < 0 {
-		page = 0
-	}
-
-	rows, err := c.store.ListQueries(ctx, repo.ListQueriesParams{
-		Limit:  int32(countPerPage),
-		Offset: int32(page * countPerPage),
-	})
-	if err != nil {
-		return models.Page[models.Query]{}, fmt.Errorf("list queries: %w", err)
-	}
-
-	out := make([]models.Query, 0, len(rows))
-	totalCount := 0
-	for _, row := range rows {
-		out = append(out, toModelQueryRow(row))
-		totalCount = int(row.TotalCount)
-	}
-
-	return models.Page[models.Query]{
-		Items:      out,
-		TotalCount: totalCount,
-		PageCount:  pageCountFor(totalCount, countPerPage),
-	}, nil
-}
-
-func (c *Core) UpdateQuery(ctx context.Context, req models.UpdateQuery) (models.Query, error) {
-	if err := validateQuery(req.SQL); err != nil {
-		return models.Query{}, err
-	}
-
-	queryID, err := uuid.Parse(req.UUID)
-	if err != nil {
-		return models.Query{}, fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	q, err := c.store.UpdateQueryByUUID(ctx, repo.UpdateQueryByUUIDParams{
-		Uuid:        queryID,
-		Name:        req.Name,
-		Sql:         req.SQL,
-		Description: req.Description,
-	})
-	if err != nil {
-		return models.Query{}, fmt.Errorf("update query: %w", err)
-	}
-
-	return toModelQuery(q), nil
-}
-
-func (c *Core) DeleteQuery(ctx context.Context, req models.ResourceID) error {
-	queryID, err := uuid.Parse(req.UUID)
-	if err != nil {
-		return fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	rows, err := c.store.DeleteQueryByUUID(ctx, queryID)
-	if err != nil {
-		return fmt.Errorf("delete query: %w", err)
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-func (c *Core) CreateSchedule(ctx context.Context, req models.CreateSchedule) (models.Schedule, error) {
-	queryID, err := uuid.Parse(req.QueryUUID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	q, err := c.store.GetQueryByUUID(ctx, queryID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("get query for schedule: %w", err)
-	}
-
-	params := repo.CreateScheduleParams{
-		QueryID:         q.ID,
-		Name:            req.Name,
-		IntervalSeconds: int32(req.IntervalSeconds),
-		Platform:        defaultString(req.Platform, "all"),
-		Version:         req.Version,
-		Shard:           int32(defaultInt(req.Shard, 100)),
-		Denylist:        req.Denylist,
-		Removed:         req.Removed,
-		Snapshot:        req.Snapshot,
-		Enabled:         defaultBool(req.Enabled, true),
-		IsSystem:        req.IsSystem,
-	}
-
-	sched, err := c.store.CreateSchedule(ctx, params)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("create schedule: %w", err)
-	}
-
-	return toModelSchedule(sched, toModelQuery(q)), nil
-}
-
-func (c *Core) PaginateSchedules(ctx context.Context, req models.PageRequest) (models.Page[models.Schedule], error) {
-	page := req.Page
-	countPerPage := req.Count
-	if countPerPage <= 0 {
-		countPerPage = 10
-	}
-	if page < 0 {
-		page = 0
-	}
-
-	rows, err := c.store.ListSchedulesWithQueries(ctx, repo.ListSchedulesWithQueriesParams{
-		Limit:  int32(countPerPage),
-		Offset: int32(page * countPerPage),
-	})
-	if err != nil {
-		return models.Page[models.Schedule]{}, fmt.Errorf("list schedules: %w", err)
-	}
-
-	out := make([]models.Schedule, 0, len(rows))
-	totalCount := 0
-	for _, row := range rows {
-		out = append(out, toModelScheduleRow(row))
-		totalCount = int(row.TotalCount)
-	}
-
-	return models.Page[models.Schedule]{
-		Items:      out,
-		TotalCount: totalCount,
-		PageCount:  pageCountFor(totalCount, countPerPage),
-	}, nil
-}
-
-func (c *Core) ListEnabledSchedules(ctx context.Context, req models.ScheduleListRequest) ([]models.Schedule, error) {
-	rows, err := c.store.ListEnabledSchedulesWithQueries(ctx, int32(req.Limit))
-	if err != nil {
-		return nil, fmt.Errorf("list enabled schedules: %w", err)
-	}
-
-	out := make([]models.Schedule, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, toModelEnabledScheduleRow(row))
-	}
-	return out, nil
-}
-
-func (c *Core) GetSchedule(ctx context.Context, req models.ResourceID) (models.Schedule, error) {
-	scheduleID, err := uuid.Parse(req.UUID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("parse schedule uuid: %w", err)
-	}
-
-	sched, err := c.store.GetScheduleWithQueryByUUID(ctx, scheduleID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("get schedule: %w", err)
-	}
-
-	return toModelScheduleWithQueryRow(sched), nil
-}
-
-func (c *Core) DeleteSchedule(ctx context.Context, req models.ResourceID) error {
-	id, err := uuid.Parse(req.UUID)
-	if err != nil {
-		return fmt.Errorf("parse schedule uuid: %w", err)
-	}
-
-	rows, err := c.store.DeleteScheduleByUUID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("delete schedule: %w", err)
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (models.Schedule, error) {
-	scheduleID, err := uuid.Parse(req.UUID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("parse schedule uuid: %w", err)
-	}
-
-	queryID, err := uuid.Parse(req.QueryUUID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	q, err := c.store.GetQueryByUUID(ctx, queryID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("get query for schedule: %w", err)
-	}
-
-	sched, err := c.store.UpdateScheduleByUUID(ctx, repo.UpdateScheduleByUUIDParams{
-		Uuid:            scheduleID,
-		QueryID:         q.ID,
-		Name:            req.Name,
-		IntervalSeconds: int32(req.IntervalSeconds),
-		Platform:        defaultString(req.Platform, "all"),
-		Version:         req.Version,
-		Shard:           int32(defaultInt(req.Shard, 100)),
-		Denylist:        req.Denylist,
-		Removed:         req.Removed,
-		Snapshot:        req.Snapshot,
-		Enabled:         defaultBool(req.Enabled, true),
-	})
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("update schedule: %w", err)
-	}
-
-	return toModelSchedule(sched, toModelQuery(q)), nil
+	return fmt.Sprintf("osquery returned status %s", status)
 }
 
 func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBatch) error {
@@ -622,59 +209,6 @@ func resultRows(raw map[string]interface{}, action string) []repo.InsertResultRo
 		})
 	}
 	return rows
-}
-
-func validateQuery(query string) error {
-	if strings.TrimSpace(query) == "" {
-		return fmt.Errorf("%w: query cannot be empty", ErrInvalidQuery)
-	}
-
-	keywords := []string{"SELECT", "FROM", "WHERE", "JOIN", "ORDER BY", "GROUP BY", "HAVING", "LIMIT"}
-	upper := strings.ToUpper(query)
-	for _, keyword := range keywords {
-		if strings.Contains(upper, keyword) {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("%w: query does not appear to be valid SQL", ErrInvalidQuery)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func defaultString(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
-}
-
-func defaultInt(value, fallback int) int {
-	if value == 0 {
-		return fallback
-	}
-	return value
-}
-
-func defaultBool(value, fallback bool) bool {
-	if value {
-		return true
-	}
-	return fallback
-}
-
-func pageCountFor(total, perPage int) int {
-	if total == 0 || perPage <= 0 {
-		return 0
-	}
-	return int(math.Ceil(float64(total) / float64(perPage)))
 }
 
 func unixTime(value interface{}) time.Time {

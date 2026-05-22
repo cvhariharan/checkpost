@@ -91,6 +91,39 @@ export async function deleteSchedule(uuid) {
   return handleResponse(res);
 }
 
+export async function fetchPolicies({ page = 1, countPerPage = 10 } = {}) {
+  const res = await fetch(apiUrl('/policies', { page, count_per_page: countPerPage }));
+  return handleResponse(res);
+}
+
+export async function createPolicy(payload) {
+  const res = await fetch(`${BASE_URL}/policy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
+
+export async function updatePolicy(uuid, payload) {
+  const res = await fetch(`${BASE_URL}/policy/${encodeURIComponent(uuid)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res);
+}
+
+export async function deletePolicy(uuid) {
+  const res = await fetch(`${BASE_URL}/policy/${encodeURIComponent(uuid)}`, { method: 'DELETE' });
+  return handleResponse(res);
+}
+
+export async function fetchPolicyMachines(uuid, { response = '', page = 1, countPerPage = 10 } = {}) {
+  const res = await fetch(apiUrl(`/policy/${encodeURIComponent(uuid)}/machines`, { response, page, count_per_page: countPerPage }));
+  return handleResponse(res);
+}
+
 // Machines
 export async function fetchMachines({ page = 1, countPerPage = 100 } = {}) {
   const res = await fetch(apiUrl('/machines', { page, count_per_page: countPerPage }));
@@ -104,6 +137,11 @@ export async function fetchMachine(id) {
 
 export async function fetchMachineQueries(id) {
   const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/queries`);
+  return handleResponse(res);
+}
+
+export async function fetchMachinePolicies(id) {
+  const res = await fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/policies`);
   return handleResponse(res);
 }
 

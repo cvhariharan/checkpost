@@ -1,8 +1,33 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/cvhariharan/watcher/internal/models"
 )
+
+type OsqueryStatus string
+
+func (s *OsqueryStatus) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	if data[0] == '"' {
+		var v string
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+		*s = OsqueryStatus(v)
+		return nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(data, &n); err != nil {
+		return fmt.Errorf("osquery status must be a string or number: %w", err)
+	}
+	*s = OsqueryStatus(n.String())
+	return nil
+}
 
 type Machine struct {
 	ID       string
@@ -130,6 +155,44 @@ type PaginateSchedulesResponse struct {
 	PageCount  int               `json:"page_count"`
 }
 
+type CreatePolicyRequest struct {
+	Title       string `json:"title" validate:"required"`
+	Query       string `json:"query" validate:"required"`
+	Description string `json:"description"`
+	Resolution  string `json:"resolution"`
+	Platform    string `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Enabled     *bool  `json:"enabled"`
+}
+
+type UpdatePolicyRequest struct {
+	ID          string `param:"id"`
+	Title       string `json:"title" validate:"required"`
+	Query       string `json:"query" validate:"required"`
+	Description string `json:"description"`
+	Resolution  string `json:"resolution"`
+	Platform    string `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Enabled     *bool  `json:"enabled"`
+}
+
+type PaginatePoliciesResponse struct {
+	Policies   []models.Policy `json:"policies"`
+	TotalCount int             `json:"total_count"`
+	PageCount  int             `json:"page_count"`
+}
+
+type PolicyMachinesRequest struct {
+	ID       string `param:"id"`
+	Response string `query:"response"`
+	Page     int    `query:"page"`
+	Count    int    `query:"count_per_page"`
+}
+
+type PolicyMachinesResponse struct {
+	Machines   []models.PolicyMachine `json:"machines"`
+	TotalCount int                    `json:"total_count"`
+	PageCount  int                    `json:"page_count"`
+}
+
 type UpdateScheduleRequest struct {
 	ID       string `param:"id"`
 	QueryID  string `json:"query_id" validate:"required,uuid"`
@@ -173,6 +236,8 @@ type DistributedReadResponse struct {
 }
 
 type DistributedWriteRequest struct {
-	NodeKey string                 `json:"node_key" validate:"required,uuid"`
-	Queries map[string]interface{} `json:"queries"`
+	NodeKey  string                   `json:"node_key" validate:"required,uuid"`
+	Queries  map[string]interface{}   `json:"queries"`
+	Statuses map[string]OsqueryStatus `json:"statuses"`
+	Messages map[string]string        `json:"messages"`
 }

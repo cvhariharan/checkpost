@@ -83,7 +83,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c, err := core.NewCore(logger, store)
+	c, err := core.NewCore(logger, store, cfg.AppConfig)
 	if err != nil {
 		log.Fatalf("could not initialize core: %v", err)
 	}
@@ -107,8 +107,16 @@ func main() {
 	api.DELETE("/schedule/:id", h.HandleDeleteSchedule)
 	api.PUT("/schedule/:id", h.HandleUpdateSchedule)
 
+	api.POST("/policy", h.HandleCreatePolicy)
+	api.GET("/policies", h.HandlePoliciesPagination)
+	api.GET("/policy/:id", h.HandleGetPolicy)
+	api.DELETE("/policy/:id", h.HandleDeletePolicy)
+	api.PUT("/policy/:id", h.HandleUpdatePolicy)
+	api.GET("/policy/:id/machines", h.HandlePolicyMachines)
+
 	api.GET("/machines", h.HandleMachinesPagination)
 	api.GET("/machines/:id/queries", h.HandleMachineQueries)
+	api.GET("/machines/:id/policies", h.HandleMachinePolicies)
 	api.POST("/machines/:id/query", h.HandleExecuteMachineQuery)
 	api.GET("/machines/:id", h.HandleGetMachine)
 
@@ -223,14 +231,16 @@ func setDefaultConfig() error {
 	}
 
 	return k.Load(confmap.Provider(map[string]any{
-		"app.admin_username":    "watcher_admin",
-		"app.admin_password":    "watcher_password",
-		"app.http_tls_cert":     "server_cert.pem",
-		"app.http_tls_key":      "server_key.pem",
-		"app.use_tls":           false,
-		"app.root_url":          "http://localhost:1323",
-		"app.secure_cookie_key": hex.EncodeToString(key),
-		"app.enrollment_key":    hex.EncodeToString(enrollmentKey),
+		"app.admin_username":         "watcher_admin",
+		"app.admin_password":         "watcher_password",
+		"app.http_tls_cert":          "server_cert.pem",
+		"app.http_tls_key":           "server_key.pem",
+		"app.use_tls":                false,
+		"app.root_url":               "http://localhost:1323",
+		"app.secure_cookie_key":      hex.EncodeToString(key),
+		"app.enrollment_key":         hex.EncodeToString(enrollmentKey),
+		"app.policy_update_interval": "1h",
+		"app.policy_stale_after":     "2h",
 
 		"db.dbname":   "watcher",
 		"db.host":     "localhost",

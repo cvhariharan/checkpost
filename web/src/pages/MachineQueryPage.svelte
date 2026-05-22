@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { executeMachineQuery, fetchMachine, fetchMachineQueries } from '@/api.js'
+  import { executeMachineQuery, fetchMachine, fetchMachinePolicies, fetchMachineQueries } from '@/api.js'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
 
   export let params = {}
@@ -8,6 +8,7 @@
   let machine = null
   let queryText = ''
   let queryHistory = []
+  let policyPosture = []
   let loading = true
   let executing = false
   let error = ''
@@ -20,12 +21,14 @@
     loading = true
     error = ''
     try {
-      const [machineData, historyData] = await Promise.all([
+      const [machineData, historyData, policyData] = await Promise.all([
         fetchMachine(machineId),
-        fetchMachineQueries(machineId)
+        fetchMachineQueries(machineId),
+        fetchMachinePolicies(machineId)
       ])
       machine = machineData
       queryHistory = Array.isArray(historyData) ? historyData : historyData.queries || []
+      policyPosture = Array.isArray(policyData) ? policyData : policyData.policies || []
     } catch (err) {
       error = err.message || 'Failed to load machine data'
     } finally {
@@ -101,6 +104,47 @@
     </header>
 
     <ErrorMessage message={error} onClose={() => (error = '')} />
+
+    <section class="vstack gap-3">
+      <h2>Policy Posture</h2>
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>Policy</th>
+              <th>Response</th>
+              <th>Checked</th>
+              <th>Error</th>
+              <th>Resolution</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each policyPosture as policy}
+              <tr>
+                <td>
+                  <strong>{policy.name || policy.title}</strong>
+                  {#if policy.description}
+                    <p class="text-light">{policy.description}</p>
+                  {/if}
+                </td>
+                <td>
+                  <span class="badge" data-variant={policy.response === 'passing' ? 'success' : policy.response === 'failing' ? 'danger' : 'warning'}>
+                    {policy.stale ? `${policy.response} stale` : policy.response}
+                  </span>
+                </td>
+                <td>{formatTimestamp(policy.checked_at)}</td>
+                <td>{policy.last_error || ''}</td>
+                <td>{policy.response === 'failing' ? policy.resolution || '' : ''}</td>
+              </tr>
+            {:else}
+              <tr>
+                <td colspan="5" class="align-center text-light">No policies target this machine</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <article class="card">
       <header>
