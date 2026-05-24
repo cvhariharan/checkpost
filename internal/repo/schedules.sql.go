@@ -707,6 +707,7 @@ UPDATE schedules SET
     removed = $9,
     snapshot = $10,
     enabled = $11,
+    retention_days = $12,
     updated_at = now()
 WHERE uuid = $1 AND is_system = false
 RETURNING id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at
@@ -724,6 +725,7 @@ type UpdateScheduleByUUIDParams struct {
 	Removed         bool      `db:"removed" json:"removed"`
 	Snapshot        bool      `db:"snapshot" json:"snapshot"`
 	Enabled         bool      `db:"enabled" json:"enabled"`
+	RetentionDays   int32     `db:"retention_days" json:"retention_days"`
 }
 
 func (q *Queries) UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error) {
@@ -739,6 +741,7 @@ func (q *Queries) UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleBy
 		arg.Removed,
 		arg.Snapshot,
 		arg.Enabled,
+		arg.RetentionDays,
 	)
 	var i Schedule
 	err := row.Scan(

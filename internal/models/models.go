@@ -178,27 +178,31 @@ type UpdateSchedule struct {
 	Shard           int
 	Denylist        bool
 	Enabled         bool
+	RetentionDays   int
 	GroupIDs        []string
 }
 
 type ScheduleResultRow struct {
-	NodeUUID  string            `json:"node_uuid"`
-	Hostname  string            `json:"hostname"`
-	Columns   map[string]string `json:"columns"`
-	FirstSeen time.Time         `json:"first_seen"`
-	LastSeen  time.Time         `json:"last_seen"`
+	NodeUUID string            `json:"node_uuid"`
+	Hostname string            `json:"hostname"`
+	Columns  map[string]string `json:"columns"`
+	LastSeen time.Time         `json:"last_seen"`
 }
 
 type ScheduleResults struct {
-	Columns []string            `json:"columns"`
-	Rows    []ScheduleResultRow `json:"rows"`
-	Total   int                 `json:"total"`
+	Columns      []string            `json:"columns"`
+	Rows         []ScheduleResultRow `json:"rows"`
+	Total        int                 `json:"total"`
+	Page         int                 `json:"page"`
+	CountPerPage int                 `json:"count_per_page"`
+	PageCount    int                 `json:"page_count"`
 }
 
 type ScheduleResultsRequest struct {
 	ScheduleUUID string
 	Page         int
 	Count        int
+	Query        string
 }
 
 type Policy struct {

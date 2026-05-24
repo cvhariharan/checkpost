@@ -21,6 +21,7 @@ services:
     volumes:
       - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,Z"
       - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,Z"
+      - "./data:/app/data:Z"
     depends_on:
       postgres:
         condition: service_healthy

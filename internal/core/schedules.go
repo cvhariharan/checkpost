@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/watcher/internal/resultquery"
 	"github.com/cvhariharan/watcher/internal/results"
 	"github.com/google/uuid"
 )
@@ -85,10 +88,17 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 		return models.ScheduleResults{}, err
 	}
 
+	filters, nodeIDs, err := c.prepareResultFilters(ctx, req.Query, columns)
+	if err != nil {
+		return models.ScheduleResults{}, err
+	}
+
 	res, err := c.resultsReader.Read(ctx, sched.Uuid, sched.SqlVersion, columns, results.ReadOptions{
 		Snapshot: sched.Snapshot,
 		Limit:    count,
 		Offset:   page * count,
+		Filters:  filters,
+		NodeIDs:  nodeIDs,
 	})
 	if err != nil {
 		return models.ScheduleResults{}, fmt.Errorf("read results: %w", err)
@@ -103,19 +113,76 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 	for _, row := range res.Rows {
 		nu := nodeNames[row.NodeID]
 		out = append(out, models.ScheduleResultRow{
-			NodeUUID:  nu.uuid,
-			Hostname:  nu.hostname,
-			Columns:   row.Values,
-			FirstSeen: row.UnixTime,
-			LastSeen:  row.UnixTime,
+			NodeUUID: nu.uuid,
+			Hostname: nu.hostname,
+			Columns:  row.Values,
+			LastSeen: row.UnixTime,
 		})
 	}
 
 	return models.ScheduleResults{
-		Columns: columns,
-		Rows:    out,
-		Total:   res.Total,
+		Columns:      columns,
+		Rows:         out,
+		Total:        res.Total,
+		Page:         page + 1,
+		CountPerPage: count,
+		PageCount:    pageCountFor(res.Total, count),
 	}, nil
+}
+
+func (c *Core) prepareResultFilters(ctx context.Context, raw string, columns []string) ([]resultquery.Term, []int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil, nil
+	}
+	filters, err := resultquery.Parse(raw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+	}
+	columnSet := make(map[string]struct{}, len(columns))
+	for _, col := range columns {
+		columnSet[col] = struct{}{}
+	}
+	var nodeIDs []int64
+	var hasMachineFilter bool
+	for _, filter := range filters {
+		switch filter.Field {
+		case "":
+			if len(columns) == 0 {
+				return nil, nil, fmt.Errorf("%w: no searchable columns recorded for this schedule yet", ErrInvalidQuery)
+			}
+		case "last_seen":
+			if filter.Op != resultquery.OpGTE && filter.Op != resultquery.OpLTE {
+				return nil, nil, fmt.Errorf("%w: last_seen only supports >= and <=", ErrInvalidQuery)
+			}
+			if _, err := time.Parse(time.RFC3339, filter.Value); err != nil {
+				return nil, nil, fmt.Errorf("%w: invalid last_seen timestamp", ErrInvalidQuery)
+			}
+		case "machine":
+			if filter.Op != resultquery.OpContains && filter.Op != resultquery.OpEqual {
+				return nil, nil, fmt.Errorf("%w: machine only supports : and =", ErrInvalidQuery)
+			}
+			hasMachineFilter = true
+			matches, err := c.store.ListNodesMatchingIdentity(ctx, filter.Value, 10000)
+			if err != nil {
+				return nil, nil, fmt.Errorf("list matching machines: %w", err)
+			}
+			for _, match := range matches {
+				nodeIDs = append(nodeIDs, match.ID)
+			}
+		default:
+			if _, ok := columnSet[filter.Field]; !ok {
+				return nil, nil, fmt.Errorf("%w: unknown field %q", ErrInvalidQuery, filter.Field)
+			}
+			if filter.Op != resultquery.OpContains && filter.Op != resultquery.OpEqual {
+				return nil, nil, fmt.Errorf("%w: %s only supports : and =", ErrInvalidQuery, filter.Field)
+			}
+		}
+	}
+	if hasMachineFilter && len(nodeIDs) == 0 {
+		nodeIDs = []int64{-1}
+	}
+	return filters, nodeIDs, nil
 }
 
 type nodeIdentity struct {
@@ -323,6 +390,7 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 			Removed:         req.Removed,
 			Snapshot:        req.Snapshot,
 			Enabled:         defaultBool(req.Enabled, true),
+			RetentionDays:   int32(req.RetentionDays),
 		},
 		GroupUUIDs: groupUUIDs,
 	})

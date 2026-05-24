@@ -4,10 +4,23 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
+
+func escapeLikePattern(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == '%' || r == '_' || r == '\\' {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
 
 type Store interface {
 	Querier
@@ -16,6 +29,7 @@ type Store interface {
 	CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error)
 	InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error
 	ListGroupsForSchedules(ctx context.Context, scheduleUUIDs []uuid.UUID) (map[uuid.UUID][]Group, error)
+	ListNodesMatchingIdentity(ctx context.Context, term string, limit int) ([]NodeIdentityRow, error)
 	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
 	ReplaceNodeGroupsTx(ctx context.Context, params ReplaceNodeGroupsTxParams) error
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
@@ -66,6 +80,42 @@ type UpdateScheduleTxParams struct {
 
 type UpdateQueryTxParams struct {
 	Query UpdateQueryByUUIDParams
+}
+
+type NodeIdentityRow struct {
+	ID       int64
+	UUID     string
+	Hostname string
+}
+
+func (s *PostgresStore) ListNodesMatchingIdentity(ctx context.Context, term string, limit int) ([]NodeIdentityRow, error) {
+	if limit <= 0 {
+		limit = 10000
+	}
+	escaped := escapeLikePattern(term)
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, uuid::text, hostname
+FROM nodes
+WHERE hostname ILIKE '%' || $1 || '%' ESCAPE '\'
+   OR uuid::text ILIKE '%' || $1 || '%' ESCAPE '\'
+   OR host_identifier ILIKE '%' || $1 || '%' ESCAPE '\'
+ORDER BY hostname ASC
+LIMIT $2
+`, escaped, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]NodeIdentityRow, 0)
+	for rows.Next() {
+		var row NodeIdentityRow
+		if err := rows.Scan(&row.ID, &row.UUID, &row.Hostname); err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
 }
 
 func (s *PostgresStore) InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error {
@@ -342,6 +392,12 @@ func (s *PostgresStore) UpdateScheduleTx(ctx context.Context, params UpdateSched
 		if _, err := q.BumpScheduleVersion(ctx, existing.ID); err != nil {
 			return Schedule{}, fmt.Errorf("bump schedule version: %w", err)
 		}
+	}
+
+	// Treat retention_days=0 as "keep current"; the column is NOT NULL with a
+	// CHECK between 1 and 365, so 0 is never a valid update value anyway.
+	if params.Schedule.RetentionDays == 0 {
+		params.Schedule.RetentionDays = existing.RetentionDays
 	}
 
 	schedule, err := q.UpdateScheduleByUUID(ctx, params.Schedule)

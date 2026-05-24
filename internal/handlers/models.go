@@ -256,23 +256,25 @@ type GroupMachinesResponse struct {
 }
 
 type UpdateScheduleRequest struct {
-	ID       string   `param:"id"`
-	QueryID  string   `json:"query_id" validate:"required,uuid"`
-	Title    string   `json:"title" validate:"required,ascii"`
-	Interval int      `json:"interval" validate:"required,lte=604800"`
-	Removed  bool     `json:"removed"`
-	Snapshot bool     `json:"snapshot"`
-	Platform string   `json:"platform" validate:"oneof=darwin linux posix windows any all"`
-	Version  string   `json:"version"`
-	Shard    int      `json:"shard" validate:"lte=100"`
-	Denylist bool     `json:"denylist"`
-	GroupIDs []string `json:"group_ids"`
+	ID            string   `param:"id"`
+	QueryID       string   `json:"query_id" validate:"required,uuid"`
+	Title         string   `json:"title" validate:"required,ascii"`
+	Interval      int      `json:"interval" validate:"required,lte=604800"`
+	Removed       bool     `json:"removed"`
+	Snapshot      bool     `json:"snapshot"`
+	Platform      string   `json:"platform" validate:"oneof=darwin linux posix windows any all"`
+	Version       string   `json:"version"`
+	Shard         int      `json:"shard" validate:"lte=100"`
+	Denylist      bool     `json:"denylist"`
+	RetentionDays int      `json:"retention_days" validate:"omitempty,gte=1,lte=365"`
+	GroupIDs      []string `json:"group_ids"`
 }
 
 type ScheduleResultsRequest struct {
-	ID    string `param:"id"`
-	Page  int    `query:"page"`
-	Count int    `query:"count_per_page"`
+	ID    string `param:"id" validate:"required,uuid"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0,lte=1000"`
+	Query string `query:"q" validate:"lte=4096"`
 }
 
 type ConfigRequest struct {

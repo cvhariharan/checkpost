@@ -34,6 +34,7 @@ type Workers struct {
 	reader *Reader
 	logger *slog.Logger
 
+	mu     sync.Mutex
 	wg     sync.WaitGroup
 	cancel context.CancelFunc
 }
@@ -49,8 +50,14 @@ func NewWorkers(root string, store repo.Querier, reader *Reader, logger *slog.Lo
 	}
 }
 
-// Start launches the background goroutines.
+// Start launches the background goroutines. It is a no-op if Start was
+// already called and the workers are running.
 func (w *Workers) Start() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.cancel != nil {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w.cancel = cancel
 
@@ -62,8 +69,12 @@ func (w *Workers) Start() {
 
 // Close stops the workers and waits for in-flight cycles to finish.
 func (w *Workers) Close() error {
-	if w.cancel != nil {
-		w.cancel()
+	w.mu.Lock()
+	cancel := w.cancel
+	w.cancel = nil
+	w.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 	w.wg.Wait()
 	return nil
@@ -115,34 +126,42 @@ func (w *Workers) compact(ctx context.Context) error {
 }
 
 func (w *Workers) mergeChunks(ctx context.Context, dir string, chunks []string) error {
-	glob := filepath.Join(dir, "chunk-*.parquet")
+	if len(chunks) == 0 {
+		return nil
+	}
 	merged := filepath.Join(dir, fmt.Sprintf("chunk-%s.parquet", newULID()))
 	tmp := merged + ".tmp"
 
+	// Build an explicit file list rather than a wildcard glob: a wildcard is
+	// expanded inside DuckDB at COPY start, which would include any chunk a
+	// partition worker flushes concurrently and then leave it on disk as a
+	// duplicate of rows we've already merged.
+	quoted := make([]string, 0, len(chunks))
+	for _, c := range chunks {
+		quoted = append(quoted, "'"+escapeSQLLiteral(c)+"'")
+	}
+	fileList := "[" + strings.Join(quoted, ", ") + "]"
+
 	stmt := fmt.Sprintf(
-		"COPY (SELECT * FROM read_parquet('%s', union_by_name=true) ORDER BY unix_time) TO '%s' (FORMAT PARQUET, COMPRESSION ZSTD)",
-		escapeSQLLiteral(glob), escapeSQLLiteral(tmp),
+		"COPY (SELECT * FROM read_parquet(%s, union_by_name=true) ORDER BY unix_time) TO '%s' (FORMAT PARQUET, COMPRESSION ZSTD)",
+		fileList, escapeSQLLiteral(tmp),
 	)
 	if _, err := w.reader.db.ExecContext(ctx, stmt); err != nil {
 		os.Remove(tmp)
 		return fmt.Errorf("duckdb copy: %w", err)
 	}
 
-	f, err := os.Open(tmp)
-	if err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("open merged: %w", err)
-	}
-	if err := f.Sync(); err != nil {
-		f.Close()
+	if err := fsyncFile(tmp); err != nil {
 		os.Remove(tmp)
 		return fmt.Errorf("fsync merged: %w", err)
 	}
-	f.Close()
 
 	if err := os.Rename(tmp, merged); err != nil {
 		os.Remove(tmp)
 		return fmt.Errorf("rename merged: %w", err)
+	}
+	if err := fsyncDir(dir); err != nil {
+		w.logger.Warn("fsync partition dir", "dir", dir, "error", err)
 	}
 	for _, c := range chunks {
 		if err := os.Remove(c); err != nil {
@@ -150,6 +169,32 @@ func (w *Workers) mergeChunks(ctx context.Context, dir string, chunks []string) 
 		}
 	}
 	return nil
+}
+
+func fsyncFile(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	if syncErr != nil {
+		return syncErr
+	}
+	return closeErr
+}
+
+func fsyncDir(path string) error {
+	d, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	syncErr := d.Sync()
+	closeErr := d.Close()
+	if syncErr != nil {
+		return syncErr
+	}
+	return closeErr
 }
 
 // sweep deletes parquet files whose newest unix_time is older than the

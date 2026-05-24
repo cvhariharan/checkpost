@@ -91,8 +91,8 @@ export async function deleteSchedule(uuid) {
   return handleResponse(res);
 }
 
-export async function fetchScheduleResults(uuid, { page = 1, countPerPage = 100 } = {}) {
-  const res = await fetch(apiUrl(`/schedule/${encodeURIComponent(uuid)}/results`, { page, count_per_page: countPerPage }));
+export async function fetchScheduleResults(uuid, { page = 1, countPerPage = 100, query = '' } = {}) {
+  const res = await fetch(apiUrl(`/schedule/${encodeURIComponent(uuid)}/results`, { page, count_per_page: countPerPage, q: query }));
   return handleResponse(res);
 }
 

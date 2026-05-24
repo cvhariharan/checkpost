@@ -5,6 +5,7 @@
   import OatPagination from '@/components/common/OatPagination.svelte'
   import SearchInput from '@/components/common/SearchInput.svelte'
   import ScheduleFormDialog from '@/components/schedules/ScheduleFormDialog.svelte'
+  import ScheduleResultsTable from '@/components/schedules/ScheduleResultsTable.svelte'
 
   let loadedSchedules = []
   let currentPage = 1
@@ -24,8 +25,11 @@
   let resultsRows = []
   let resultsTotal = 0
   let resultsPage = 1
+  let resultsPageCount = 1
+  let resultsQuery = ''
+  let resultsLastRefreshed = ''
   let resultsLoading = false
-  const resultsPerPage = 100
+  const resultsPerPage = 500
 
   $: schedules = loadedSchedules.filter((schedule) => {
     const search = searchTerm.trim().toLowerCase()
@@ -38,7 +42,7 @@
   })
   $: startResult = loadedSchedules.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1
   $: endResult = Math.min(currentPage * countPerPage, totalCount)
-  $: resultsPageCount = Math.max(1, Math.ceil(resultsTotal / resultsPerPage))
+  $: scheduleListHidden = !!resultsSchedule
 
   onMount(loadSchedules)
 
@@ -77,7 +81,7 @@
     if (resultsSchedule) {
       const refreshed = loadedSchedules.find((s) => s.uuid === resultsSchedule.uuid)
       if (refreshed) {
-        await openResults(refreshed, resultsPage)
+        await openResults(refreshed, resultsPage, resultsQuery)
       }
     }
   }
@@ -106,16 +110,20 @@
     }
   }
 
-  async function openResults(schedule, page = 1) {
+  async function openResults(schedule, page = 1, query = resultsQuery) {
     resultsSchedule = schedule
     resultsPage = page
+    resultsQuery = query
     resultsLoading = true
     error = ''
     try {
-      const data = await fetchScheduleResults(schedule.uuid, { page, countPerPage: resultsPerPage })
+      const data = await fetchScheduleResults(schedule.uuid, { page, countPerPage: resultsPerPage, query })
       resultsColumns = data.columns || []
       resultsRows = data.rows || []
       resultsTotal = data.total || 0
+      resultsPage = data.page || page
+      resultsPageCount = data.page_count || Math.max(1, Math.ceil(resultsTotal / resultsPerPage))
+      resultsLastRefreshed = new Date().toLocaleTimeString()
     } catch (err) {
       error = err.message || 'Failed to load results'
     } finally {
@@ -129,6 +137,9 @@
     resultsRows = []
     resultsTotal = 0
     resultsPage = 1
+    resultsPageCount = 1
+    resultsQuery = ''
+    resultsLastRefreshed = ''
   }
 
   async function changeResultsPage(page) {
@@ -137,20 +148,23 @@
     }
   }
 
+  async function applyResultsQuery(query) {
+    if (resultsSchedule) {
+      await openResults(resultsSchedule, 1, query)
+    }
+  }
+
+  async function refreshResults() {
+    if (resultsSchedule) {
+      await openResults(resultsSchedule, resultsPage, resultsQuery)
+    }
+  }
+
   function targetLabel(schedule) {
     if (schedule.target_all_machines || !schedule.groups?.length) {
       return 'All machines'
     }
     return schedule.groups.map((group) => group.name).join(', ')
-  }
-
-  function formatTimestamp(timestamp) {
-    if (!timestamp) return ''
-    try {
-      return new Date(timestamp).toLocaleString()
-    } catch {
-      return timestamp
-    }
   }
 </script>
 
@@ -163,110 +177,75 @@
     <button type="button" onclick={openCreate}>Create Schedule</button>
   </header>
 
-  <div class="row">
-    <div class="col-6">
-      <SearchInput bind:value={searchTerm} placeholder="Search schedules..." />
-    </div>
-  </div>
-
   <ErrorMessage message={error} onClose={() => (error = '')} />
 
-  <div class="table">
-    <table>
-      <thead>
-        <tr>
-          <th>Title</th>
-          <th>Frequency</th>
-          <th>Targets</th>
-          <th class="align-right">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each schedules as schedule}
-          <tr>
-            <td>
-              <strong>{schedule.title || 'Untitled'}</strong>
-              <p class="text-light">{schedule.query?.query || ''}</p>
-              {#if schedule.query?.description}
-                <small class="text-lighter">{schedule.query.description}</small>
-              {/if}
-            </td>
-            <td>{schedule.interval}</td>
-            <td>{targetLabel(schedule)}</td>
-            <td class="align-right">
-              <div class="hstack justify-end gap-2">
-                <button type="button" class="small outline" onclick={() => openResults(schedule)}>Results</button>
-                <button type="button" class="small outline" onclick={() => openEdit(schedule)}>Edit</button>
-                <button type="button" class="small outline" data-variant="danger" onclick={() => confirmDelete(schedule)}>Delete</button>
-              </div>
-            </td>
-          </tr>
-        {:else}
-          <tr>
-            <td colspan="4" class="align-center text-light">No schedules found</td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-  </div>
-
-  <footer class="hstack justify-between">
-    <p class="text-light">Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of <strong>{totalCount}</strong> results</p>
-    <OatPagination {currentPage} {pageCount} onPageChange={changePage} />
-  </footer>
-
-  {#if resultsSchedule}
-    <section class="vstack gap-3">
-      <header class="hstack justify-between">
-        <div>
-          <h2>{resultsSchedule.title || resultsSchedule.name} results</h2>
-          <p class="text-light">{resultsTotal} rows across all machines</p>
-        </div>
-        <button type="button" class="small outline" onclick={closeResults}>Close</button>
-      </header>
-
-      <div class="table">
-        <table>
-          <thead>
-            <tr>
-              <th>Machine</th>
-              {#each resultsColumns as column}
-                <th>{column}</th>
-              {/each}
-              <th>Last seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#if resultsLoading}
-              <tr>
-                <td colspan={resultsColumns.length + 2} class="align-center text-light">Loading results...</td>
-              </tr>
-            {:else}
-              {#each resultsRows as row}
-                <tr>
-                  <td>{row.hostname || row.node_uuid}</td>
-                  {#each resultsColumns as column}
-                    <td>{row.columns?.[column] ?? ''}</td>
-                  {/each}
-                  <td>{formatTimestamp(row.last_seen)}</td>
-                </tr>
-              {:else}
-                <tr>
-                  <td colspan={resultsColumns.length + 2} class="align-center text-light">No results yet</td>
-                </tr>
-              {/each}
-            {/if}
-          </tbody>
-        </table>
+  {#if scheduleListHidden}
+    <ScheduleResultsTable
+      schedule={resultsSchedule}
+      columns={resultsColumns}
+      rows={resultsRows}
+      total={resultsTotal}
+      page={resultsPage}
+      pageCount={resultsPageCount}
+      countPerPage={resultsPerPage}
+      loading={resultsLoading}
+      query={resultsQuery}
+      lastRefreshed={resultsLastRefreshed}
+      onClose={closeResults}
+      onRefresh={refreshResults}
+      onApplyQuery={applyResultsQuery}
+      onPageChange={changeResultsPage}
+    />
+  {:else}
+    <div class="row">
+      <div class="col-6">
+        <SearchInput bind:value={searchTerm} placeholder="Search schedules..." />
       </div>
+    </div>
 
-      {#if resultsPageCount > 1}
-        <footer class="hstack justify-between">
-          <span class="text-light">{resultsTotal} rows</span>
-          <OatPagination currentPage={resultsPage} pageCount={resultsPageCount} disabled={resultsLoading} label="Schedule results pagination" onPageChange={changeResultsPage} />
-        </footer>
-      {/if}
-    </section>
+    <div class="table">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Frequency</th>
+            <th>Targets</th>
+            <th class="align-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each schedules as schedule}
+            <tr>
+              <td>
+                <strong>{schedule.title || 'Untitled'}</strong>
+                <p class="text-light">{schedule.query?.query || ''}</p>
+                {#if schedule.query?.description}
+                  <small class="text-lighter">{schedule.query.description}</small>
+                {/if}
+              </td>
+              <td>{schedule.interval}</td>
+              <td>{targetLabel(schedule)}</td>
+              <td class="align-right">
+                <div class="hstack justify-end gap-2">
+                  <button type="button" class="small outline" onclick={() => openResults(schedule)}>Results</button>
+                  <button type="button" class="small outline" onclick={() => openEdit(schedule)}>Edit</button>
+                  <button type="button" class="small outline" data-variant="danger" onclick={() => confirmDelete(schedule)}>Delete</button>
+                </div>
+              </td>
+            </tr>
+          {:else}
+            <tr>
+              <td colspan="4" class="align-center text-light">No schedules found</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="hstack justify-between">
+      <p class="text-light">Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of <strong>{totalCount}</strong> results</p>
+      <OatPagination {currentPage} {pageCount} onPageChange={changePage} />
+    </footer>
   {/if}
 </section>
 

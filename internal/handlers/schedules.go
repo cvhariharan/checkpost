@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
+	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/labstack/echo/v4"
 )
@@ -130,6 +132,7 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 		Shard:           req.Shard,
 		Denylist:        req.Denylist,
 		Enabled:         true,
+		RetentionDays:   req.RetentionDays,
 		GroupIDs:        req.GroupIDs,
 	})
 	if err != nil {
@@ -145,12 +148,8 @@ func (h *Handler) HandleScheduleResults(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
 	}
 
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusBadRequest, "page and count cannot be negative", fmt.Errorf("invalid pagination"), nil)
+	if err := h.validate.Struct(req); err != nil {
+		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
 	if req.Page > 0 {
@@ -159,13 +158,20 @@ func (h *Handler) HandleScheduleResults(c echo.Context) error {
 	if req.Count == 0 {
 		req.Count = CountPerPage
 	}
+	if req.Count > MaxResultsPerPage {
+		req.Count = MaxResultsPerPage
+	}
 
 	results, err := h.c.ListScheduleResults(c.Request().Context(), models.ScheduleResultsRequest{
 		ScheduleUUID: req.ID,
 		Page:         req.Page,
 		Count:        req.Count,
+		Query:        req.Query,
 	})
 	if err != nil {
+		if errors.Is(err, core.ErrInvalidQuery) {
+			return wrapError(http.StatusBadRequest, "invalid result query", err, nil)
+		}
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting results for %s", req.ID), err, nil)
 	}
 

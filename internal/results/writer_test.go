@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cvhariharan/watcher/internal/resultquery"
 	"github.com/google/uuid"
 )
 
@@ -324,5 +325,129 @@ func TestReaderDifferentialKeepsSameHashPerHost(t *testing.T) {
 	}
 	if res.Total != 2 || len(res.Rows) != 2 {
 		t.Fatalf("expected same row hash from two hosts to survive, got total=%d rows=%d: %+v", res.Total, len(res.Rows), res.Rows)
+	}
+}
+
+func TestReaderFiltersResults(t *testing.T) {
+	dir := t.TempDir()
+	store := newMemStore()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	w, err := NewWriter(dir, store, logger)
+	if err != nil {
+		t.Fatalf("new writer: %v", err)
+	}
+
+	u := uuid.New()
+	rows := []Row{
+		{
+			NodeID:       7,
+			UnixTime:     time.Unix(100, 0).UTC(),
+			CalendarTime: "now",
+			Action:       "snapshot",
+			RowHash:      []byte("h1"),
+			Columns:      map[string]string{"pid": "1", "name": "osqueryd", "path": "/usr/bin/osqueryd"},
+		},
+		{
+			NodeID:       8,
+			UnixTime:     time.Unix(200, 0).UTC(),
+			CalendarTime: "now",
+			Action:       "snapshot",
+			RowHash:      []byte("h2"),
+			Columns:      map[string]string{"pid": "2", "name": "sshd", "path": "/usr/sbin/sshd"},
+		},
+	}
+	if err := w.Submit(u, 1, rows); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	r, err := NewReader(dir, "")
+	if err != nil {
+		t.Fatalf("new reader: %v", err)
+	}
+	defer r.Close()
+
+	filters, err := resultquery.Parse("name:query pid=1 last_seen>=1970-01-01T00:01:00Z")
+	if err != nil {
+		t.Fatalf("parse filters: %v", err)
+	}
+	res, err := r.Read(context.Background(), u, 1, store.columns(u, 1), ReadOptions{
+		Snapshot: true,
+		Limit:    100,
+		Filters:  filters,
+	})
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if res.Total != 1 || len(res.Rows) != 1 {
+		t.Fatalf("expected one filtered row, got total=%d rows=%d: %+v", res.Total, len(res.Rows), res.Rows)
+	}
+	if got := res.Rows[0].Values["name"]; got != "osqueryd" {
+		t.Fatalf("expected osqueryd, got %q", got)
+	}
+}
+
+func TestReaderDifferentialCountCanFilterDynamicColumns(t *testing.T) {
+	dir := t.TempDir()
+	store := newMemStore()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	w, err := NewWriter(dir, store, logger)
+	if err != nil {
+		t.Fatalf("new writer: %v", err)
+	}
+
+	u := uuid.New()
+	rows := []Row{
+		{
+			NodeID:       7,
+			UnixTime:     time.Unix(100, 0).UTC(),
+			CalendarTime: "now",
+			Action:       "added",
+			RowHash:      []byte("h1"),
+			Columns:      map[string]string{"name": "sudo", "version": "1.9"},
+		},
+		{
+			NodeID:       7,
+			UnixTime:     time.Unix(100, 0).UTC(),
+			CalendarTime: "now",
+			Action:       "added",
+			RowHash:      []byte("h2"),
+			Columns:      map[string]string{"name": "bash", "version": "5.2"},
+		},
+	}
+	if err := w.Submit(u, 1, rows); err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	r, err := NewReader(dir, "")
+	if err != nil {
+		t.Fatalf("new reader: %v", err)
+	}
+	defer r.Close()
+
+	filters, err := resultquery.Parse("name:sudo")
+	if err != nil {
+		t.Fatalf("parse filters: %v", err)
+	}
+	res, err := r.Read(context.Background(), u, 1, store.columns(u, 1), ReadOptions{
+		Snapshot: false,
+		Limit:    100,
+		Filters:  filters,
+	})
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if res.Total != 1 || len(res.Rows) != 1 {
+		t.Fatalf("expected one filtered differential row, got total=%d rows=%d: %+v", res.Total, len(res.Rows), res.Rows)
+	}
+	if got := res.Rows[0].Values["name"]; got != "sudo" {
+		t.Fatalf("expected sudo, got %q", got)
 	}
 }

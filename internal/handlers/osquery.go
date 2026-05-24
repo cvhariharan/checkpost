@@ -14,6 +14,10 @@ const (
 	// CountPerPage used for pagination requests
 	CountPerPage = 10
 
+	// MaxResultsPerPage caps how many schedule-result rows can be requested
+	// in one page; protects DuckDB and the response allocator from OOM.
+	MaxResultsPerPage = 1000
+
 	// Maximum number of schedules that will be returned in osquery config
 	ScheduleMax = 100
 )

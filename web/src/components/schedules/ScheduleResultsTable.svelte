@@ -1,0 +1,236 @@
+<script>
+  import OatPagination from '@/components/common/OatPagination.svelte'
+
+  export let schedule = null
+  export let columns = []
+  export let rows = []
+  export let total = 0
+  export let page = 1
+  export let pageCount = 1
+  export let countPerPage = 500
+  export let loading = false
+  export let query = ''
+  export let lastRefreshed = ''
+  export let onClose = () => {}
+  export let onRefresh = () => {}
+  export let onApplyQuery = () => {}
+  export let onPageChange = () => {}
+
+  const rowHeight = 36
+  const headerHeight = 40
+  const overscan = 12
+
+  let draftQuery = query
+  let lastSyncedQuery = query
+  let scrollTop = 0
+  let viewportHeight = 520
+
+  $: if (query !== lastSyncedQuery) {
+    draftQuery = query
+    lastSyncedQuery = query
+  }
+  $: templateColumns = `220px 180px repeat(${columns.length}, 220px)`
+  $: startIndex = Math.max(0, Math.floor(Math.max(0, scrollTop - headerHeight) / rowHeight) - overscan)
+  $: visibleCount = Math.ceil(viewportHeight / rowHeight) + overscan * 2
+  $: endIndex = Math.min(rows.length, startIndex + visibleCount)
+  $: visibleRows = rows.slice(startIndex, endIndex)
+  $: bodyHeight = headerHeight + rows.length * rowHeight
+  $: rangeStart = total === 0 ? 0 : (page - 1) * countPerPage + 1
+  $: rangeEnd = Math.min(page * countPerPage, total)
+  $: queryError = validateQuery(draftQuery)
+
+  function handleScroll(event) {
+    scrollTop = event.currentTarget.scrollTop
+  }
+
+  function applyQuery() {
+    if (queryError) return
+    onApplyQuery(draftQuery.trim())
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    applyQuery()
+  }
+
+  function formatTimestamp(timestamp) {
+    if (!timestamp) return ''
+    try {
+      return new Date(timestamp).toLocaleString()
+    } catch {
+      return timestamp
+    }
+  }
+
+  function validateQuery(value) {
+    let inQuote = false
+    let escaped = false
+    for (const char of value) {
+      if (escaped) {
+        escaped = false
+      } else if (char === '\\' && inQuote) {
+        escaped = true
+      } else if (char === '"') {
+        inQuote = !inQuote
+      }
+    }
+    return inQuote ? 'Close the quoted value before searching.' : ''
+  }
+</script>
+
+<section class="vstack gap-3">
+  <header class="hstack justify-between">
+    <div>
+      <h2>{schedule?.title || schedule?.name || 'Schedule results'}</h2>
+      <p class="text-light">{schedule?.query?.query || ''}</p>
+    </div>
+    <menu class="buttons">
+      <li><button type="button" class="small outline" disabled={loading} onclick={onRefresh}>Refresh</button></li>
+      <li><button type="button" class="small outline" onclick={onClose}>Close</button></li>
+    </menu>
+  </header>
+
+  <form onsubmit={handleSubmit}>
+    <fieldset class="group">
+      <input
+        type="search"
+        bind:value={draftQuery}
+        aria-invalid={queryError ? 'true' : undefined}
+        placeholder="Search results (e.g. name:sudo machine:laptop)"
+        disabled={loading}
+      />
+      <button type="submit" disabled={loading || !!queryError}>Search</button>
+    </fieldset>
+  </form>
+  {#if queryError}
+    <p class="text-light" role="alert">{queryError}</p>
+  {/if}
+
+  <div class="hstack justify-between">
+    <p class="text-light">
+      Showing <strong>{rangeStart}</strong> to <strong>{rangeEnd}</strong> of <strong>{total}</strong> rows
+    </p>
+    {#if lastRefreshed}
+      <p class="text-light">Refreshed {lastRefreshed}</p>
+    {/if}
+  </div>
+
+  <div
+    class="table virtual-table"
+    role="region"
+    aria-label={`${schedule?.title || schedule?.name || 'Schedule'} results`}
+    bind:clientHeight={viewportHeight}
+    onscroll={handleScroll}
+  >
+    <div class="result-grid" style={`grid-template-columns: ${templateColumns}; height: ${bodyHeight}px;`}>
+      <div class="result-header" style={`grid-template-columns: ${templateColumns};`}>
+        <div class="cell sticky-left first">Machine</div>
+        <div class="cell sticky-left second">Last seen</div>
+        {#each columns as column}
+          <div class="cell" title={column}>{column}</div>
+        {/each}
+      </div>
+
+      {#if loading}
+        <div class="state-row" style={`top: ${headerHeight}px;`}>Loading results...</div>
+      {:else if rows.length === 0}
+        <div class="state-row" style={`top: ${headerHeight}px;`}>No results yet</div>
+      {:else}
+        {#each visibleRows as row, offset}
+          <div
+            class="result-row"
+            style={`grid-template-columns: ${templateColumns}; transform: translateY(${headerHeight + (startIndex + offset) * rowHeight}px);`}
+          >
+            <div class="cell sticky-left first" title={row.hostname || row.node_uuid}>{row.hostname || row.node_uuid}</div>
+            <div class="cell sticky-left second" title={formatTimestamp(row.last_seen)}>{formatTimestamp(row.last_seen)}</div>
+            {#each columns as column}
+              <div class="cell" title={row.columns?.[column] ?? ''}>{row.columns?.[column] ?? ''}</div>
+            {/each}
+          </div>
+        {/each}
+      {/if}
+    </div>
+  </div>
+
+  <footer class="hstack justify-between">
+    <span class="text-light">{rows.length} loaded on this page</span>
+    <OatPagination currentPage={page} {pageCount} disabled={loading} label="Schedule results pagination" onPageChange={onPageChange} />
+  </footer>
+</section>
+
+<style>
+  .virtual-table {
+    height: min(62vh, 640px);
+    min-height: 360px;
+    overflow: auto;
+    position: relative;
+  }
+
+  .result-grid {
+    display: grid;
+    min-width: max-content;
+    position: relative;
+  }
+
+  .result-header,
+  .result-row {
+    display: grid;
+    left: 0;
+    min-width: max-content;
+    position: absolute;
+    right: 0;
+  }
+
+  .result-header {
+    background: var(--bg, Canvas);
+    height: 40px;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+  }
+
+  .result-row {
+    height: 36px;
+  }
+
+  .cell {
+    align-items: center;
+    border-bottom: 1px solid var(--border-color, #ddd);
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 .6rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-header .cell {
+    font-weight: 600;
+  }
+
+  .sticky-left {
+    background: var(--bg, Canvas);
+    position: sticky;
+    z-index: 2;
+  }
+
+  .first {
+    left: 0;
+  }
+
+  .second {
+    left: 220px;
+  }
+
+  .result-header .sticky-left {
+    z-index: 5;
+  }
+
+  .state-row {
+    left: 0;
+    padding: 1rem;
+    position: absolute;
+    right: 0;
+    text-align: center;
+  }
+</style>

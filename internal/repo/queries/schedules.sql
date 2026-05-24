@@ -192,6 +192,7 @@ UPDATE schedules SET
     removed = $9,
     snapshot = $10,
     enabled = $11,
+    retention_days = $12,
     updated_at = now()
 WHERE uuid = $1 AND is_system = false
 RETURNING *;

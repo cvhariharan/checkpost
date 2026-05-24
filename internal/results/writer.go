@@ -30,9 +30,10 @@ type Writer struct {
 	store  SchemaStore
 	logger *slog.Logger
 
-	mu      sync.Mutex
-	workers map[PartitionKey]*partitionWorker
-	closed  bool
+	mu       sync.Mutex
+	workers  map[PartitionKey]*partitionWorker
+	deleting map[uuid.UUID]struct{}
+	closed   bool
 
 	overflow    chan submission
 	overflowWG  sync.WaitGroup
@@ -45,8 +46,9 @@ type submission struct {
 }
 
 type partitionWorker struct {
-	key PartitionKey
-	in  chan Row
+	key  PartitionKey
+	in   chan Row
+	done chan struct{}
 }
 
 func NewWriter(root string, store SchemaStore, logger *slog.Logger) (*Writer, error) {
@@ -61,6 +63,7 @@ func NewWriter(root string, store SchemaStore, logger *slog.Logger) (*Writer, er
 		store:    store,
 		logger:   logger.WithGroup("results.writer"),
 		workers:  make(map[PartitionKey]*partitionWorker),
+		deleting: make(map[uuid.UUID]struct{}),
 		overflow: make(chan submission, overflowQueueSize),
 	}
 	w.overflowWG.Add(1)
@@ -78,6 +81,13 @@ func (w *Writer) Submit(scheduleUUID uuid.UUID, sqlVersion int32, rows []Row) er
 		if w.closed {
 			w.mu.Unlock()
 			return ErrClosed
+		}
+		if _, gone := w.deleting[scheduleUUID]; gone {
+			w.mu.Unlock()
+			// Schedule is being deleted; drop the row silently — callers
+			// (ingest path) shouldn't see a hard error for a transient
+			// race with a delete.
+			return nil
 		}
 		worker := w.workerForLocked(key)
 		select {
@@ -116,7 +126,34 @@ func (w *Writer) Close() error {
 	return nil
 }
 
+// DeleteSchedule drains any in-flight writes for the schedule, removes its
+// partition workers, and then deletes the parquet tree. It blocks until
+// every partition goroutine for the schedule has finished flushing, so the
+// caller can safely assume no further chunks will be created under the
+// returned directory.
 func (w *Writer) DeleteSchedule(scheduleUUID uuid.UUID) error {
+	w.mu.Lock()
+	if w.closed {
+		w.mu.Unlock()
+		return ErrClosed
+	}
+	w.deleting[scheduleUUID] = struct{}{}
+
+	dones := make([]chan struct{}, 0)
+	for key, pw := range w.workers {
+		if key.ScheduleUUID != scheduleUUID {
+			continue
+		}
+		close(pw.in)
+		dones = append(dones, pw.done)
+		delete(w.workers, key)
+	}
+	w.mu.Unlock()
+
+	for _, d := range dones {
+		<-d
+	}
+
 	dir := queryDir(w.root, scheduleUUID)
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("remove schedule dir: %w", err)
@@ -131,8 +168,9 @@ func (w *Writer) workerForLocked(key PartitionKey) *partitionWorker {
 		return pw
 	}
 	pw := &partitionWorker{
-		key: key,
-		in:  make(chan Row, partitionQueueSize),
+		key:  key,
+		in:   make(chan Row, partitionQueueSize),
+		done: make(chan struct{}),
 	}
 	w.workers[key] = pw
 	w.partitionWG.Add(1)
@@ -143,14 +181,23 @@ func (w *Writer) workerForLocked(key PartitionKey) *partitionWorker {
 func (w *Writer) drainOverflow() {
 	defer w.overflowWG.Done()
 	for s := range w.overflow {
+		// Hold w.mu through the send so DeleteSchedule cannot close the
+		// target channel between lookup and write. The partition worker
+		// drains pw.in independently of w.mu, so the send completes even
+		// under load.
 		w.mu.Lock()
+		if _, gone := w.deleting[s.key.ScheduleUUID]; gone {
+			w.mu.Unlock()
+			continue
+		}
 		worker := w.workerForLocked(s.key)
-		w.mu.Unlock()
 		worker.in <- s.row
+		w.mu.Unlock()
 	}
 }
 
 func (w *Writer) runPartition(pw *partitionWorker) {
+	defer close(pw.done)
 	defer w.partitionWG.Done()
 
 	var buffer []Row
