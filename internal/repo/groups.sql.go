@@ -82,6 +82,26 @@ func (q *Queries) CreatePolicyGroup(ctx context.Context, arg CreatePolicyGroupPa
 	return err
 }
 
+const createScheduleGroup = `-- name: CreateScheduleGroup :exec
+INSERT INTO schedule_groups (
+    schedule_id,
+    group_id
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (schedule_id, group_id) DO NOTHING
+`
+
+type CreateScheduleGroupParams struct {
+	ScheduleID int64 `db:"schedule_id" json:"schedule_id"`
+	GroupID    int64 `db:"group_id" json:"group_id"`
+}
+
+func (q *Queries) CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error {
+	_, err := q.db.ExecContext(ctx, createScheduleGroup, arg.ScheduleID, arg.GroupID)
+	return err
+}
+
 const deleteGroupByUUID = `-- name: DeleteGroupByUUID :execrows
 DELETE FROM groups WHERE uuid = $1
 `
@@ -115,6 +135,18 @@ WHERE policy_groups.policy_id = policies.id
 
 func (q *Queries) DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deletePolicyGroupsForPolicy, policyUuid)
+	return err
+}
+
+const deleteScheduleGroupsForSchedule = `-- name: DeleteScheduleGroupsForSchedule :exec
+DELETE FROM schedule_groups
+USING schedules
+WHERE schedule_groups.schedule_id = schedules.id
+  AND schedules.uuid = $1
+`
+
+func (q *Queries) DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteScheduleGroupsForSchedule, scheduleUuid)
 	return err
 }
 
@@ -248,6 +280,51 @@ ORDER BY groups.name
 
 func (q *Queries) ListGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) ([]Group, error) {
 	rows, err := q.db.QueryContext(ctx, listGroupsForPolicy, policyUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Uuid,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGroupsForSchedule = `-- name: ListGroupsForSchedule :many
+SELECT
+    groups.id,
+    groups.uuid,
+    groups.name,
+    groups.description,
+    groups.created_at,
+    groups.updated_at
+FROM groups
+JOIN schedule_groups ON schedule_groups.group_id = groups.id
+JOIN schedules ON schedules.id = schedule_groups.schedule_id
+WHERE schedules.uuid = $1
+ORDER BY groups.name
+`
+
+func (q *Queries) ListGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, listGroupsForSchedule, scheduleUuid)
 	if err != nil {
 		return nil, err
 	}

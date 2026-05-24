@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	BumpScheduleVersion(ctx context.Context, id int64) (BumpScheduleVersionRow, error)
 	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMembership(ctx context.Context, arg CreateGroupMembershipParams) error
@@ -19,10 +20,8 @@ type Querier interface {
 	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
 	CreatePolicyGroup(ctx context.Context, arg CreatePolicyGroupParams) error
 	CreateQuery(ctx context.Context, arg CreateQueryParams) (Query, error)
-	CreateResultBatch(ctx context.Context, arg CreateResultBatchParams) (OsqueryResultBatch, error)
-	CreateResultCell(ctx context.Context, arg CreateResultCellParams) error
-	CreateResultRow(ctx context.Context, arg CreateResultRowParams) (OsqueryResultRow, error)
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
+	CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
 	DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupMembershipsForNode(ctx context.Context, nodeUuid uuid.UUID) error
@@ -30,40 +29,60 @@ type Querier interface {
 	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error
 	DeleteQueryByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeleteQuerySchema(ctx context.Context, arg DeleteQuerySchemaParams) error
+	DeleteQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
 	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
 	GetGroupWithCountsByUUID(ctx context.Context, groupUuid uuid.UUID) (GetGroupWithCountsByUUIDRow, error)
+	GetNodeByID(ctx context.Context, id int64) (Node, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
 	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error)
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
 	GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error)
 	GetQueryByID(ctx context.Context, id int64) (Query, error)
 	GetQueryByUUID(ctx context.Context, argUuid uuid.UUID) (Query, error)
+	GetQuerySchema(ctx context.Context, arg GetQuerySchemaParams) (QuerySchema, error)
+	GetScheduleByName(ctx context.Context, name string) (Schedule, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
 	GetScheduleWithQueryByUUID(ctx context.Context, argUuid uuid.UUID) (GetScheduleWithQueryByUUIDRow, error)
+	ListAllQuerySchemas(ctx context.Context) ([]ListAllQuerySchemasRow, error)
 	ListEnabledPoliciesForNode(ctx context.Context, arg ListEnabledPoliciesForNodeParams) ([]Policy, error)
+	ListEnabledSchedulesForNode(ctx context.Context, arg ListEnabledSchedulesForNodeParams) ([]ListEnabledSchedulesForNodeRow, error)
 	ListEnabledSchedulesWithQueries(ctx context.Context, limit int32) ([]ListEnabledSchedulesWithQueriesRow, error)
 	ListGroupsForNode(ctx context.Context, nodeUuid uuid.UUID) ([]Group, error)
 	ListGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) ([]Group, error)
+	ListGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]Group, error)
 	ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error)
 	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
 	ListNodesByGroup(ctx context.Context, arg ListNodesByGroupParams) ([]ListNodesByGroupRow, error)
+	ListNodesByIDs(ctx context.Context, ids []int64) ([]ListNodesByIDsRow, error)
 	ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error)
 	ListPendingMachineQueryResults(ctx context.Context, nodeID int64) ([]MachineQueryResult, error)
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
 	ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error)
 	ListQueries(ctx context.Context, arg ListQueriesParams) ([]ListQueriesRow, error)
+	ListQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]QuerySchema, error)
+	ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error)
+	ListSchedulesForQuery(ctx context.Context, queryID int64) ([]ListSchedulesForQueryRow, error)
 	ListSchedulesWithQueries(ctx context.Context, arg ListSchedulesWithQueriesParams) ([]ListSchedulesWithQueriesRow, error)
-	ListSystemScheduleNames(ctx context.Context) ([]string, error)
 	MarkMachineQueryResultsDispatched(ctx context.Context, ids []int64) error
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
 	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
 	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQueryByUUID(ctx context.Context, arg UpdateQueryByUUIDParams) (Query, error)
+	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
 	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error
+	// Atomically merges new columns into the persisted set. Concurrent writers
+	// observing different new columns for the same (schedule_uuid, sql_version)
+	// would otherwise overwrite each other's column lists; doing the merge in
+	// a single UPDATE keeps the additions strictly cumulative because the
+	// statement reads the current row value under the row lock acquired by
+	// ON CONFLICT DO UPDATE.
+	UpsertQuerySchema(ctx context.Context, arg UpsertQuerySchemaParams) (QuerySchema, error)
 }
 
 var _ Querier = (*Queries)(nil)

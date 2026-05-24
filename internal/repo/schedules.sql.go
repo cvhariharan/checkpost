@@ -12,6 +12,32 @@ import (
 	"github.com/google/uuid"
 )
 
+const bumpScheduleVersion = `-- name: BumpScheduleVersion :one
+UPDATE schedules
+SET sql_version = sql_version + 1, updated_at = now()
+WHERE id = $1
+RETURNING id, uuid, name, sql_version
+`
+
+type BumpScheduleVersionRow struct {
+	ID         int64     `db:"id" json:"id"`
+	Uuid       uuid.UUID `db:"uuid" json:"uuid"`
+	Name       string    `db:"name" json:"name"`
+	SqlVersion int32     `db:"sql_version" json:"sql_version"`
+}
+
+func (q *Queries) BumpScheduleVersion(ctx context.Context, id int64) (BumpScheduleVersionRow, error) {
+	row := q.db.QueryRowContext(ctx, bumpScheduleVersion, id)
+	var i BumpScheduleVersionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.Name,
+		&i.SqlVersion,
+	)
+	return i, err
+}
+
 const createSchedule = `-- name: CreateSchedule :one
 INSERT INTO schedules (
     query_id,
@@ -28,7 +54,7 @@ INSERT INTO schedules (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 )
-RETURNING id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, created_at, updated_at
+RETURNING id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at
 `
 
 type CreateScheduleParams struct {
@@ -74,6 +100,8 @@ func (q *Queries) CreateSchedule(ctx context.Context, arg CreateScheduleParams) 
 		&i.Snapshot,
 		&i.Enabled,
 		&i.IsSystem,
+		&i.SqlVersion,
+		&i.RetentionDays,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -92,8 +120,37 @@ func (q *Queries) DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (
 	return result.RowsAffected()
 }
 
+const getScheduleByName = `-- name: GetScheduleByName :one
+SELECT id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at FROM schedules WHERE name = $1
+`
+
+func (q *Queries) GetScheduleByName(ctx context.Context, name string) (Schedule, error) {
+	row := q.db.QueryRowContext(ctx, getScheduleByName, name)
+	var i Schedule
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.QueryID,
+		&i.Name,
+		&i.IntervalSeconds,
+		&i.Platform,
+		&i.Version,
+		&i.Shard,
+		&i.Denylist,
+		&i.Removed,
+		&i.Snapshot,
+		&i.Enabled,
+		&i.IsSystem,
+		&i.SqlVersion,
+		&i.RetentionDays,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getScheduleByUUID = `-- name: GetScheduleByUUID :one
-SELECT id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, created_at, updated_at FROM schedules WHERE uuid = $1
+SELECT id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at FROM schedules WHERE uuid = $1
 `
 
 func (q *Queries) GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error) {
@@ -113,6 +170,8 @@ func (q *Queries) GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Sch
 		&i.Snapshot,
 		&i.Enabled,
 		&i.IsSystem,
+		&i.SqlVersion,
+		&i.RetentionDays,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -134,6 +193,7 @@ SELECT
     schedules.snapshot,
     schedules.enabled,
     schedules.is_system,
+    schedules.sql_version,
     schedules.created_at,
     schedules.updated_at,
     queries.id AS query_id_value,
@@ -163,6 +223,7 @@ type GetScheduleWithQueryByUUIDRow struct {
 	Snapshot         bool      `db:"snapshot" json:"snapshot"`
 	Enabled          bool      `db:"enabled" json:"enabled"`
 	IsSystem         bool      `db:"is_system" json:"is_system"`
+	SqlVersion       int32     `db:"sql_version" json:"sql_version"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 	QueryIDValue     int64     `db:"query_id_value" json:"query_id_value"`
@@ -192,6 +253,7 @@ func (q *Queries) GetScheduleWithQueryByUUID(ctx context.Context, argUuid uuid.U
 		&i.Snapshot,
 		&i.Enabled,
 		&i.IsSystem,
+		&i.SqlVersion,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.QueryIDValue,
@@ -204,6 +266,133 @@ func (q *Queries) GetScheduleWithQueryByUUID(ctx context.Context, argUuid uuid.U
 		&i.QueryUpdatedAt,
 	)
 	return i, err
+}
+
+const listEnabledSchedulesForNode = `-- name: ListEnabledSchedulesForNode :many
+SELECT
+    schedules.id,
+    schedules.uuid,
+    schedules.query_id,
+    schedules.name,
+    schedules.interval_seconds,
+    schedules.platform,
+    schedules.version,
+    schedules.shard,
+    schedules.denylist,
+    schedules.removed,
+    schedules.snapshot,
+    schedules.enabled,
+    schedules.is_system,
+    schedules.sql_version,
+    schedules.created_at,
+    schedules.updated_at,
+    queries.id AS query_id_value,
+    queries.uuid AS query_uuid,
+    queries.name AS query_name,
+    queries.sql AS query_sql,
+    queries.description AS query_description,
+    queries.is_system AS query_is_system,
+    queries.created_at AS query_created_at,
+    queries.updated_at AS query_updated_at
+FROM schedules
+JOIN queries ON queries.id = schedules.query_id
+WHERE schedules.enabled = true
+  AND (
+    NOT EXISTS (
+        SELECT 1
+        FROM schedule_groups
+        WHERE schedule_groups.schedule_id = schedules.id
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM schedule_groups
+        JOIN group_membership ON group_membership.group_id = schedule_groups.group_id
+        WHERE schedule_groups.schedule_id = schedules.id
+          AND group_membership.node_id = $1
+    )
+  )
+ORDER BY schedules.name
+LIMIT $2
+`
+
+type ListEnabledSchedulesForNodeParams struct {
+	NodeID     int64 `db:"node_id" json:"node_id"`
+	LimitCount int32 `db:"limit_count" json:"limit_count"`
+}
+
+type ListEnabledSchedulesForNodeRow struct {
+	ID               int64     `db:"id" json:"id"`
+	Uuid             uuid.UUID `db:"uuid" json:"uuid"`
+	QueryID          int64     `db:"query_id" json:"query_id"`
+	Name             string    `db:"name" json:"name"`
+	IntervalSeconds  int32     `db:"interval_seconds" json:"interval_seconds"`
+	Platform         string    `db:"platform" json:"platform"`
+	Version          string    `db:"version" json:"version"`
+	Shard            int32     `db:"shard" json:"shard"`
+	Denylist         bool      `db:"denylist" json:"denylist"`
+	Removed          bool      `db:"removed" json:"removed"`
+	Snapshot         bool      `db:"snapshot" json:"snapshot"`
+	Enabled          bool      `db:"enabled" json:"enabled"`
+	IsSystem         bool      `db:"is_system" json:"is_system"`
+	SqlVersion       int32     `db:"sql_version" json:"sql_version"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	QueryIDValue     int64     `db:"query_id_value" json:"query_id_value"`
+	QueryUuid        uuid.UUID `db:"query_uuid" json:"query_uuid"`
+	QueryName        string    `db:"query_name" json:"query_name"`
+	QuerySql         string    `db:"query_sql" json:"query_sql"`
+	QueryDescription string    `db:"query_description" json:"query_description"`
+	QueryIsSystem    bool      `db:"query_is_system" json:"query_is_system"`
+	QueryCreatedAt   time.Time `db:"query_created_at" json:"query_created_at"`
+	QueryUpdatedAt   time.Time `db:"query_updated_at" json:"query_updated_at"`
+}
+
+func (q *Queries) ListEnabledSchedulesForNode(ctx context.Context, arg ListEnabledSchedulesForNodeParams) ([]ListEnabledSchedulesForNodeRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEnabledSchedulesForNode, arg.NodeID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEnabledSchedulesForNodeRow
+	for rows.Next() {
+		var i ListEnabledSchedulesForNodeRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Uuid,
+			&i.QueryID,
+			&i.Name,
+			&i.IntervalSeconds,
+			&i.Platform,
+			&i.Version,
+			&i.Shard,
+			&i.Denylist,
+			&i.Removed,
+			&i.Snapshot,
+			&i.Enabled,
+			&i.IsSystem,
+			&i.SqlVersion,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.QueryIDValue,
+			&i.QueryUuid,
+			&i.QueryName,
+			&i.QuerySql,
+			&i.QueryDescription,
+			&i.QueryIsSystem,
+			&i.QueryCreatedAt,
+			&i.QueryUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEnabledSchedulesWithQueries = `-- name: ListEnabledSchedulesWithQueries :many
@@ -221,6 +410,7 @@ SELECT
     schedules.snapshot,
     schedules.enabled,
     schedules.is_system,
+    schedules.sql_version,
     schedules.created_at,
     schedules.updated_at,
     queries.id AS query_id_value,
@@ -252,6 +442,7 @@ type ListEnabledSchedulesWithQueriesRow struct {
 	Snapshot         bool      `db:"snapshot" json:"snapshot"`
 	Enabled          bool      `db:"enabled" json:"enabled"`
 	IsSystem         bool      `db:"is_system" json:"is_system"`
+	SqlVersion       int32     `db:"sql_version" json:"sql_version"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 	QueryIDValue     int64     `db:"query_id_value" json:"query_id_value"`
@@ -287,6 +478,7 @@ func (q *Queries) ListEnabledSchedulesWithQueries(ctx context.Context, limit int
 			&i.Snapshot,
 			&i.Enabled,
 			&i.IsSystem,
+			&i.SqlVersion,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.QueryIDValue,
@@ -297,6 +489,77 @@ func (q *Queries) ListEnabledSchedulesWithQueries(ctx context.Context, limit int
 			&i.QueryIsSystem,
 			&i.QueryCreatedAt,
 			&i.QueryUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScheduleRetentions = `-- name: ListScheduleRetentions :many
+SELECT uuid, retention_days FROM schedules
+`
+
+type ListScheduleRetentionsRow struct {
+	Uuid          uuid.UUID `db:"uuid" json:"uuid"`
+	RetentionDays int32     `db:"retention_days" json:"retention_days"`
+}
+
+func (q *Queries) ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listScheduleRetentions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListScheduleRetentionsRow
+	for rows.Next() {
+		var i ListScheduleRetentionsRow
+		if err := rows.Scan(&i.Uuid, &i.RetentionDays); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulesForQuery = `-- name: ListSchedulesForQuery :many
+SELECT id, uuid, name, sql_version FROM schedules WHERE query_id = $1
+`
+
+type ListSchedulesForQueryRow struct {
+	ID         int64     `db:"id" json:"id"`
+	Uuid       uuid.UUID `db:"uuid" json:"uuid"`
+	Name       string    `db:"name" json:"name"`
+	SqlVersion int32     `db:"sql_version" json:"sql_version"`
+}
+
+func (q *Queries) ListSchedulesForQuery(ctx context.Context, queryID int64) ([]ListSchedulesForQueryRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSchedulesForQuery, queryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSchedulesForQueryRow
+	for rows.Next() {
+		var i ListSchedulesForQueryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Uuid,
+			&i.Name,
+			&i.SqlVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -327,6 +590,7 @@ WITH filtered AS (
         schedules.snapshot,
         schedules.enabled,
         schedules.is_system,
+        schedules.sql_version,
         schedules.created_at,
         schedules.updated_at,
         queries.id AS query_id_value,
@@ -343,7 +607,7 @@ WITH filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.query_id, filtered.name, filtered.interval_seconds, filtered.platform, filtered.version, filtered.shard, filtered.denylist, filtered.removed, filtered.snapshot, filtered.enabled, filtered.is_system, filtered.created_at, filtered.updated_at, filtered.query_id_value, filtered.query_uuid, filtered.query_name, filtered.query_sql, filtered.query_description, filtered.query_is_system, filtered.query_created_at, filtered.query_updated_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.query_id, filtered.name, filtered.interval_seconds, filtered.platform, filtered.version, filtered.shard, filtered.denylist, filtered.removed, filtered.snapshot, filtered.enabled, filtered.is_system, filtered.sql_version, filtered.created_at, filtered.updated_at, filtered.query_id_value, filtered.query_uuid, filtered.query_name, filtered.query_sql, filtered.query_description, filtered.query_is_system, filtered.query_created_at, filtered.query_updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $1 OFFSET $2
@@ -368,6 +632,7 @@ type ListSchedulesWithQueriesRow struct {
 	Snapshot         bool      `db:"snapshot" json:"snapshot"`
 	Enabled          bool      `db:"enabled" json:"enabled"`
 	IsSystem         bool      `db:"is_system" json:"is_system"`
+	SqlVersion       int32     `db:"sql_version" json:"sql_version"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 	QueryIDValue     int64     `db:"query_id_value" json:"query_id_value"`
@@ -404,6 +669,7 @@ func (q *Queries) ListSchedulesWithQueries(ctx context.Context, arg ListSchedule
 			&i.Snapshot,
 			&i.Enabled,
 			&i.IsSystem,
+			&i.SqlVersion,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.QueryIDValue,
@@ -429,33 +695,6 @@ func (q *Queries) ListSchedulesWithQueries(ctx context.Context, arg ListSchedule
 	return items, nil
 }
 
-const listSystemScheduleNames = `-- name: ListSystemScheduleNames :many
-SELECT name FROM schedules WHERE is_system = true
-`
-
-func (q *Queries) ListSystemScheduleNames(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listSystemScheduleNames)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		items = append(items, name)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const updateScheduleByUUID = `-- name: UpdateScheduleByUUID :one
 UPDATE schedules SET
     query_id = $2,
@@ -470,7 +709,7 @@ UPDATE schedules SET
     enabled = $11,
     updated_at = now()
 WHERE uuid = $1 AND is_system = false
-RETURNING id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, created_at, updated_at
+RETURNING id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at
 `
 
 type UpdateScheduleByUUIDParams struct {
@@ -516,6 +755,8 @@ func (q *Queries) UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleBy
 		&i.Snapshot,
 		&i.Enabled,
 		&i.IsSystem,
+		&i.SqlVersion,
+		&i.RetentionDays,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

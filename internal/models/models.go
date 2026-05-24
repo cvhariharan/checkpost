@@ -127,24 +127,28 @@ type UpdateQuery struct {
 }
 
 type Schedule struct {
-	ID              int64     `json:"-"`
-	UUID            string    `json:"uuid"`
-	QueryID         string    `json:"query_id"`
-	Query           Query     `json:"query"`
-	Name            string    `json:"name"`
-	Title           string    `json:"title"`
-	IntervalSeconds int       `json:"interval_seconds"`
-	Interval        int       `json:"interval"`
-	Removed         bool      `json:"removed"`
-	Snapshot        bool      `json:"snapshot"`
-	Platform        string    `json:"platform"`
-	Version         string    `json:"version"`
-	Shard           int       `json:"shard"`
-	Enabled         bool      `json:"enabled"`
-	IsSystem        bool      `json:"is_system"`
-	Denylist        bool      `json:"denylist"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                int64     `json:"-"`
+	UUID              string    `json:"uuid"`
+	QueryID           string    `json:"query_id"`
+	Query             Query     `json:"query"`
+	Name              string    `json:"name"`
+	Title             string    `json:"title"`
+	VersionedName     string    `json:"versioned_name"`
+	SQLVersion        int       `json:"sql_version"`
+	IntervalSeconds   int       `json:"interval_seconds"`
+	Interval          int       `json:"interval"`
+	Removed           bool      `json:"removed"`
+	Snapshot          bool      `json:"snapshot"`
+	Platform          string    `json:"platform"`
+	Version           string    `json:"version"`
+	Shard             int       `json:"shard"`
+	Enabled           bool      `json:"enabled"`
+	IsSystem          bool      `json:"is_system"`
+	Denylist          bool      `json:"denylist"`
+	Groups            []Group   `json:"groups,omitempty"`
+	TargetAllMachines bool      `json:"target_all_machines"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type CreateSchedule struct {
@@ -159,6 +163,7 @@ type CreateSchedule struct {
 	Denylist        bool
 	Enabled         bool
 	IsSystem        bool
+	GroupIDs        []string
 }
 
 type UpdateSchedule struct {
@@ -173,6 +178,27 @@ type UpdateSchedule struct {
 	Shard           int
 	Denylist        bool
 	Enabled         bool
+	GroupIDs        []string
+}
+
+type ScheduleResultRow struct {
+	NodeUUID  string            `json:"node_uuid"`
+	Hostname  string            `json:"hostname"`
+	Columns   map[string]string `json:"columns"`
+	FirstSeen time.Time         `json:"first_seen"`
+	LastSeen  time.Time         `json:"last_seen"`
+}
+
+type ScheduleResults struct {
+	Columns []string            `json:"columns"`
+	Rows    []ScheduleResultRow `json:"rows"`
+	Total   int                 `json:"total"`
+}
+
+type ScheduleResultsRequest struct {
+	ScheduleUUID string
+	Page         int
+	Count        int
 }
 
 type Policy struct {

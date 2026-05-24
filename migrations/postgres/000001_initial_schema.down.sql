@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS query_schemas;
+DROP TABLE IF EXISTS schedule_groups;
+DROP TABLE IF EXISTS policy_groups;
+DROP TABLE IF EXISTS group_membership;
+DROP TABLE IF EXISTS groups;
+DROP TABLE IF EXISTS machine_query_results;
+DROP TABLE IF EXISTS policy_membership;
+DROP TABLE IF EXISTS policies;
+DROP TABLE IF EXISTS osquery_status_logs;
+DROP TABLE IF EXISTS schedules;
+DROP TABLE IF EXISTS queries;
+DROP TABLE IF EXISTS nodes;

@@ -29,6 +29,7 @@ func (h *Handler) HandleCreateSchedule(c echo.Context) error {
 		Shard:           req.Shard,
 		Denylist:        req.Denylist,
 		Enabled:         true,
+		GroupIDs:        req.GroupIDs,
 	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error creating schedule", err, nil)
@@ -129,10 +130,44 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 		Shard:           req.Shard,
 		Denylist:        req.Denylist,
 		Enabled:         true,
+		GroupIDs:        req.GroupIDs,
 	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating schedule %s", req.ID), err, nil)
 	}
 
 	return c.JSON(http.StatusOK, q)
+}
+
+func (h *Handler) HandleScheduleResults(c echo.Context) error {
+	var req ScheduleResultsRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+
+	if req.Page < 0 || req.Count < 0 {
+		return wrapError(http.StatusBadRequest, "page and count cannot be negative", fmt.Errorf("invalid pagination"), nil)
+	}
+
+	if req.Page > 0 {
+		req.Page -= 1
+	}
+	if req.Count == 0 {
+		req.Count = CountPerPage
+	}
+
+	results, err := h.c.ListScheduleResults(c.Request().Context(), models.ScheduleResultsRequest{
+		ScheduleUUID: req.ID,
+		Page:         req.Page,
+		Count:        req.Count,
+	})
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting results for %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, results)
 }

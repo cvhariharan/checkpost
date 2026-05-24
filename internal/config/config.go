@@ -4,6 +4,7 @@ type Config struct {
 	AppConfig  `koanf:",squash"`
 	OIDCConfig `koanf:",squash"`
 	DBConfig   `koanf:",squash"`
+	DataConfig `koanf:",squash"`
 }
 
 type AppConfig struct {
@@ -32,4 +33,9 @@ type DBConfig struct {
 	Port     int    `koanf:"db.port"`
 	User     string `koanf:"db.user"`
 	Password string `koanf:"db.password"`
+}
+
+type DataConfig struct {
+	ParquetRoot string `koanf:"data.parquet_root"`
+	DuckDBPath  string `koanf:"data.duckdb_path"`
 }

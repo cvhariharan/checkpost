@@ -239,6 +239,68 @@ func (c *Core) attachGroupsToPolicies(ctx context.Context, policies []models.Pol
 	return nil
 }
 
+func (c *Core) attachGroupsToSchedule(ctx context.Context, schedule *models.Schedule) error {
+	if schedule == nil || strings.TrimSpace(schedule.UUID) == "" {
+		return nil
+	}
+
+	scheduleID, err := uuid.Parse(schedule.UUID)
+	if err != nil {
+		return fmt.Errorf("parse schedule uuid: %w", err)
+	}
+
+	rows, err := c.store.ListGroupsForSchedule(ctx, scheduleID)
+	if err != nil {
+		return fmt.Errorf("list schedule groups: %w", err)
+	}
+
+	groups := make([]models.Group, 0, len(rows))
+	for _, row := range rows {
+		groups = append(groups, toModelGroup(row))
+	}
+	schedule.Groups = groups
+	schedule.TargetAllMachines = len(groups) == 0
+	return nil
+}
+
+func (c *Core) attachGroupsToSchedules(ctx context.Context, schedules []models.Schedule) error {
+	if len(schedules) == 0 {
+		return nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(schedules))
+	for i := range schedules {
+		if strings.TrimSpace(schedules[i].UUID) == "" {
+			continue
+		}
+		id, err := uuid.Parse(schedules[i].UUID)
+		if err != nil {
+			return fmt.Errorf("parse schedule uuid: %w", err)
+		}
+		ids = append(ids, id)
+	}
+
+	groupsBySchedule, err := c.store.ListGroupsForSchedules(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("list schedule groups: %w", err)
+	}
+
+	for i := range schedules {
+		id, err := uuid.Parse(schedules[i].UUID)
+		if err != nil {
+			return fmt.Errorf("parse schedule uuid: %w", err)
+		}
+		rows := groupsBySchedule[id]
+		groups := make([]models.Group, 0, len(rows))
+		for _, row := range rows {
+			groups = append(groups, toModelGroup(row))
+		}
+		schedules[i].Groups = groups
+		schedules[i].TargetAllMachines = len(groups) == 0
+	}
+	return nil
+}
+
 func parseUUIDList(values []string, label string) ([]uuid.UUID, error) {
 	if len(values) == 0 {
 		return nil, nil

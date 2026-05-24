@@ -2,6 +2,7 @@ package core
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
@@ -99,26 +100,24 @@ func toModelQueryRow(query repo.ListQueriesRow) models.Query {
 }
 
 func toModelSchedule(schedule repo.Schedule, query models.Query) models.Schedule {
-	return models.Schedule{
-		ID:              schedule.ID,
-		UUID:            schedule.Uuid.String(),
-		QueryID:         query.UUID,
-		Query:           query,
-		Name:            schedule.Name,
-		Title:           schedule.Name,
-		IntervalSeconds: int(schedule.IntervalSeconds),
-		Interval:        int(schedule.IntervalSeconds),
-		Removed:         schedule.Removed,
-		Snapshot:        schedule.Snapshot,
-		Platform:        schedule.Platform,
-		Version:         schedule.Version,
-		Shard:           int(schedule.Shard),
-		Enabled:         schedule.Enabled,
-		IsSystem:        schedule.IsSystem,
-		Denylist:        schedule.Denylist,
-		CreatedAt:       schedule.CreatedAt,
-		UpdatedAt:       schedule.UpdatedAt,
-	}
+	return scheduleFromParts(scheduleParts{
+		id:         schedule.ID,
+		uuid:       schedule.Uuid.String(),
+		name:       schedule.Name,
+		interval:   int(schedule.IntervalSeconds),
+		platform:   schedule.Platform,
+		version:    schedule.Version,
+		shard:      int(schedule.Shard),
+		denylist:   schedule.Denylist,
+		removed:    schedule.Removed,
+		snapshot:   schedule.Snapshot,
+		enabled:    schedule.Enabled,
+		isSystem:   schedule.IsSystem,
+		sqlVersion: int(schedule.SqlVersion),
+		createdAt:  schedule.CreatedAt,
+		updatedAt:  schedule.UpdatedAt,
+		query:      query,
+	})
 }
 
 func toModelScheduleWithQueryRow(row repo.GetScheduleWithQueryByUUIDRow) models.Schedule {
@@ -135,23 +134,24 @@ func toModelScheduleWithQueryRow(row repo.GetScheduleWithQueryByUUIDRow) models.
 		UpdatedAt:   row.QueryUpdatedAt,
 	}
 
-	return scheduleFromParts(
-		row.ID,
-		row.Uuid.String(),
-		row.Name,
-		int(row.IntervalSeconds),
-		row.Platform,
-		row.Version,
-		int(row.Shard),
-		row.Denylist,
-		row.Removed,
-		row.Snapshot,
-		row.Enabled,
-		row.IsSystem,
-		row.CreatedAt,
-		row.UpdatedAt,
-		query,
-	)
+	return scheduleFromParts(scheduleParts{
+		id:         row.ID,
+		uuid:       row.Uuid.String(),
+		name:       row.Name,
+		interval:   int(row.IntervalSeconds),
+		platform:   row.Platform,
+		version:    row.Version,
+		shard:      int(row.Shard),
+		denylist:   row.Denylist,
+		removed:    row.Removed,
+		snapshot:   row.Snapshot,
+		enabled:    row.Enabled,
+		isSystem:   row.IsSystem,
+		sqlVersion: int(row.SqlVersion),
+		createdAt:  row.CreatedAt,
+		updatedAt:  row.UpdatedAt,
+		query:      query,
+	})
 }
 
 func toModelScheduleRow(row repo.ListSchedulesWithQueriesRow) models.Schedule {
@@ -168,23 +168,58 @@ func toModelScheduleRow(row repo.ListSchedulesWithQueriesRow) models.Schedule {
 		UpdatedAt:   row.QueryUpdatedAt,
 	}
 
-	return scheduleFromParts(
-		row.ID,
-		row.Uuid.String(),
-		row.Name,
-		int(row.IntervalSeconds),
-		row.Platform,
-		row.Version,
-		int(row.Shard),
-		row.Denylist,
-		row.Removed,
-		row.Snapshot,
-		row.Enabled,
-		row.IsSystem,
-		row.CreatedAt,
-		row.UpdatedAt,
-		query,
-	)
+	return scheduleFromParts(scheduleParts{
+		id:         row.ID,
+		uuid:       row.Uuid.String(),
+		name:       row.Name,
+		interval:   int(row.IntervalSeconds),
+		platform:   row.Platform,
+		version:    row.Version,
+		shard:      int(row.Shard),
+		denylist:   row.Denylist,
+		removed:    row.Removed,
+		snapshot:   row.Snapshot,
+		enabled:    row.Enabled,
+		isSystem:   row.IsSystem,
+		sqlVersion: int(row.SqlVersion),
+		createdAt:  row.CreatedAt,
+		updatedAt:  row.UpdatedAt,
+		query:      query,
+	})
+}
+
+func toModelEnabledScheduleForNodeRow(row repo.ListEnabledSchedulesForNodeRow) models.Schedule {
+	query := models.Query{
+		ID:          row.QueryIDValue,
+		UUID:        row.QueryUuid.String(),
+		Name:        row.QueryName,
+		SQL:         row.QuerySql,
+		Title:       row.QueryName,
+		Query:       row.QuerySql,
+		IsSystem:    row.QueryIsSystem,
+		Description: row.QueryDescription,
+		CreatedAt:   row.QueryCreatedAt,
+		UpdatedAt:   row.QueryUpdatedAt,
+	}
+
+	return scheduleFromParts(scheduleParts{
+		id:         row.ID,
+		uuid:       row.Uuid.String(),
+		name:       row.Name,
+		interval:   int(row.IntervalSeconds),
+		platform:   row.Platform,
+		version:    row.Version,
+		shard:      int(row.Shard),
+		denylist:   row.Denylist,
+		removed:    row.Removed,
+		snapshot:   row.Snapshot,
+		enabled:    row.Enabled,
+		isSystem:   row.IsSystem,
+		sqlVersion: int(row.SqlVersion),
+		createdAt:  row.CreatedAt,
+		updatedAt:  row.UpdatedAt,
+		query:      query,
+	})
 }
 
 func toModelEnabledScheduleRow(row repo.ListEnabledSchedulesWithQueriesRow) models.Schedule {
@@ -201,46 +236,75 @@ func toModelEnabledScheduleRow(row repo.ListEnabledSchedulesWithQueriesRow) mode
 		UpdatedAt:   row.QueryUpdatedAt,
 	}
 
-	return scheduleFromParts(
-		row.ID,
-		row.Uuid.String(),
-		row.Name,
-		int(row.IntervalSeconds),
-		row.Platform,
-		row.Version,
-		int(row.Shard),
-		row.Denylist,
-		row.Removed,
-		row.Snapshot,
-		row.Enabled,
-		row.IsSystem,
-		row.CreatedAt,
-		row.UpdatedAt,
-		query,
-	)
+	return scheduleFromParts(scheduleParts{
+		id:         row.ID,
+		uuid:       row.Uuid.String(),
+		name:       row.Name,
+		interval:   int(row.IntervalSeconds),
+		platform:   row.Platform,
+		version:    row.Version,
+		shard:      int(row.Shard),
+		denylist:   row.Denylist,
+		removed:    row.Removed,
+		snapshot:   row.Snapshot,
+		enabled:    row.Enabled,
+		isSystem:   row.IsSystem,
+		sqlVersion: int(row.SqlVersion),
+		createdAt:  row.CreatedAt,
+		updatedAt:  row.UpdatedAt,
+		query:      query,
+	})
 }
 
-func scheduleFromParts(id int64, uuid, name string, interval int, platform, version string, shard int, denylist, removed, snapshot, enabled, isSystem bool, createdAt, updatedAt time.Time, query models.Query) models.Schedule {
+type scheduleParts struct {
+	id         int64
+	uuid       string
+	name       string
+	interval   int
+	platform   string
+	version    string
+	shard      int
+	denylist   bool
+	removed    bool
+	snapshot   bool
+	enabled    bool
+	isSystem   bool
+	sqlVersion int
+	createdAt  time.Time
+	updatedAt  time.Time
+	query      models.Query
+}
+
+func scheduleFromParts(parts scheduleParts) models.Schedule {
 	return models.Schedule{
-		ID:              id,
-		UUID:            uuid,
-		QueryID:         query.UUID,
-		Query:           query,
-		Name:            name,
-		Title:           name,
-		IntervalSeconds: interval,
-		Interval:        interval,
-		Removed:         removed,
-		Snapshot:        snapshot,
-		Platform:        platform,
-		Version:         version,
-		Shard:           shard,
-		Enabled:         enabled,
-		IsSystem:        isSystem,
-		Denylist:        denylist,
-		CreatedAt:       createdAt,
-		UpdatedAt:       updatedAt,
+		ID:              parts.id,
+		UUID:            parts.uuid,
+		QueryID:         parts.query.UUID,
+		Query:           parts.query,
+		Name:            parts.name,
+		Title:           parts.name,
+		VersionedName:   versionedScheduleName(parts.name, parts.sqlVersion),
+		SQLVersion:      parts.sqlVersion,
+		IntervalSeconds: parts.interval,
+		Interval:        parts.interval,
+		Removed:         parts.removed,
+		Snapshot:        parts.snapshot,
+		Platform:        parts.platform,
+		Version:         parts.version,
+		Shard:           parts.shard,
+		Enabled:         parts.enabled,
+		IsSystem:        parts.isSystem,
+		Denylist:        parts.denylist,
+		CreatedAt:       parts.createdAt,
+		UpdatedAt:       parts.updatedAt,
 	}
+}
+
+func versionedScheduleName(name string, sqlVersion int) string {
+	if sqlVersion <= 0 {
+		sqlVersion = 1
+	}
+	return fmt.Sprintf("%s/v%d", name, sqlVersion)
 }
 
 func toModelPolicy(policy repo.Policy) models.Policy {

@@ -1,17 +1,22 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/watcher/internal/results"
 	"github.com/google/uuid"
 )
 
@@ -138,30 +143,160 @@ func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBat
 }
 
 func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []map[string]interface{}) error {
-	for _, raw := range logs {
-		action := stringValue(raw["action"])
-		rows := resultRows(raw, action)
-		name := stringValue(raw["name"])
+	if c.results == nil {
+		return errors.New("results writer not configured")
+	}
 
-		params := repo.InsertResultBatchTxParams{
-			Batch: repo.CreateResultBatchParams{
-				NodeID:       nodeID,
-				ScheduleName: name,
-				Action:       defaultString(action, "snapshot"),
-				CalendarTime: stringValue(raw["calendarTime"]),
-				Counter:      int64Value(raw["counter"]),
-				Epoch:        int64Value(raw["epoch"]),
-				Numerics:     boolValue(raw["numerics"]),
-				UnixTime:     sql.NullTime{Time: unixTime(raw["unixTime"]), Valid: hasValue(raw["unixTime"])},
-				IsSystem:     c.systemSchedulesMap[name],
-			},
-			Rows: rows,
+	type scheduleRef struct {
+		name       string
+		sqlVersion int32
+	}
+
+	refs := make(map[string]scheduleRef)
+	seenNames := make(map[string]struct{})
+	names := make([]string, 0)
+	for _, raw := range logs {
+		versionedName := strings.TrimSpace(stringValue(raw["name"]))
+		if versionedName == "" {
+			continue
 		}
-		if err := c.store.InsertResultBatchTx(ctx, params); err != nil {
-			return fmt.Errorf("insert result batch: %w", err)
+		if _, ok := refs[versionedName]; ok {
+			continue
+		}
+
+		scheduleName, sqlVersion, ok := parseVersionedName(versionedName)
+		if !ok {
+			c.logger.Debug("skip result with unparseable schedule name", "name", versionedName)
+			continue
+		}
+
+		refs[versionedName] = scheduleRef{name: scheduleName, sqlVersion: sqlVersion}
+		if _, ok := seenNames[scheduleName]; !ok {
+			seenNames[scheduleName] = struct{}{}
+			names = append(names, scheduleName)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	schedules, err := c.store.ListSchedulesByNames(ctx, names)
+	if err != nil {
+		return fmt.Errorf("lookup schedules: %w", err)
+	}
+	schedulesByName := make(map[string]repo.Schedule, len(schedules))
+	for _, sched := range schedules {
+		schedulesByName[sched.Name] = sched
+	}
+
+	for _, raw := range logs {
+		versionedName := strings.TrimSpace(stringValue(raw["name"]))
+		ref, ok := refs[versionedName]
+		if !ok {
+			continue
+		}
+		sched, ok := schedulesByName[ref.name]
+		if !ok {
+			continue
+		}
+
+		action := defaultString(stringValue(raw["action"]), "snapshot")
+		calendarTime := stringValue(raw["calendarTime"])
+		rows := buildResultRows(raw, action, nodeID, ingestUnixTime(raw), calendarTime)
+		if len(rows) == 0 {
+			continue
+		}
+
+		if err := c.results.Submit(sched.Uuid, ref.sqlVersion, rows); err != nil {
+			return fmt.Errorf("submit results for %s: %w", versionedName, err)
 		}
 	}
 	return nil
+}
+
+func parseVersionedName(versioned string) (string, int32, bool) {
+	idx := strings.LastIndex(versioned, "/v")
+	if idx <= 0 || idx == len(versioned)-2 {
+		return "", 0, false
+	}
+	v, err := strconv.ParseInt(versioned[idx+2:], 10, 32)
+	if err != nil || v <= 0 {
+		return "", 0, false
+	}
+	return versioned[:idx], int32(v), true
+}
+
+func buildResultRows(raw map[string]interface{}, action string, nodeID int64, ut time.Time, calendarTime string) []results.Row {
+	if action != "snapshot" {
+		rowMap, ok := raw["columns"].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		row := resultRowFromMap(rowMap, action, nodeID, ut, calendarTime)
+		return []results.Row{row}
+	}
+
+	values, ok := raw["snapshot"].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	rows := make([]results.Row, 0, len(values))
+	var lastHash []byte
+	for _, value := range values {
+		rowMap, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		row := resultRowFromMap(rowMap, action, nodeID, ut, calendarTime)
+		if bytes.Equal(row.RowHash, lastHash) {
+			continue
+		}
+		lastHash = row.RowHash
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func resultRowFromMap(rowMap map[string]interface{}, action string, nodeID int64, ut time.Time, calendarTime string) results.Row {
+	columns := make(map[string]string, len(rowMap))
+	for k, v := range rowMap {
+		if strings.TrimSpace(k) != "" {
+			columns[k] = stringValue(v)
+		}
+	}
+	return results.Row{
+		NodeID:       nodeID,
+		UnixTime:     ut,
+		CalendarTime: calendarTime,
+		Action:       action,
+		RowHash:      rowHash(columns),
+		Columns:      columns,
+	}
+}
+
+func rowHash(columns map[string]string) []byte {
+	keys := make([]string, 0, len(columns))
+	for k := range columns {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	h := sha256.New()
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte{0})
+		h.Write([]byte(columns[k]))
+		h.Write([]byte{0})
+	}
+	return h.Sum(nil)
+}
+
+func ingestUnixTime(raw map[string]interface{}) time.Time {
+	if hasValue(raw["unixTime"]) {
+		return unixTime(raw["unixTime"]).UTC()
+	}
+	return time.Now().UTC()
 }
 
 func (c *Core) ingestStatusLogs(ctx context.Context, nodeID int64, logs []map[string]interface{}) error {
@@ -179,43 +314,6 @@ func (c *Core) ingestStatusLogs(ctx context.Context, nodeID int64, logs []map[st
 		})
 	}
 	return c.store.InsertStatusLogsTx(ctx, params)
-}
-
-func resultRows(raw map[string]interface{}, action string) []repo.InsertResultRowTxParams {
-	key := "columns"
-	if action == "snapshot" {
-		key = "snapshot"
-	}
-
-	values, ok := raw[key].([]interface{})
-	if !ok {
-		return nil
-	}
-
-	rows := make([]repo.InsertResultRowTxParams, 0, len(values))
-	for i, value := range values {
-		rowMap, ok := value.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		cells := make([]repo.CreateResultCellTxParams, 0, len(rowMap))
-		for k, v := range rowMap {
-			if strings.TrimSpace(k) == "" {
-				continue
-			}
-			cells = append(cells, repo.CreateResultCellTxParams{
-				ColumnName: k,
-				ValueText:  stringValue(v),
-			})
-		}
-
-		rows = append(rows, repo.InsertResultRowTxParams{
-			RowIndex: int32(i),
-			Cells:    cells,
-		})
-	}
-	return rows
 }
 
 func unixTime(value interface{}) time.Time {
@@ -289,17 +387,5 @@ func int64Value(value interface{}) int64 {
 		return i
 	default:
 		return 0
-	}
-}
-
-func boolValue(value interface{}) bool {
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		b, _ := strconv.ParseBool(v)
-		return b
-	default:
-		return false
 	}
 }

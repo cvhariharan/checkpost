@@ -168,3 +168,32 @@ INSERT INTO policy_groups (
     $1, $2
 )
 ON CONFLICT (policy_id, group_id) DO NOTHING;
+
+-- name: ListGroupsForSchedule :many
+SELECT
+    groups.id,
+    groups.uuid,
+    groups.name,
+    groups.description,
+    groups.created_at,
+    groups.updated_at
+FROM groups
+JOIN schedule_groups ON schedule_groups.group_id = groups.id
+JOIN schedules ON schedules.id = schedule_groups.schedule_id
+WHERE schedules.uuid = @schedule_uuid
+ORDER BY groups.name;
+
+-- name: DeleteScheduleGroupsForSchedule :exec
+DELETE FROM schedule_groups
+USING schedules
+WHERE schedule_groups.schedule_id = schedules.id
+  AND schedules.uuid = @schedule_uuid;
+
+-- name: CreateScheduleGroup :exec
+INSERT INTO schedule_groups (
+    schedule_id,
+    group_id
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (schedule_id, group_id) DO NOTHING;

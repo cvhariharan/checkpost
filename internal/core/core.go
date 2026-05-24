@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/watcher/internal/results"
 )
 
 var (
@@ -21,18 +21,14 @@ type Core struct {
 	store  repo.Store
 	logger *slog.Logger
 
-	systemSchedulesMap map[string]bool
+	results       *results.Writer
+	resultsReader *results.Reader
 
 	policyUpdateInterval time.Duration
 	policyStaleAfter     time.Duration
 }
 
-func NewCore(logger *slog.Logger, store repo.Store, cfg config.AppConfig) (*Core, error) {
-	schedules, err := store.ListSystemScheduleNames(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("load system schedules: %w", err)
-	}
-
+func NewCore(logger *slog.Logger, store repo.Store, writer *results.Writer, reader *results.Reader, cfg config.AppConfig) (*Core, error) {
 	policyUpdateInterval, err := parseDurationConfig(cfg.PolicyUpdateInterval, time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("parse policy update interval: %w", err)
@@ -42,15 +38,11 @@ func NewCore(logger *slog.Logger, store repo.Store, cfg config.AppConfig) (*Core
 		return nil, fmt.Errorf("parse policy stale after: %w", err)
 	}
 
-	m := make(map[string]bool, len(schedules))
-	for _, sched := range schedules {
-		m[sched] = true
-	}
-
 	return &Core{
 		store:                store,
 		logger:               logger.WithGroup("core"),
-		systemSchedulesMap:   m,
+		results:              writer,
+		resultsReader:        reader,
 		policyUpdateInterval: policyUpdateInterval,
 		policyStaleAfter:     policyStaleAfter,
 	}, nil

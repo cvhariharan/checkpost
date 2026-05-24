@@ -85,11 +85,13 @@ func (c *Core) UpdateQuery(ctx context.Context, req models.UpdateQuery) (models.
 		return models.Query{}, fmt.Errorf("parse query uuid: %w", err)
 	}
 
-	q, err := c.store.UpdateQueryByUUID(ctx, repo.UpdateQueryByUUIDParams{
-		Uuid:        queryID,
-		Name:        req.Name,
-		Sql:         req.SQL,
-		Description: req.Description,
+	q, err := c.store.UpdateQueryTx(ctx, repo.UpdateQueryTxParams{
+		Query: repo.UpdateQueryByUUIDParams{
+			Uuid:        queryID,
+			Name:        req.Name,
+			Sql:         req.SQL,
+			Description: req.Description,
+		},
 	})
 	if err != nil {
 		return models.Query{}, fmt.Errorf("update query: %w", err)

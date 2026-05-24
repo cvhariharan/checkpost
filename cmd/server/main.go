@@ -18,6 +18,7 @@ import (
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
 	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/watcher/internal/results"
 	webassets "github.com/cvhariharan/watcher/web"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -83,7 +84,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c, err := core.NewCore(logger, store, cfg.AppConfig)
+	resultsWriter, err := results.NewWriter(cfg.DataConfig.ParquetRoot, results.NewQueryStore(store), logger)
+	if err != nil {
+		log.Fatalf("could not initialize results writer: %v", err)
+	}
+	defer resultsWriter.Close()
+
+	resultsReader, err := results.NewReader(cfg.DataConfig.ParquetRoot, cfg.DataConfig.DuckDBPath)
+	if err != nil {
+		log.Fatalf("could not initialize results reader: %v", err)
+	}
+	defer resultsReader.Close()
+
+	resultsWorkers := results.NewWorkers(cfg.DataConfig.ParquetRoot, store, resultsReader, logger)
+	resultsWorkers.Start()
+	defer resultsWorkers.Close()
+
+	c, err := core.NewCore(logger, store, resultsWriter, resultsReader, cfg.AppConfig)
 	if err != nil {
 		log.Fatalf("could not initialize core: %v", err)
 	}
@@ -106,6 +123,7 @@ func main() {
 	api.GET("/schedule/:id", h.HandleGetSchedule)
 	api.DELETE("/schedule/:id", h.HandleDeleteSchedule)
 	api.PUT("/schedule/:id", h.HandleUpdateSchedule)
+	api.GET("/schedule/:id/results", h.HandleScheduleResults)
 
 	api.POST("/policy", h.HandleCreatePolicy)
 	api.GET("/policies", h.HandlePoliciesPagination)
@@ -257,5 +275,8 @@ func setDefaultConfig() error {
 		"db.port":     5432,
 		"db.password": "watcher",
 		"db.user":     "watcher",
+
+		"data.parquet_root": "./data/results",
+		"data.duckdb_path":  "",
 	}, "."), nil)
 }

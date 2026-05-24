@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/watcher/internal/results"
 	"github.com/labstack/echo/v4"
 )
 
@@ -163,13 +165,9 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
 	}
 
-	if _, err := h.c.GetNode(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}); err != nil {
-		return wrapError(http.StatusBadRequest, "error getting node details", err, EnrollmentResponse{NodeInvalid: true})
-	}
-
-	s, err := h.c.ListEnabledSchedules(c.Request().Context(), models.ScheduleListRequest{Limit: ScheduleMax})
+	s, err := h.c.ListEnabledSchedulesForNode(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, ScheduleMax)
 	if err != nil {
-		return wrapError(http.StatusInternalServerError, "error getting schedules", err, nil)
+		return wrapError(http.StatusBadRequest, "error getting schedules for node", err, EnrollmentResponse{NodeInvalid: true})
 	}
 
 	h.logger.Debug("config", "response", s)
@@ -184,7 +182,7 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 			Platform: sched.Platform,
 			Snapshot: sched.Snapshot,
 		}
-		osc.Schedule[sched.Title] = sc
+		osc.Schedule[sched.VersionedName] = sc
 	}
 
 	return c.JSON(http.StatusOK, osc)
@@ -203,6 +201,12 @@ func (h *Handler) HandleLog(c echo.Context) error {
 		LogType: req.LogType,
 		Data:    req.Data,
 	}); err != nil {
+		// Backpressure: osquery treats 503 as a transient failure and retries
+		// on the next interval, which is exactly what the spec asks for. A
+		// generic 500 would mark the batch as broken.
+		if errors.Is(err, results.ErrBackpressure) {
+			return wrapError(http.StatusServiceUnavailable, "results buffer full, retry later", err, nil)
+		}
 		return wrapError(http.StatusInternalServerError, "error writing logs", err, nil)
 	}
 

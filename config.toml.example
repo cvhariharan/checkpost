@@ -20,3 +20,11 @@ host = '127.0.0.1'
 password = 'watcher'
 port = 5432
 user = 'watcher'
+
+[data]
+# Root directory where scheduled-query Parquet files are written.
+# An absolute path is recommended in production.
+parquet_root = './data/results'
+# Path to a persistent DuckDB catalog file. Empty = in-memory (re-scans
+# Parquet metadata on cold start). Set a path to persist catalogs/indexes.
+duckdb_path = ''

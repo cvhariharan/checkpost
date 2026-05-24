@@ -6,6 +6,7 @@ package repo
 
 import (
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -54,37 +55,9 @@ type Node struct {
 	HardwareSerial    string       `db:"hardware_serial" json:"hardware_serial"`
 	EnrolledAt        time.Time    `db:"enrolled_at" json:"enrolled_at"`
 	LastSeenAt        sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
 	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
-	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
-}
-
-type OsqueryResultBatch struct {
-	ID           int64        `db:"id" json:"id"`
-	Uuid         uuid.UUID    `db:"uuid" json:"uuid"`
-	NodeID       int64        `db:"node_id" json:"node_id"`
-	ScheduleName string       `db:"schedule_name" json:"schedule_name"`
-	Action       string       `db:"action" json:"action"`
-	CalendarTime string       `db:"calendar_time" json:"calendar_time"`
-	Counter      int64        `db:"counter" json:"counter"`
-	Epoch        int64        `db:"epoch" json:"epoch"`
-	Numerics     bool         `db:"numerics" json:"numerics"`
-	UnixTime     sql.NullTime `db:"unix_time" json:"unix_time"`
-	IsSystem     bool         `db:"is_system" json:"is_system"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-}
-
-type OsqueryResultCell struct {
-	ID         int64  `db:"id" json:"id"`
-	RowID      int64  `db:"row_id" json:"row_id"`
-	ColumnName string `db:"column_name" json:"column_name"`
-	ValueText  string `db:"value_text" json:"value_text"`
-}
-
-type OsqueryResultRow struct {
-	ID       int64 `db:"id" json:"id"`
-	BatchID  int64 `db:"batch_id" json:"batch_id"`
-	RowIndex int32 `db:"row_index" json:"row_index"`
 }
 
 type OsqueryStatusLog struct {
@@ -141,6 +114,15 @@ type Query struct {
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type QuerySchema struct {
+	ScheduleUuid     uuid.UUID       `db:"schedule_uuid" json:"schedule_uuid"`
+	SqlVersion       int32           `db:"sql_version" json:"sql_version"`
+	Columns          json.RawMessage `db:"columns" json:"columns"`
+	FirstObservedAt  time.Time       `db:"first_observed_at" json:"first_observed_at"`
+	LastObservedAt   time.Time       `db:"last_observed_at" json:"last_observed_at"`
+	RowCountEstimate int64           `db:"row_count_estimate" json:"row_count_estimate"`
+}
+
 type Schedule struct {
 	ID              int64     `db:"id" json:"id"`
 	Uuid            uuid.UUID `db:"uuid" json:"uuid"`
@@ -155,6 +137,14 @@ type Schedule struct {
 	Snapshot        bool      `db:"snapshot" json:"snapshot"`
 	Enabled         bool      `db:"enabled" json:"enabled"`
 	IsSystem        bool      `db:"is_system" json:"is_system"`
+	SqlVersion      int32     `db:"sql_version" json:"sql_version"`
+	RetentionDays   int32     `db:"retention_days" json:"retention_days"`
 	CreatedAt       time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ScheduleGroup struct {
+	ScheduleID int64     `db:"schedule_id" json:"schedule_id"`
+	GroupID    int64     `db:"group_id" json:"group_id"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }

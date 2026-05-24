@@ -13,11 +13,15 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web-builder /src/web/dist ./web/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/watcher ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -o /out/watcher ./cmd/server
 
 FROM debian:trixie-slim
 
 WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-builder /out/watcher /usr/local/bin/watcher
 COPY migrations ./migrations

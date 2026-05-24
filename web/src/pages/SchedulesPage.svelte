@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { deleteSchedule as apiDeleteSchedule, fetchSchedules } from '@/api.js'
+  import { deleteSchedule as apiDeleteSchedule, fetchScheduleResults, fetchSchedules } from '@/api.js'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
   import OatPagination from '@/components/common/OatPagination.svelte'
   import SearchInput from '@/components/common/SearchInput.svelte'
@@ -19,6 +19,14 @@
   let selectedSchedule = null
   let isDeleting = false
 
+  let resultsSchedule = null
+  let resultsColumns = []
+  let resultsRows = []
+  let resultsTotal = 0
+  let resultsPage = 1
+  let resultsLoading = false
+  const resultsPerPage = 100
+
   $: schedules = loadedSchedules.filter((schedule) => {
     const search = searchTerm.trim().toLowerCase()
     return (
@@ -30,6 +38,7 @@
   })
   $: startResult = loadedSchedules.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1
   $: endResult = Math.min(currentPage * countPerPage, totalCount)
+  $: resultsPageCount = Math.max(1, Math.ceil(resultsTotal / resultsPerPage))
 
   onMount(loadSchedules)
 
@@ -65,6 +74,12 @@
   async function handleSaved() {
     formOpen = false
     await loadSchedules()
+    if (resultsSchedule) {
+      const refreshed = loadedSchedules.find((s) => s.uuid === resultsSchedule.uuid)
+      if (refreshed) {
+        await openResults(refreshed, resultsPage)
+      }
+    }
   }
 
   function confirmDelete(schedule) {
@@ -78,6 +93,9 @@
     error = ''
     try {
       await apiDeleteSchedule(selectedSchedule.uuid)
+      if (resultsSchedule?.uuid === selectedSchedule.uuid) {
+        closeResults()
+      }
       deleteDialog.close()
       selectedSchedule = null
       await loadSchedules()
@@ -85,6 +103,53 @@
       error = err.message || 'Failed to delete schedule'
     } finally {
       isDeleting = false
+    }
+  }
+
+  async function openResults(schedule, page = 1) {
+    resultsSchedule = schedule
+    resultsPage = page
+    resultsLoading = true
+    error = ''
+    try {
+      const data = await fetchScheduleResults(schedule.uuid, { page, countPerPage: resultsPerPage })
+      resultsColumns = data.columns || []
+      resultsRows = data.rows || []
+      resultsTotal = data.total || 0
+    } catch (err) {
+      error = err.message || 'Failed to load results'
+    } finally {
+      resultsLoading = false
+    }
+  }
+
+  function closeResults() {
+    resultsSchedule = null
+    resultsColumns = []
+    resultsRows = []
+    resultsTotal = 0
+    resultsPage = 1
+  }
+
+  async function changeResultsPage(page) {
+    if (resultsSchedule && page > 0 && page <= resultsPageCount) {
+      await openResults(resultsSchedule, page)
+    }
+  }
+
+  function targetLabel(schedule) {
+    if (schedule.target_all_machines || !schedule.groups?.length) {
+      return 'All machines'
+    }
+    return schedule.groups.map((group) => group.name).join(', ')
+  }
+
+  function formatTimestamp(timestamp) {
+    if (!timestamp) return ''
+    try {
+      return new Date(timestamp).toLocaleString()
+    } catch {
+      return timestamp
     }
   }
 </script>
@@ -112,6 +177,7 @@
         <tr>
           <th>Title</th>
           <th>Frequency</th>
+          <th>Targets</th>
           <th class="align-right">Actions</th>
         </tr>
       </thead>
@@ -126,8 +192,10 @@
               {/if}
             </td>
             <td>{schedule.interval}</td>
+            <td>{targetLabel(schedule)}</td>
             <td class="align-right">
               <div class="hstack justify-end gap-2">
+                <button type="button" class="small outline" onclick={() => openResults(schedule)}>Results</button>
                 <button type="button" class="small outline" onclick={() => openEdit(schedule)}>Edit</button>
                 <button type="button" class="small outline" data-variant="danger" onclick={() => confirmDelete(schedule)}>Delete</button>
               </div>
@@ -135,7 +203,7 @@
           </tr>
         {:else}
           <tr>
-            <td colspan="3" class="align-center text-light">No schedules found</td>
+            <td colspan="4" class="align-center text-light">No schedules found</td>
           </tr>
         {/each}
       </tbody>
@@ -146,6 +214,60 @@
     <p class="text-light">Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of <strong>{totalCount}</strong> results</p>
     <OatPagination {currentPage} {pageCount} onPageChange={changePage} />
   </footer>
+
+  {#if resultsSchedule}
+    <section class="vstack gap-3">
+      <header class="hstack justify-between">
+        <div>
+          <h2>{resultsSchedule.title || resultsSchedule.name} results</h2>
+          <p class="text-light">{resultsTotal} rows across all machines</p>
+        </div>
+        <button type="button" class="small outline" onclick={closeResults}>Close</button>
+      </header>
+
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>Machine</th>
+              {#each resultsColumns as column}
+                <th>{column}</th>
+              {/each}
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#if resultsLoading}
+              <tr>
+                <td colspan={resultsColumns.length + 2} class="align-center text-light">Loading results...</td>
+              </tr>
+            {:else}
+              {#each resultsRows as row}
+                <tr>
+                  <td>{row.hostname || row.node_uuid}</td>
+                  {#each resultsColumns as column}
+                    <td>{row.columns?.[column] ?? ''}</td>
+                  {/each}
+                  <td>{formatTimestamp(row.last_seen)}</td>
+                </tr>
+              {:else}
+                <tr>
+                  <td colspan={resultsColumns.length + 2} class="align-center text-light">No results yet</td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+        </table>
+      </div>
+
+      {#if resultsPageCount > 1}
+        <footer class="hstack justify-between">
+          <span class="text-light">{resultsTotal} rows</span>
+          <OatPagination currentPage={resultsPage} pageCount={resultsPageCount} disabled={resultsLoading} label="Schedule results pagination" onPageChange={changeResultsPage} />
+        </footer>
+      {/if}
+    </section>
+  {/if}
 </section>
 
 <ScheduleFormDialog

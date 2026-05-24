@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createNode = `-- name: CreateNode :one
@@ -34,7 +35,7 @@ ON CONFLICT (host_identifier) DO UPDATE SET
     hardware_serial = EXCLUDED.hardware_serial,
     last_seen_at = now(),
     updated_at = now()
-RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, last_policy_check_at
+RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at
 `
 
 type CreateNodeParams struct {
@@ -71,15 +72,42 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		&i.HardwareSerial,
 		&i.EnrolledAt,
 		&i.LastSeenAt,
+		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getNodeByID = `-- name: GetNodeByID :one
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes WHERE id = $1
+`
+
+func (q *Queries) GetNodeByID(ctx context.Context, id int64) (Node, error) {
+	row := q.db.QueryRowContext(ctx, getNodeByID, id)
+	var i Node
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.NodeKey,
+		&i.HostIdentifier,
+		&i.Hostname,
+		&i.Platform,
+		&i.OsName,
+		&i.OsVersion,
+		&i.OsqueryVersion,
+		&i.HardwareSerial,
+		&i.EnrolledAt,
+		&i.LastSeenAt,
 		&i.LastPolicyCheckAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getNodeByKey = `-- name: GetNodeByKey :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, last_policy_check_at FROM nodes WHERE node_key = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes WHERE node_key = $1
 `
 
 func (q *Queries) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error) {
@@ -98,15 +126,15 @@ func (q *Queries) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, er
 		&i.HardwareSerial,
 		&i.EnrolledAt,
 		&i.LastSeenAt,
+		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.LastPolicyCheckAt,
 	)
 	return i, err
 }
 
 const getNodeByUUID = `-- name: GetNodeByUUID :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, last_policy_check_at FROM nodes WHERE uuid = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes WHERE uuid = $1
 `
 
 func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error) {
@@ -125,21 +153,21 @@ func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, e
 		&i.HardwareSerial,
 		&i.EnrolledAt,
 		&i.LastSeenAt,
+		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.LastPolicyCheckAt,
 	)
 	return i, err
 }
 
 const listNodes = `-- name: ListNodes :many
 WITH filtered AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, created_at, updated_at, last_policy_check_at FROM nodes
+    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.created_at, filtered.updated_at, filtered.last_policy_check_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $1 OFFSET $2
@@ -163,9 +191,9 @@ type ListNodesRow struct {
 	HardwareSerial    string       `db:"hardware_serial" json:"hardware_serial"`
 	EnrolledAt        time.Time    `db:"enrolled_at" json:"enrolled_at"`
 	LastSeenAt        sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
 	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
-	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
 	TotalCount        int64        `db:"total_count" json:"total_count"`
 }
 
@@ -191,11 +219,44 @@ func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNod
 			&i.HardwareSerial,
 			&i.EnrolledAt,
 			&i.LastSeenAt,
+			&i.LastPolicyCheckAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.LastPolicyCheckAt,
 			&i.TotalCount,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNodesByIDs = `-- name: ListNodesByIDs :many
+SELECT id, uuid, hostname FROM nodes WHERE id = ANY($1::bigint[])
+`
+
+type ListNodesByIDsRow struct {
+	ID       int64     `db:"id" json:"id"`
+	Uuid     uuid.UUID `db:"uuid" json:"uuid"`
+	Hostname string    `db:"hostname" json:"hostname"`
+}
+
+func (q *Queries) ListNodesByIDs(ctx context.Context, ids []int64) ([]ListNodesByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNodesByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNodesByIDsRow
+	for rows.Next() {
+		var i ListNodesByIDsRow
+		if err := rows.Scan(&i.ID, &i.Uuid, &i.Hostname); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

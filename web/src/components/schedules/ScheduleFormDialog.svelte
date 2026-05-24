@@ -1,6 +1,7 @@
 <script>
-  import { createSchedule, fetchAllQueries, updateSchedule } from '@/api.js'
+  import { createSchedule, fetchAllQueries, fetchGroups, updateSchedule } from '@/api.js'
   import ErrorMessage from '@/components/common/ErrorMessage.svelte'
+  import MultiSelectDropdown from '@/components/common/MultiSelectDropdown.svelte'
 
   export let open = false
   export let schedule = null
@@ -10,11 +11,13 @@
   let dialog
   let preparedFor = null
   let queries = []
+  let availableGroups = []
   let selectedQuery = ''
   let title = ''
   let interval = 3600
-  let platform = 'any'
+  let platform = 'all'
   let snapshot = false
+  let groupIds = []
   let error = ''
   let isSubmitting = false
 
@@ -23,6 +26,7 @@
     if (preparedFor !== key) {
       loadForm(schedule)
       loadQueries()
+      loadGroups()
       preparedFor = key
     }
     if (!dialog.open) dialog.showModal()
@@ -37,8 +41,9 @@
     selectedQuery = record?.query?.uuid || record?.query_id || ''
     title = record?.title || ''
     interval = record?.interval || 3600
-    platform = record?.platform || 'any'
+    platform = record?.platform || 'all'
     snapshot = Boolean(record?.snapshot)
+    groupIds = (record?.groups || []).map((group) => group.uuid)
     error = ''
     isSubmitting = false
   }
@@ -49,6 +54,15 @@
       queries = data.queries || []
     } catch (err) {
       error = err.message || 'Failed to fetch queries'
+    }
+  }
+
+  async function loadGroups() {
+    try {
+      const data = await fetchGroups({ page: 1, countPerPage: 1000 })
+      availableGroups = data.groups || []
+    } catch (err) {
+      error = err.message || 'Failed to load groups'
     }
   }
 
@@ -66,7 +80,8 @@
         title,
         interval: Number.parseInt(interval, 10),
         platform,
-        snapshot
+        snapshot,
+        group_ids: groupIds
       }
       if (schedule?.uuid) {
         await updateSchedule(schedule.uuid, payload)
@@ -115,12 +130,27 @@
       <label>
         Platform
         <select bind:value={platform}>
+          <option value="all">All</option>
           <option value="any">Any</option>
+          <option value="posix">POSIX</option>
           <option value="darwin">macOS</option>
           <option value="linux">Linux</option>
           <option value="windows">Windows</option>
         </select>
       </label>
+
+      <div class="vstack gap-2">
+        <p>Targets</p>
+        <p class="text-light">{groupIds.length === 0 ? 'All machines for this platform' : `${groupIds.length} groups selected`}</p>
+        <MultiSelectDropdown
+          label="Groups"
+          options={availableGroups}
+          bind:value={groupIds}
+          placeholder="All machines for this platform"
+          searchPlaceholder="Search groups..."
+          emptyLabel="No groups available yet"
+        />
+      </div>
 
       <label>
         <input type="checkbox" bind:checked={snapshot} />

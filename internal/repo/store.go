@@ -6,16 +6,21 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type Store interface {
 	Querier
 
 	CreatePolicyTx(ctx context.Context, params CreatePolicyTxParams) (Policy, error)
-	InsertResultBatchTx(ctx context.Context, params InsertResultBatchTxParams) error
+	CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error)
 	InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error
+	ListGroupsForSchedules(ctx context.Context, scheduleUUIDs []uuid.UUID) (map[uuid.UUID][]Group, error)
+	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
 	ReplaceNodeGroupsTx(ctx context.Context, params ReplaceNodeGroupsTxParams) error
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
+	UpdateQueryTx(ctx context.Context, params UpdateQueryTxParams) (Query, error)
+	UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error)
 }
 
 type PostgresStore struct {
@@ -28,21 +33,6 @@ func NewPostgresStore(db *sql.DB) Store {
 		Queries: New(db),
 		db:      db,
 	}
-}
-
-type InsertResultBatchTxParams struct {
-	Batch CreateResultBatchParams
-	Rows  []InsertResultRowTxParams
-}
-
-type InsertResultRowTxParams struct {
-	RowIndex int32
-	Cells    []CreateResultCellTxParams
-}
-
-type CreateResultCellTxParams struct {
-	ColumnName string
-	ValueText  string
 }
 
 type InsertStatusLogsTxParams struct {
@@ -64,44 +54,18 @@ type ReplaceNodeGroupsTxParams struct {
 	GroupUUIDs []uuid.UUID
 }
 
-func (s *PostgresStore) InsertResultBatchTx(ctx context.Context, params InsertResultBatchTxParams) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin result batch transaction: %w", err)
-	}
-	defer tx.Rollback()
+type CreateScheduleTxParams struct {
+	Schedule   CreateScheduleParams
+	GroupUUIDs []uuid.UUID
+}
 
-	q := s.Queries.WithTx(tx)
+type UpdateScheduleTxParams struct {
+	Schedule   UpdateScheduleByUUIDParams
+	GroupUUIDs []uuid.UUID
+}
 
-	batch, err := q.CreateResultBatch(ctx, params.Batch)
-	if err != nil {
-		return fmt.Errorf("create result batch: %w", err)
-	}
-
-	for _, rowParam := range params.Rows {
-		row, err := q.CreateResultRow(ctx, CreateResultRowParams{
-			BatchID:  batch.ID,
-			RowIndex: rowParam.RowIndex,
-		})
-		if err != nil {
-			return fmt.Errorf("create result row: %w", err)
-		}
-
-		for _, cellParam := range rowParam.Cells {
-			if err := q.CreateResultCell(ctx, CreateResultCellParams{
-				RowID:      row.ID,
-				ColumnName: cellParam.ColumnName,
-				ValueText:  cellParam.ValueText,
-			}); err != nil {
-				return fmt.Errorf("create result cell: %w", err)
-			}
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit result batch transaction: %w", err)
-	}
-	return nil
+type UpdateQueryTxParams struct {
+	Query UpdateQueryByUUIDParams
 }
 
 func (s *PostgresStore) InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error {
@@ -122,6 +86,94 @@ func (s *PostgresStore) InsertStatusLogsTx(ctx context.Context, params InsertSta
 		return fmt.Errorf("commit status logs transaction: %w", err)
 	}
 	return nil
+}
+
+func (s *PostgresStore) ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed,
+       snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at
+FROM schedules
+WHERE name = ANY($1)
+`, pq.Array(names))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]Schedule, 0, len(names))
+	for rows.Next() {
+		var sched Schedule
+		if err := rows.Scan(
+			&sched.ID,
+			&sched.Uuid,
+			&sched.QueryID,
+			&sched.Name,
+			&sched.IntervalSeconds,
+			&sched.Platform,
+			&sched.Version,
+			&sched.Shard,
+			&sched.Denylist,
+			&sched.Removed,
+			&sched.Snapshot,
+			&sched.Enabled,
+			&sched.IsSystem,
+			&sched.SqlVersion,
+			&sched.RetentionDays,
+			&sched.CreatedAt,
+			&sched.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, sched)
+	}
+	return out, rows.Err()
+}
+
+func (s *PostgresStore) ListGroupsForSchedules(ctx context.Context, scheduleUUIDs []uuid.UUID) (map[uuid.UUID][]Group, error) {
+	out := make(map[uuid.UUID][]Group, len(scheduleUUIDs))
+	if len(scheduleUUIDs) == 0 {
+		return out, nil
+	}
+
+	ids := make([]string, 0, len(scheduleUUIDs))
+	for _, id := range scheduleUUIDs {
+		ids = append(ids, id.String())
+		out[id] = nil
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+SELECT schedules.uuid, groups.id, groups.uuid, groups.name, groups.description, groups.created_at, groups.updated_at
+FROM groups
+JOIN schedule_groups ON schedule_groups.group_id = groups.id
+JOIN schedules ON schedules.id = schedule_groups.schedule_id
+WHERE schedules.uuid = ANY($1::uuid[])
+ORDER BY schedules.uuid, groups.name
+`, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var scheduleUUID uuid.UUID
+		var group Group
+		if err := rows.Scan(
+			&scheduleUUID,
+			&group.ID,
+			&group.Uuid,
+			&group.Name,
+			&group.Description,
+			&group.CreatedAt,
+			&group.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		out[scheduleUUID] = append(out[scheduleUUID], group)
+	}
+	return out, rows.Err()
 }
 
 func (s *PostgresStore) CreatePolicyTx(ctx context.Context, params CreatePolicyTxParams) (Policy, error) {
@@ -232,6 +284,127 @@ func (s *PostgresStore) ReplaceNodeGroupsTx(ctx context.Context, params ReplaceN
 	}
 
 	return nil
+}
+
+func (s *PostgresStore) CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Schedule{}, fmt.Errorf("begin create schedule transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	groups, err := loadGroupsTx(ctx, q, params.GroupUUIDs)
+	if err != nil {
+		return Schedule{}, err
+	}
+
+	schedule, err := q.CreateSchedule(ctx, params.Schedule)
+	if err != nil {
+		return Schedule{}, fmt.Errorf("create schedule: %w", err)
+	}
+
+	for _, group := range groups {
+		if err := q.CreateScheduleGroup(ctx, CreateScheduleGroupParams{
+			ScheduleID: schedule.ID,
+			GroupID:    group.ID,
+		}); err != nil {
+			return Schedule{}, fmt.Errorf("attach schedule group: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Schedule{}, fmt.Errorf("commit create schedule transaction: %w", err)
+	}
+
+	return schedule, nil
+}
+
+func (s *PostgresStore) UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Schedule{}, fmt.Errorf("begin update schedule transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	groups, err := loadGroupsTx(ctx, q, params.GroupUUIDs)
+	if err != nil {
+		return Schedule{}, err
+	}
+
+	existing, err := q.GetScheduleByUUID(ctx, params.Schedule.Uuid)
+	if err != nil {
+		return Schedule{}, fmt.Errorf("get existing schedule: %w", err)
+	}
+
+	if existing.QueryID != params.Schedule.QueryID || existing.Snapshot != params.Schedule.Snapshot {
+		if _, err := q.BumpScheduleVersion(ctx, existing.ID); err != nil {
+			return Schedule{}, fmt.Errorf("bump schedule version: %w", err)
+		}
+	}
+
+	schedule, err := q.UpdateScheduleByUUID(ctx, params.Schedule)
+	if err != nil {
+		return Schedule{}, fmt.Errorf("update schedule: %w", err)
+	}
+
+	if err := q.DeleteScheduleGroupsForSchedule(ctx, schedule.Uuid); err != nil {
+		return Schedule{}, fmt.Errorf("clear schedule groups: %w", err)
+	}
+
+	for _, group := range groups {
+		if err := q.CreateScheduleGroup(ctx, CreateScheduleGroupParams{
+			ScheduleID: schedule.ID,
+			GroupID:    group.ID,
+		}); err != nil {
+			return Schedule{}, fmt.Errorf("attach schedule group: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Schedule{}, fmt.Errorf("commit update schedule transaction: %w", err)
+	}
+
+	return schedule, nil
+}
+
+func (s *PostgresStore) UpdateQueryTx(ctx context.Context, params UpdateQueryTxParams) (Query, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Query{}, fmt.Errorf("begin update query transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+
+	existing, err := q.GetQueryByUUID(ctx, params.Query.Uuid)
+	if err != nil {
+		return Query{}, fmt.Errorf("get existing query: %w", err)
+	}
+
+	updated, err := q.UpdateQueryByUUID(ctx, params.Query)
+	if err != nil {
+		return Query{}, fmt.Errorf("update query: %w", err)
+	}
+
+	if existing.Sql != updated.Sql {
+		schedules, err := q.ListSchedulesForQuery(ctx, updated.ID)
+		if err != nil {
+			return Query{}, fmt.Errorf("list schedules for query: %w", err)
+		}
+		for _, sched := range schedules {
+			if _, err := q.BumpScheduleVersion(ctx, sched.ID); err != nil {
+				return Query{}, fmt.Errorf("bump schedule version for %s: %w", sched.Uuid, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return Query{}, fmt.Errorf("commit update query transaction: %w", err)
+	}
+
+	return updated, nil
 }
 
 func loadGroupsTx(ctx context.Context, q *Queries, groupUUIDs []uuid.UUID) ([]Group, error) {
