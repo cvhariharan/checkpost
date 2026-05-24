@@ -7,20 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
-
-func escapeLikePattern(s string) string {
-	var b strings.Builder
-	b.Grow(len(s))
-	for _, r := range s {
-		if r == '%' || r == '_' || r == '\\' {
-			b.WriteByte('\\')
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
-}
 
 type Store interface {
 	Querier
@@ -28,9 +15,7 @@ type Store interface {
 	CreatePolicyTx(ctx context.Context, params CreatePolicyTxParams) (Policy, error)
 	CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error)
 	InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error
-	ListGroupsForSchedules(ctx context.Context, scheduleUUIDs []uuid.UUID) (map[uuid.UUID][]Group, error)
-	ListNodesMatchingIdentity(ctx context.Context, term string, limit int) ([]NodeIdentityRow, error)
-	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
+	ListNodesMatchingIdentity(ctx context.Context, term string) ([]MatchNodesByIdentityPatternRow, error)
 	ReplaceNodeGroupsTx(ctx context.Context, params ReplaceNodeGroupsTxParams) error
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
 	UpdateQueryTx(ctx context.Context, params UpdateQueryTxParams) (Query, error)
@@ -82,40 +67,25 @@ type UpdateQueryTxParams struct {
 	Query UpdateQueryByUUIDParams
 }
 
-type NodeIdentityRow struct {
-	ID       int64
-	UUID     string
-	Hostname string
+// ListNodesMatchingIdentity wraps the generated pattern lookup, applying
+// the LIKE escape so user-supplied % and _ aren't treated as wildcards.
+func (s *PostgresStore) ListNodesMatchingIdentity(ctx context.Context, term string) ([]MatchNodesByIdentityPatternRow, error) {
+	return s.Queries.MatchNodesByIdentityPattern(ctx, MatchNodesByIdentityPatternParams{
+		Pattern:  escapeLikePattern(term),
+		MaxCount: 10000,
+	})
 }
 
-func (s *PostgresStore) ListNodesMatchingIdentity(ctx context.Context, term string, limit int) ([]NodeIdentityRow, error) {
-	if limit <= 0 {
-		limit = 10000
-	}
-	escaped := escapeLikePattern(term)
-	rows, err := s.db.QueryContext(ctx, `
-SELECT id, uuid::text, hostname
-FROM nodes
-WHERE hostname ILIKE '%' || $1 || '%' ESCAPE '\'
-   OR uuid::text ILIKE '%' || $1 || '%' ESCAPE '\'
-   OR host_identifier ILIKE '%' || $1 || '%' ESCAPE '\'
-ORDER BY hostname ASC
-LIMIT $2
-`, escaped, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	out := make([]NodeIdentityRow, 0)
-	for rows.Next() {
-		var row NodeIdentityRow
-		if err := rows.Scan(&row.ID, &row.UUID, &row.Hostname); err != nil {
-			return nil, err
+func escapeLikePattern(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if r == '%' || r == '_' || r == '\\' {
+			b.WriteByte('\\')
 		}
-		out = append(out, row)
+		b.WriteRune(r)
 	}
-	return out, rows.Err()
+	return b.String()
 }
 
 func (s *PostgresStore) InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error {
@@ -136,94 +106,6 @@ func (s *PostgresStore) InsertStatusLogsTx(ctx context.Context, params InsertSta
 		return fmt.Errorf("commit status logs transaction: %w", err)
 	}
 	return nil
-}
-
-func (s *PostgresStore) ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error) {
-	if len(names) == 0 {
-		return nil, nil
-	}
-	rows, err := s.db.QueryContext(ctx, `
-SELECT id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed,
-       snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at
-FROM schedules
-WHERE name = ANY($1)
-`, pq.Array(names))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	out := make([]Schedule, 0, len(names))
-	for rows.Next() {
-		var sched Schedule
-		if err := rows.Scan(
-			&sched.ID,
-			&sched.Uuid,
-			&sched.QueryID,
-			&sched.Name,
-			&sched.IntervalSeconds,
-			&sched.Platform,
-			&sched.Version,
-			&sched.Shard,
-			&sched.Denylist,
-			&sched.Removed,
-			&sched.Snapshot,
-			&sched.Enabled,
-			&sched.IsSystem,
-			&sched.SqlVersion,
-			&sched.RetentionDays,
-			&sched.CreatedAt,
-			&sched.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		out = append(out, sched)
-	}
-	return out, rows.Err()
-}
-
-func (s *PostgresStore) ListGroupsForSchedules(ctx context.Context, scheduleUUIDs []uuid.UUID) (map[uuid.UUID][]Group, error) {
-	out := make(map[uuid.UUID][]Group, len(scheduleUUIDs))
-	if len(scheduleUUIDs) == 0 {
-		return out, nil
-	}
-
-	ids := make([]string, 0, len(scheduleUUIDs))
-	for _, id := range scheduleUUIDs {
-		ids = append(ids, id.String())
-		out[id] = nil
-	}
-
-	rows, err := s.db.QueryContext(ctx, `
-SELECT schedules.uuid, groups.id, groups.uuid, groups.name, groups.description, groups.created_at, groups.updated_at
-FROM groups
-JOIN schedule_groups ON schedule_groups.group_id = groups.id
-JOIN schedules ON schedules.id = schedule_groups.schedule_id
-WHERE schedules.uuid = ANY($1::uuid[])
-ORDER BY schedules.uuid, groups.name
-`, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var scheduleUUID uuid.UUID
-		var group Group
-		if err := rows.Scan(
-			&scheduleUUID,
-			&group.ID,
-			&group.Uuid,
-			&group.Name,
-			&group.Description,
-			&group.CreatedAt,
-			&group.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		out[scheduleUUID] = append(out[scheduleUUID], group)
-	}
-	return out, rows.Err()
 }
 
 func (s *PostgresStore) CreatePolicyTx(ctx context.Context, params CreatePolicyTxParams) (Policy, error) {

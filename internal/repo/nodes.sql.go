@@ -270,6 +270,51 @@ func (q *Queries) ListNodesByIDs(ctx context.Context, ids []int64) ([]ListNodesB
 	return items, nil
 }
 
+const matchNodesByIdentityPattern = `-- name: MatchNodesByIdentityPattern :many
+SELECT id, uuid::text AS uuid, hostname
+FROM nodes
+WHERE hostname ILIKE '%' || $1::text || '%' ESCAPE '\'
+   OR uuid::text ILIKE '%' || $1::text || '%' ESCAPE '\'
+   OR host_identifier ILIKE '%' || $1::text || '%' ESCAPE '\'
+ORDER BY hostname ASC
+LIMIT $2::int
+`
+
+type MatchNodesByIdentityPatternParams struct {
+	Pattern  string `db:"pattern" json:"pattern"`
+	MaxCount int32  `db:"max_count" json:"max_count"`
+}
+
+type MatchNodesByIdentityPatternRow struct {
+	ID       int64  `db:"id" json:"id"`
+	Uuid     string `db:"uuid" json:"uuid"`
+	Hostname string `db:"hostname" json:"hostname"`
+}
+
+// @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
+func (q *Queries) MatchNodesByIdentityPattern(ctx context.Context, arg MatchNodesByIdentityPatternParams) ([]MatchNodesByIdentityPatternRow, error) {
+	rows, err := q.db.QueryContext(ctx, matchNodesByIdentityPattern, arg.Pattern, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MatchNodesByIdentityPatternRow
+	for rows.Next() {
+		var i MatchNodesByIdentityPatternRow
+		if err := rows.Scan(&i.ID, &i.Uuid, &i.Hostname); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const touchNode = `-- name: TouchNode :exec
 UPDATE nodes SET last_seen_at = now(), updated_at = now() WHERE node_key = $1
 `

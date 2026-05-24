@@ -184,41 +184,43 @@ func (c *Core) PaginateGroupMachines(ctx context.Context, req models.GroupMachin
 	}, nil
 }
 
-func (c *Core) attachGroupsToNode(ctx context.Context, node *models.Node) error {
-	if node == nil || strings.TrimSpace(node.UUID) == "" {
-		return nil
+func (c *Core) attachGroupsToNode(ctx context.Context, node models.Node) (models.Node, error) {
+	if strings.TrimSpace(node.UUID) == "" {
+		return node, nil
 	}
 
 	groups, err := c.ListGroupsForNode(ctx, models.NodeIdentity{ID: node.UUID})
 	if err != nil {
-		return err
+		return node, err
 	}
 	node.Groups = groups
-	return nil
+	return node, nil
 }
 
 func (c *Core) attachGroupsToNodes(ctx context.Context, nodes []models.Node) error {
 	for i := range nodes {
-		if err := c.attachGroupsToNode(ctx, &nodes[i]); err != nil {
+		updated, err := c.attachGroupsToNode(ctx, nodes[i])
+		if err != nil {
 			return err
 		}
+		nodes[i] = updated
 	}
 	return nil
 }
 
-func (c *Core) attachGroupsToPolicy(ctx context.Context, policy *models.Policy) error {
-	if policy == nil || strings.TrimSpace(policy.UUID) == "" {
-		return nil
+func (c *Core) attachGroupsToPolicy(ctx context.Context, policy models.Policy) (models.Policy, error) {
+	if strings.TrimSpace(policy.UUID) == "" {
+		return policy, nil
 	}
 
 	policyID, err := uuid.Parse(policy.UUID)
 	if err != nil {
-		return fmt.Errorf("parse policy uuid: %w", err)
+		return policy, fmt.Errorf("parse policy uuid: %w", err)
 	}
 
 	rows, err := c.store.ListGroupsForPolicy(ctx, policyID)
 	if err != nil {
-		return fmt.Errorf("list policy groups: %w", err)
+		return policy, fmt.Errorf("list policy groups: %w", err)
 	}
 
 	groups := make([]models.Group, 0, len(rows))
@@ -227,31 +229,33 @@ func (c *Core) attachGroupsToPolicy(ctx context.Context, policy *models.Policy) 
 	}
 	policy.Groups = groups
 	policy.TargetAllMachines = len(groups) == 0
-	return nil
+	return policy, nil
 }
 
 func (c *Core) attachGroupsToPolicies(ctx context.Context, policies []models.Policy) error {
 	for i := range policies {
-		if err := c.attachGroupsToPolicy(ctx, &policies[i]); err != nil {
+		updated, err := c.attachGroupsToPolicy(ctx, policies[i])
+		if err != nil {
 			return err
 		}
+		policies[i] = updated
 	}
 	return nil
 }
 
-func (c *Core) attachGroupsToSchedule(ctx context.Context, schedule *models.Schedule) error {
-	if schedule == nil || strings.TrimSpace(schedule.UUID) == "" {
-		return nil
+func (c *Core) attachGroupsToSchedule(ctx context.Context, schedule models.Schedule) (models.Schedule, error) {
+	if strings.TrimSpace(schedule.UUID) == "" {
+		return schedule, nil
 	}
 
 	scheduleID, err := uuid.Parse(schedule.UUID)
 	if err != nil {
-		return fmt.Errorf("parse schedule uuid: %w", err)
+		return schedule, fmt.Errorf("parse schedule uuid: %w", err)
 	}
 
 	rows, err := c.store.ListGroupsForSchedule(ctx, scheduleID)
 	if err != nil {
-		return fmt.Errorf("list schedule groups: %w", err)
+		return schedule, fmt.Errorf("list schedule groups: %w", err)
 	}
 
 	groups := make([]models.Group, 0, len(rows))
@@ -260,43 +264,16 @@ func (c *Core) attachGroupsToSchedule(ctx context.Context, schedule *models.Sche
 	}
 	schedule.Groups = groups
 	schedule.TargetAllMachines = len(groups) == 0
-	return nil
+	return schedule, nil
 }
 
 func (c *Core) attachGroupsToSchedules(ctx context.Context, schedules []models.Schedule) error {
-	if len(schedules) == 0 {
-		return nil
-	}
-
-	ids := make([]uuid.UUID, 0, len(schedules))
 	for i := range schedules {
-		if strings.TrimSpace(schedules[i].UUID) == "" {
-			continue
-		}
-		id, err := uuid.Parse(schedules[i].UUID)
+		updated, err := c.attachGroupsToSchedule(ctx, schedules[i])
 		if err != nil {
-			return fmt.Errorf("parse schedule uuid: %w", err)
+			return err
 		}
-		ids = append(ids, id)
-	}
-
-	groupsBySchedule, err := c.store.ListGroupsForSchedules(ctx, ids)
-	if err != nil {
-		return fmt.Errorf("list schedule groups: %w", err)
-	}
-
-	for i := range schedules {
-		id, err := uuid.Parse(schedules[i].UUID)
-		if err != nil {
-			return fmt.Errorf("parse schedule uuid: %w", err)
-		}
-		rows := groupsBySchedule[id]
-		groups := make([]models.Group, 0, len(rows))
-		for _, row := range rows {
-			groups = append(groups, toModelGroup(row))
-		}
-		schedules[i].Groups = groups
-		schedules[i].TargetAllMachines = len(groups) == 0
+		schedules[i] = updated
 	}
 	return nil
 }

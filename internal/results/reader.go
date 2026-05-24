@@ -264,10 +264,10 @@ func termSQL(columns []string, term resultquery.Term) (string, []any, error) {
 		}
 		return "(" + strings.Join(preds, " OR ") + ")", args, nil
 	}
-	if term.Field == "machine" {
+	if term.Field == resultquery.FieldMachine {
 		return "", nil, nil
 	}
-	if term.Field == "last_seen" {
+	if term.Field == resultquery.FieldLastSeen {
 		if term.Op != resultquery.OpGTE && term.Op != resultquery.OpLTE {
 			return "", nil, fmt.Errorf("last_seen only supports >= and <=")
 		}

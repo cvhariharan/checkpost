@@ -33,6 +33,16 @@ SELECT * FROM nodes WHERE id = $1;
 -- name: ListNodesByIDs :many
 SELECT id, uuid, hostname FROM nodes WHERE id = ANY(@ids::bigint[]);
 
+-- name: MatchNodesByIdentityPattern :many
+-- @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
+SELECT id, uuid::text AS uuid, hostname
+FROM nodes
+WHERE hostname ILIKE '%' || @pattern::text || '%' ESCAPE '\'
+   OR uuid::text ILIKE '%' || @pattern::text || '%' ESCAPE '\'
+   OR host_identifier ILIKE '%' || @pattern::text || '%' ESCAPE '\'
+ORDER BY hostname ASC
+LIMIT @max_count::int;
+
 -- name: TouchNode :exec
 UPDATE nodes SET last_seen_at = now(), updated_at = now() WHERE node_key = $1;
 

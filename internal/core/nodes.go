@@ -70,7 +70,8 @@ func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models
 	}
 
 	out := toModelNode(node)
-	if err := c.attachGroupsToNode(ctx, &out); err != nil {
+	out, err = c.attachGroupsToNode(ctx, out)
+	if err != nil {
 		return models.Node{}, err
 	}
 	return out, nil

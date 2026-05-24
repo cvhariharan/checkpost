@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const bumpScheduleVersion = `-- name: BumpScheduleVersion :one
@@ -522,6 +523,51 @@ func (q *Queries) ListScheduleRetentions(ctx context.Context) ([]ListScheduleRet
 	for rows.Next() {
 		var i ListScheduleRetentionsRow
 		if err := rows.Scan(&i.Uuid, &i.RetentionDays); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSchedulesByNames = `-- name: ListSchedulesByNames :many
+SELECT id, uuid, query_id, name, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at FROM schedules WHERE name = ANY($1::text[])
+`
+
+func (q *Queries) ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error) {
+	rows, err := q.db.QueryContext(ctx, listSchedulesByNames, pq.Array(names))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Schedule
+	for rows.Next() {
+		var i Schedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.Uuid,
+			&i.QueryID,
+			&i.Name,
+			&i.IntervalSeconds,
+			&i.Platform,
+			&i.Version,
+			&i.Shard,
+			&i.Denylist,
+			&i.Removed,
+			&i.Snapshot,
+			&i.Enabled,
+			&i.IsSystem,
+			&i.SqlVersion,
+			&i.RetentionDays,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

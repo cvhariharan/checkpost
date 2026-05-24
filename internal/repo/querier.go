@@ -65,9 +65,12 @@ type Querier interface {
 	ListQueries(ctx context.Context, arg ListQueriesParams) ([]ListQueriesRow, error)
 	ListQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]QuerySchema, error)
 	ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error)
+	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
 	ListSchedulesForQuery(ctx context.Context, queryID int64) ([]ListSchedulesForQueryRow, error)
 	ListSchedulesWithQueries(ctx context.Context, arg ListSchedulesWithQueriesParams) ([]ListSchedulesWithQueriesRow, error)
 	MarkMachineQueryResultsDispatched(ctx context.Context, ids []int64) error
+	// @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
+	MatchNodesByIdentityPattern(ctx context.Context, arg MatchNodesByIdentityPatternParams) ([]MatchNodesByIdentityPatternRow, error)
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
 	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
 	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error

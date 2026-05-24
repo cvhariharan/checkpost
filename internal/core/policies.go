@@ -50,7 +50,8 @@ func (c *Core) CreatePolicy(ctx context.Context, req models.CreatePolicy) (model
 	}
 
 	out := toModelPolicy(policy)
-	if err := c.attachGroupsToPolicy(ctx, &out); err != nil {
+	out, err = c.attachGroupsToPolicy(ctx, out)
+	if err != nil {
 		return models.Policy{}, err
 	}
 	return out, nil
@@ -68,7 +69,8 @@ func (c *Core) GetPolicy(ctx context.Context, req models.ResourceID) (models.Pol
 	}
 
 	out := toModelPolicy(policy)
-	if err := c.attachGroupsToPolicy(ctx, &out); err != nil {
+	out, err = c.attachGroupsToPolicy(ctx, out)
+	if err != nil {
 		return models.Policy{}, err
 	}
 	return out, nil
@@ -143,7 +145,8 @@ func (c *Core) UpdatePolicy(ctx context.Context, req models.UpdatePolicy) (model
 	}
 
 	out := toModelPolicy(policy)
-	if err := c.attachGroupsToPolicy(ctx, &out); err != nil {
+	out, err = c.attachGroupsToPolicy(ctx, out)
+	if err != nil {
 		return models.Policy{}, err
 	}
 	return out, nil
@@ -230,9 +233,11 @@ func (c *Core) PaginatePolicyMachines(ctx context.Context, req models.PolicyMach
 	}
 
 	for i := range out {
-		if err := c.attachGroupsToNode(ctx, &out[i].Node); err != nil {
+		updated, err := c.attachGroupsToNode(ctx, out[i].Node)
+		if err != nil {
 			return models.Page[models.PolicyMachine]{}, err
 		}
+		out[i].Node = updated
 	}
 
 	return models.Page[models.PolicyMachine]{
@@ -244,9 +249,11 @@ func (c *Core) PaginatePolicyMachines(ctx context.Context, req models.PolicyMach
 
 func (c *Core) attachGroupsToPolicyPostures(ctx context.Context, policies []models.PolicyPosture) error {
 	for i := range policies {
-		if err := c.attachGroupsToPolicy(ctx, &policies[i].Policy); err != nil {
+		updated, err := c.attachGroupsToPolicy(ctx, policies[i].Policy)
+		if err != nil {
 			return err
 		}
+		policies[i].Policy = updated
 	}
 	return nil
 }

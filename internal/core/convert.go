@@ -256,6 +256,8 @@ func toModelEnabledScheduleRow(row repo.ListEnabledSchedulesWithQueriesRow) mode
 	})
 }
 
+// scheduleParts collects the fields shared across every sqlc schedule row
+// shape so model assembly lives in one place.
 type scheduleParts struct {
 	id         int64
 	uuid       string

@@ -22,6 +22,9 @@ SELECT * FROM schedules WHERE uuid = $1;
 -- name: GetScheduleByName :one
 SELECT * FROM schedules WHERE name = $1;
 
+-- name: ListSchedulesByNames :many
+SELECT * FROM schedules WHERE name = ANY(@names::text[]);
+
 -- name: GetScheduleWithQueryByUUID :one
 SELECT
     schedules.id,

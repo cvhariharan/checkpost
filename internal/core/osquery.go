@@ -134,52 +134,59 @@ func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBat
 
 	switch batch.LogType {
 	case "result":
-		return c.ingestResultLogs(ctx, node.ID, logs)
+		return c.ingestResultLogs(ctx, node.ID, c.parseResultLogs(logs))
 	case "status":
-		return c.ingestStatusLogs(ctx, node.ID, logs)
+		return c.ingestStatusLogs(ctx, node.ID, parseStatusLogs(logs))
 	default:
 		return ErrInvalidLogType
 	}
 }
 
-func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []map[string]interface{}) error {
+// resultLog is the parsed shape of one osquery result-log entry. The wire
+// format is a JSON object whose schema depends on `action`: differential
+// logs ("added"/"removed") carry a single `columns` map; snapshot logs
+// carry a `snapshot` array of row maps.
+type resultLog struct {
+	versionedName string                   // "schedule_name/v3"
+	scheduleName  string                   // "schedule_name"
+	sqlVersion    int32                    // 3
+	action        string                   // "added" | "removed" | "snapshot"
+	calendarTime  string
+	unixTime      time.Time
+	columns       map[string]interface{}   // differential row payload
+	snapshot      []map[string]interface{} // snapshot row payload
+}
+
+func (c *Core) parseResultLogs(logs []map[string]interface{}) []resultLog {
+	parsed := make([]resultLog, 0, len(logs))
+	for _, raw := range logs {
+		log, ok := parseResultLog(raw)
+		if !ok {
+			c.logger.Debug("skip result with unparseable schedule name", "name", stringValue(raw["name"]))
+			continue
+		}
+		parsed = append(parsed, log)
+	}
+	return parsed
+}
+
+func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []resultLog) error {
 	if c.results == nil {
 		return errors.New("results writer not configured")
 	}
-
-	type scheduleRef struct {
-		name       string
-		sqlVersion int32
-	}
-
-	refs := make(map[string]scheduleRef)
-	seenNames := make(map[string]struct{})
-	names := make([]string, 0)
-	for _, raw := range logs {
-		versionedName := strings.TrimSpace(stringValue(raw["name"]))
-		if versionedName == "" {
-			continue
-		}
-		if _, ok := refs[versionedName]; ok {
-			continue
-		}
-
-		scheduleName, sqlVersion, ok := parseVersionedName(versionedName)
-		if !ok {
-			c.logger.Debug("skip result with unparseable schedule name", "name", versionedName)
-			continue
-		}
-
-		refs[versionedName] = scheduleRef{name: scheduleName, sqlVersion: sqlVersion}
-		if _, ok := seenNames[scheduleName]; !ok {
-			seenNames[scheduleName] = struct{}{}
-			names = append(names, scheduleName)
-		}
-	}
-	if len(names) == 0 {
+	if len(logs) == 0 {
 		return nil
 	}
 
+	// One batched lookup for every unique schedule referenced in the batch.
+	nameSet := make(map[string]struct{})
+	for _, log := range logs {
+		nameSet[log.scheduleName] = struct{}{}
+	}
+	names := make([]string, 0, len(nameSet))
+	for n := range nameSet {
+		names = append(names, n)
+	}
 	schedules, err := c.store.ListSchedulesByNames(ctx, names)
 	if err != nil {
 		return fmt.Errorf("lookup schedules: %w", err)
@@ -189,29 +196,55 @@ func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []map[st
 		schedulesByName[sched.Name] = sched
 	}
 
-	for _, raw := range logs {
-		versionedName := strings.TrimSpace(stringValue(raw["name"]))
-		ref, ok := refs[versionedName]
+	// Submit rows under the matched schedule UUID + sql_version. Logs whose
+	// schedule isn't in the DB are silently skipped (agent saw the schedule
+	// before we deleted it, or never enrolled it).
+	for _, log := range logs {
+		sched, ok := schedulesByName[log.scheduleName]
 		if !ok {
 			continue
 		}
-		sched, ok := schedulesByName[ref.name]
-		if !ok {
-			continue
-		}
-
-		action := defaultString(stringValue(raw["action"]), "snapshot")
-		calendarTime := stringValue(raw["calendarTime"])
-		rows := buildResultRows(raw, action, nodeID, ingestUnixTime(raw), calendarTime)
+		rows := buildResultRows(log, nodeID)
 		if len(rows) == 0 {
 			continue
 		}
-
-		if err := c.results.Submit(sched.Uuid, ref.sqlVersion, rows); err != nil {
-			return fmt.Errorf("submit results for %s: %w", versionedName, err)
+		if err := c.results.Submit(sched.Uuid, log.sqlVersion, rows); err != nil {
+			return fmt.Errorf("submit results for %s: %w", log.versionedName, err)
 		}
 	}
 	return nil
+}
+
+func parseResultLog(raw map[string]interface{}) (resultLog, bool) {
+	versionedName := strings.TrimSpace(stringValue(raw["name"]))
+	if versionedName == "" {
+		return resultLog{}, false
+	}
+	scheduleName, sqlVersion, ok := parseVersionedName(versionedName)
+	if !ok {
+		return resultLog{}, false
+	}
+
+	log := resultLog{
+		versionedName: versionedName,
+		scheduleName:  scheduleName,
+		sqlVersion:    sqlVersion,
+		action:        defaultString(stringValue(raw["action"]), "snapshot"),
+		calendarTime:  stringValue(raw["calendarTime"]),
+		unixTime:      ingestUnixTime(raw),
+	}
+	if cols, ok := raw["columns"].(map[string]interface{}); ok {
+		log.columns = cols
+	}
+	if snap, ok := raw["snapshot"].([]interface{}); ok {
+		log.snapshot = make([]map[string]interface{}, 0, len(snap))
+		for _, v := range snap {
+			if rowMap, ok := v.(map[string]interface{}); ok {
+				log.snapshot = append(log.snapshot, rowMap)
+			}
+		}
+	}
+	return log, true
 }
 
 func parseVersionedName(versioned string) (string, int32, bool) {
@@ -226,29 +259,21 @@ func parseVersionedName(versioned string) (string, int32, bool) {
 	return versioned[:idx], int32(v), true
 }
 
-func buildResultRows(raw map[string]interface{}, action string, nodeID int64, ut time.Time, calendarTime string) []results.Row {
-	if action != "snapshot" {
-		rowMap, ok := raw["columns"].(map[string]interface{})
-		if !ok {
+func buildResultRows(log resultLog, nodeID int64) []results.Row {
+	// Differential: one row per log entry from `columns`.
+	if log.action != "snapshot" {
+		if log.columns == nil {
 			return nil
 		}
-		row := resultRowFromMap(rowMap, action, nodeID, ut, calendarTime)
-		return []results.Row{row}
+		return []results.Row{resultRowFromMap(log.columns, log.action, nodeID, log.unixTime, log.calendarTime)}
 	}
 
-	values, ok := raw["snapshot"].([]interface{})
-	if !ok {
-		return nil
-	}
-
-	rows := make([]results.Row, 0, len(values))
+	// Snapshot: many rows from `snapshot`. Osquery sometimes emits
+	// consecutive duplicates; collapse them by row hash.
+	rows := make([]results.Row, 0, len(log.snapshot))
 	var lastHash []byte
-	for _, value := range values {
-		rowMap, ok := value.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		row := resultRowFromMap(rowMap, action, nodeID, ut, calendarTime)
+	for _, rowMap := range log.snapshot {
+		row := resultRowFromMap(rowMap, log.action, nodeID, log.unixTime, log.calendarTime)
 		if bytes.Equal(row.RowHash, lastHash) {
 			continue
 		}
@@ -299,18 +324,46 @@ func ingestUnixTime(raw map[string]interface{}) time.Time {
 	return time.Now().UTC()
 }
 
-func (c *Core) ingestStatusLogs(ctx context.Context, nodeID int64, logs []map[string]interface{}) error {
-	params := repo.InsertStatusLogsTxParams{Logs: make([]repo.CreateStatusLogParams, 0, len(logs))}
+// statusLog is the parsed shape of one osquery status-log entry. Severity
+// follows osquery's INFO=0/WARNING=1/ERROR=2 convention.
+type statusLog struct {
+	calendarTime string
+	fileName     string
+	line         int32
+	message      string
+	severity     int32
+	unixTime     sql.NullTime
+	version      string
+}
+
+func parseStatusLogs(logs []map[string]interface{}) []statusLog {
+	out := make([]statusLog, 0, len(logs))
 	for _, raw := range logs {
+		out = append(out, statusLog{
+			calendarTime: stringValue(raw["calendarTime"]),
+			fileName:     stringValue(firstValue(raw, "filename", "file_name")),
+			line:         int32(int64Value(raw["line"])),
+			message:      stringValue(raw["message"]),
+			severity:     int32(int64Value(raw["severity"])),
+			unixTime:     sql.NullTime{Time: unixTime(raw["unixTime"]), Valid: hasValue(raw["unixTime"])},
+			version:      stringValue(raw["version"]),
+		})
+	}
+	return out
+}
+
+func (c *Core) ingestStatusLogs(ctx context.Context, nodeID int64, logs []statusLog) error {
+	params := repo.InsertStatusLogsTxParams{Logs: make([]repo.CreateStatusLogParams, 0, len(logs))}
+	for _, log := range logs {
 		params.Logs = append(params.Logs, repo.CreateStatusLogParams{
 			NodeID:       nodeID,
-			CalendarTime: stringValue(raw["calendarTime"]),
-			FileName:     stringValue(firstValue(raw, "filename", "file_name")),
-			Line:         int32(int64Value(raw["line"])),
-			Message:      stringValue(raw["message"]),
-			Severity:     int32(int64Value(raw["severity"])),
-			UnixTime:     sql.NullTime{Time: unixTime(raw["unixTime"]), Valid: hasValue(raw["unixTime"])},
-			Version:      stringValue(raw["version"]),
+			CalendarTime: log.calendarTime,
+			FileName:     log.fileName,
+			Line:         log.line,
+			Message:      log.message,
+			Severity:     log.severity,
+			UnixTime:     log.unixTime,
+			Version:      log.version,
 		})
 	}
 	return c.store.InsertStatusLogsTx(ctx, params)

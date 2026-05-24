@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
@@ -53,7 +52,8 @@ func (c *Core) CreateSchedule(ctx context.Context, req models.CreateSchedule) (m
 	}
 
 	out := toModelSchedule(sched, toModelQuery(q))
-	if err := c.attachGroupsToSchedule(ctx, &out); err != nil {
+	out, err = c.attachGroupsToSchedule(ctx, out)
+	if err != nil {
 		return models.Schedule{}, err
 	}
 	return out, nil
@@ -130,6 +130,10 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 	}, nil
 }
 
+// prepareResultFilters parses the user's q parameter, validates it against
+// the schedule's columns, and resolves any machine: terms to node IDs.
+// Validation errors are wrapped as ErrInvalidQuery so the handler returns
+// 400.
 func (c *Core) prepareResultFilters(ctx context.Context, raw string, columns []string) ([]resultquery.Term, []int64, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -139,50 +143,42 @@ func (c *Core) prepareResultFilters(ctx context.Context, raw string, columns []s
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
-	columnSet := make(map[string]struct{}, len(columns))
-	for _, col := range columns {
-		columnSet[col] = struct{}{}
+	if err := resultquery.Validate(filters, columns); err != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
-	var nodeIDs []int64
-	var hasMachineFilter bool
-	for _, filter := range filters {
-		switch filter.Field {
-		case "":
-			if len(columns) == 0 {
-				return nil, nil, fmt.Errorf("%w: no searchable columns recorded for this schedule yet", ErrInvalidQuery)
-			}
-		case "last_seen":
-			if filter.Op != resultquery.OpGTE && filter.Op != resultquery.OpLTE {
-				return nil, nil, fmt.Errorf("%w: last_seen only supports >= and <=", ErrInvalidQuery)
-			}
-			if _, err := time.Parse(time.RFC3339, filter.Value); err != nil {
-				return nil, nil, fmt.Errorf("%w: invalid last_seen timestamp", ErrInvalidQuery)
-			}
-		case "machine":
-			if filter.Op != resultquery.OpContains && filter.Op != resultquery.OpEqual {
-				return nil, nil, fmt.Errorf("%w: machine only supports : and =", ErrInvalidQuery)
-			}
-			hasMachineFilter = true
-			matches, err := c.store.ListNodesMatchingIdentity(ctx, filter.Value, 10000)
-			if err != nil {
-				return nil, nil, fmt.Errorf("list matching machines: %w", err)
-			}
-			for _, match := range matches {
-				nodeIDs = append(nodeIDs, match.ID)
-			}
-		default:
-			if _, ok := columnSet[filter.Field]; !ok {
-				return nil, nil, fmt.Errorf("%w: unknown field %q", ErrInvalidQuery, filter.Field)
-			}
-			if filter.Op != resultquery.OpContains && filter.Op != resultquery.OpEqual {
-				return nil, nil, fmt.Errorf("%w: %s only supports : and =", ErrInvalidQuery, filter.Field)
-			}
-		}
-	}
-	if hasMachineFilter && len(nodeIDs) == 0 {
-		nodeIDs = []int64{-1}
+	nodeIDs, err := c.resolveMachineFilters(ctx, filters)
+	if err != nil {
+		return nil, nil, err
 	}
 	return filters, nodeIDs, nil
+}
+
+// resolveMachineFilters expands every machine: term in filters to the
+// matching node IDs. If at least one machine: term was present but no
+// nodes matched, it returns a single-element [-1] sentinel so the reader's
+// `node_id IN (...)` clause yields zero rows instead of being skipped.
+func (c *Core) resolveMachineFilters(ctx context.Context, filters []resultquery.Term) ([]int64, error) {
+	var (
+		nodeIDs         []int64
+		seenMachineTerm bool
+	)
+	for _, f := range filters {
+		if f.Field != resultquery.FieldMachine {
+			continue
+		}
+		seenMachineTerm = true
+		matches, err := c.store.ListNodesMatchingIdentity(ctx, f.Value)
+		if err != nil {
+			return nil, fmt.Errorf("list matching machines: %w", err)
+		}
+		for _, m := range matches {
+			nodeIDs = append(nodeIDs, m.ID)
+		}
+	}
+	if seenMachineTerm && len(nodeIDs) == 0 {
+		return []int64{-1}, nil
+	}
+	return nodeIDs, nil
 }
 
 type nodeIdentity struct {
@@ -322,7 +318,8 @@ func (c *Core) GetSchedule(ctx context.Context, req models.ResourceID) (models.S
 	}
 
 	out := toModelScheduleWithQueryRow(sched)
-	if err := c.attachGroupsToSchedule(ctx, &out); err != nil {
+	out, err = c.attachGroupsToSchedule(ctx, out)
+	if err != nil {
 		return models.Schedule{}, err
 	}
 	return out, nil
@@ -399,7 +396,8 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 	}
 
 	out := toModelSchedule(sched, toModelQuery(q))
-	if err := c.attachGroupsToSchedule(ctx, &out); err != nil {
+	out, err = c.attachGroupsToSchedule(ctx, out)
+	if err != nil {
 		return models.Schedule{}, err
 	}
 	return out, nil
