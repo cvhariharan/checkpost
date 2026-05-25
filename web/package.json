@@ -2,17 +2,25 @@
   "name": "watcher-frontend",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite dev",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
   },
   "dependencies": {
     "@knadh/oat": "0.6.1",
     "svelte": "5.55.9"
   },
   "devDependencies": {
+    "@sveltejs/adapter-static": "3.0.10",
+    "@sveltejs/kit": "2.61.1",
     "@sveltejs/vite-plugin-svelte": "7.1.2",
+    "@types/node": "^25.9.1",
+    "svelte-check": "4.4.8",
+    "typescript": "5.9.3",
     "vite": "8.0.14"
   }
 }

@@ -161,8 +161,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not load embedded frontend: %v", err)
 	}
-	e.GET("/assets/*", echo.WrapHandler(http.StripPrefix("/", http.FileServer(http.FS(buildFS)))))
+	fileServer := http.FileServer(http.FS(buildFS))
 	e.GET("/*", func(c echo.Context) error {
+		reqPath := strings.TrimPrefix(c.Request().URL.Path, "/")
+		if reqPath != "" {
+			if info, err := fs.Stat(buildFS, reqPath); err == nil && !info.IsDir() {
+				fileServer.ServeHTTP(c.Response(), c.Request())
+				return nil
+			}
+		}
 		indexFile, err := buildFS.Open("index.html")
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to open index.html")
