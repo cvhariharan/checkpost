@@ -6,15 +6,21 @@
     executeMachineQuery,
     fetchGroups,
     fetchMachine,
+    fetchMachineMetrics,
     fetchMachinePolicies,
     fetchMachineQueries,
+    fetchMetricSchemas,
     updateMachineGroups,
     type Group,
     type Machine,
     type MachinePolicyPosture,
-    type MachineQueryRecord
+    type MachineQueryRecord,
+    type MetricSchemas,
+    type NodeMetrics
   } from '$lib/api'
   import { formatTimestamp, isOnline, machineHostname, machineOS } from '$lib/util'
+  import { rootShape, type JSONSchema } from '$lib/metricSchema'
+  import MetricRenderer from '$lib/components/MetricRenderer.svelte'
   import MultiSelectDropdown from '$lib/components/MultiSelectDropdown.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
@@ -28,6 +34,8 @@
     | { type: 'fallback'; text: string }
 
   let machine: Machine | null = null
+  let metrics: NodeMetrics = {}
+  let metricSchemas: MetricSchemas = { schemas: {}, kinds: [] }
   let queryText = ''
   let queryHistory: MachineQueryRecord[] = []
   let policyPosture: MachinePolicyPosture[] = []
@@ -57,11 +65,13 @@
     loading = true
     error = ''
     try {
-      const [machineData, historyData, policyData, groupData] = await Promise.all([
+      const [machineData, historyData, policyData, groupData, metricsData, schemasData] = await Promise.all([
         fetchMachine(machineId),
         fetchMachineQueries(machineId, { page: currentQueryPage, countPerPage: queryCountPerPage }),
         fetchMachinePolicies(machineId),
-        fetchGroups({ page: 1, countPerPage: 1000 })
+        fetchGroups({ page: 1, countPerPage: 1000 }),
+        fetchMachineMetrics(machineId).catch(() => ({ metrics: {} as NodeMetrics })),
+        fetchMetricSchemas().catch(() => ({ schemas: {}, kinds: [] }) as MetricSchemas)
       ])
       machine = machineData
       selectedGroupIds = (machineData.groups || []).map((g) => g.uuid)
@@ -70,6 +80,8 @@
         ? policyData
         : (policyData as { policies?: MachinePolicyPosture[] }).policies || []
       availableGroups = groupData.groups || []
+      metrics = metricsData.metrics || {}
+      metricSchemas = schemasData
     } catch (err) {
       error = (err as Error).message || 'Failed to load machine data'
     } finally {
@@ -262,6 +274,14 @@
     if (query.status === 'error') return 'danger'
     return 'warning'
   }
+
+  $: visibleMetricKinds = (metricSchemas.kinds || []).filter((k) => metrics[k])
+  $: summaryMetricKinds = visibleMetricKinds.filter(
+    (k) => rootShape(metricSchemas.schemas[k] as JSONSchema).kind === 'card'
+  )
+  $: tableMetricKinds = visibleMetricKinds.filter(
+    (k) => rootShape(metricSchemas.schemas[k] as JSONSchema).kind === 'table'
+  )
 </script>
 
 <section class="vstack gap-4">
@@ -279,6 +299,30 @@
     </header>
 
     <ErrorMessage message={error} onClose={() => (error = '')} />
+
+    {#if visibleMetricKinds.length > 0}
+      <section class="vstack gap-3">
+        <h2>Device Metrics</h2>
+        {#if summaryMetricKinds.length > 0}
+          <div class="metric-grid">
+            {#each summaryMetricKinds as kind}
+              <MetricRenderer
+                {kind}
+                schema={metricSchemas.schemas[kind] as JSONSchema}
+                entry={metrics[kind]}
+              />
+            {/each}
+          </div>
+        {/if}
+        {#each tableMetricKinds as kind}
+          <MetricRenderer
+            {kind}
+            schema={metricSchemas.schemas[kind] as JSONSchema}
+            entry={metrics[kind]}
+          />
+        {/each}
+      </section>
+    {/if}
 
     <article class="card">
       <header class="hstack justify-between">
@@ -535,5 +579,11 @@
     margin-top: var(--space-3, 1rem);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: var(--space-3, 1rem);
+    align-items: stretch;
   }
 </style>

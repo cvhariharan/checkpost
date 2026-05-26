@@ -55,6 +55,7 @@ type Querier interface {
 	ListGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]Group, error)
 	ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error)
 	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
+	ListNodeMetricsByNodeUUID(ctx context.Context, argUuid uuid.UUID) ([]ListNodeMetricsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
 	ListNodesByGroup(ctx context.Context, arg ListNodesByGroupParams) ([]ListNodesByGroupRow, error)
 	ListNodesByIDs(ctx context.Context, ids []int64) ([]ListNodesByIDsRow, error)
@@ -78,6 +79,7 @@ type Querier interface {
 	UpdateQueryByUUID(ctx context.Context, arg UpdateQueryByUUIDParams) (Query, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
+	UpsertNodeMetric(ctx context.Context, arg UpsertNodeMetricParams) error
 	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error
 	// Atomically merges new columns into the persisted set. Concurrent writers
 	// observing different new columns for the same (schedule_uuid, sql_version)

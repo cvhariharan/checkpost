@@ -145,6 +145,8 @@ func main() {
 	api.GET("/machines/:id/policies", h.HandleMachinePolicies)
 	api.GET("/machines/:id/groups", h.HandleMachineGroups)
 	api.PUT("/machines/:id/groups", h.HandleReplaceMachineGroups)
+	api.GET("/machines/:id/metrics", h.HandleMachineMetrics)
+	api.GET("/metrics/schemas", h.HandleMetricSchemas)
 	api.POST("/machines/:id/query", h.HandleExecuteMachineQuery)
 	api.GET("/machines/:id", h.HandleGetMachine)
 

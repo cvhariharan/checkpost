@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS node_metrics;
 DROP TABLE IF EXISTS query_schemas;
 DROP TABLE IF EXISTS schedule_groups;
 DROP TABLE IF EXISTS policy_groups;

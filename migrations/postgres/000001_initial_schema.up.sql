@@ -219,18 +219,76 @@ CREATE TABLE query_schemas (
 
 CREATE INDEX query_schemas_schedule_idx ON query_schemas (schedule_uuid);
 
+CREATE TABLE node_metrics (
+    node_id BIGINT NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    value JSONB NOT NULL,
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (node_id, kind),
+    CONSTRAINT node_metrics_kind_nonempty CHECK (length(trim(kind)) > 0)
+);
+
+CREATE INDEX node_metrics_kind_idx ON node_metrics (kind);
+CREATE INDEX node_metrics_collected_at_idx ON node_metrics (collected_at DESC);
+
+-- System queries: each ships paired with a schedule of the same name. The
+-- schedule name is the key the systemmetrics registry maps to a metric kind.
 INSERT INTO queries (name, sql, description, is_system)
 VALUES
     (
         'Disk Usage POSIX',
         'SELECT path, type, ROUND((blocks_available * blocks_size * 10e-10), 2) AS free_gb, ROUND((blocks * blocks_size * 10e-10), 2) AS total_gb, ROUND ((blocks_available * 1.0 / blocks * 1.0) * 100, 2) AS free_perc FROM mounts WHERE path = ''/'';',
-        'Retrieves disk usage information for the root mount point (POSIX)',
+        'Disk usage for the root mount (POSIX).',
         true
     ),
     (
         'Disk Usage Windows',
         'SELECT device_id AS path, type, (free_space * 10e-10) AS free_gb, (size * 10e-10) AS total_gb, ROUND((free_space * 1.0 / size * 1.0) * 100, 2) AS free_perc FROM logical_drives WHERE device_id = ''C:'';',
-        'Retrieves disk usage information for the C: drive (Windows)',
+        'Disk usage for the C: drive (Windows).',
+        true
+    ),
+    (
+        'Network Interfaces POSIX',
+        'SELECT ia.interface AS name, ia.address AS address, id.mac AS mac FROM interface_addresses ia LEFT JOIN interface_details id ON id.interface = ia.interface;',
+        'Network interface addresses and MACs (POSIX).',
+        true
+    ),
+    (
+        'Network Interfaces Windows',
+        'SELECT ia.interface AS name, ia.address AS address, id.mac AS mac FROM interface_addresses ia LEFT JOIN interface_details id ON id.interface = ia.interface;',
+        'Network interface addresses and MACs (Windows).',
+        true
+    ),
+    (
+        'Memory Usage POSIX',
+        'SELECT memory_total AS total_bytes, memory_available AS available_bytes FROM memory_info;',
+        'Total and available physical memory (POSIX).',
+        true
+    ),
+    (
+        'Memory Usage Windows',
+        'SELECT physical_memory AS total_bytes FROM system_info;',
+        'Total physical memory (Windows). Available memory not reported.',
+        true
+    ),
+    (
+        'CPU Info',
+        'SELECT cpu_brand AS model, cpu_physical_cores AS physical_cores, cpu_logical_cores AS logical_cores FROM system_info;',
+        'Primary CPU model and core counts.',
+        true
+    ),
+    (
+        'OS Info',
+        'SELECT name, version, build, platform FROM os_version;',
+        'Operating system name, version, and platform.',
+        true
+    ),
+    (
+        'System Uptime',
+        'SELECT total_seconds AS seconds FROM uptime;',
+        'System uptime in seconds.',
         true
     )
 ON CONFLICT (name) DO UPDATE SET
@@ -240,21 +298,20 @@ ON CONFLICT (name) DO UPDATE SET
     updated_at = now();
 
 INSERT INTO schedules (name, query_id, interval_seconds, platform, snapshot, is_system)
-SELECT 'Disk Monitoring POSIX', id, 3600, 'posix', true, true
-FROM queries
-WHERE name = 'Disk Usage POSIX'
-ON CONFLICT (name) DO UPDATE SET
-    query_id = EXCLUDED.query_id,
-    interval_seconds = EXCLUDED.interval_seconds,
-    platform = EXCLUDED.platform,
-    snapshot = EXCLUDED.snapshot,
-    is_system = EXCLUDED.is_system,
-    updated_at = now();
-
-INSERT INTO schedules (name, query_id, interval_seconds, platform, snapshot, is_system)
-SELECT 'Disk Monitoring Windows', id, 3600, 'windows', true, true
-FROM queries
-WHERE name = 'Disk Usage Windows'
+SELECT q.name, q.id, s.interval_seconds, s.platform, true, true
+FROM (
+    VALUES
+        ('Disk Usage POSIX',           3600, 'posix'),
+        ('Disk Usage Windows',         3600, 'windows'),
+        ('Network Interfaces POSIX',   3600, 'posix'),
+        ('Network Interfaces Windows', 3600, 'windows'),
+        ('Memory Usage POSIX',         3600, 'posix'),
+        ('Memory Usage Windows',       3600, 'windows'),
+        ('CPU Info',                   86400, 'all'),
+        ('OS Info',                    86400, 'all'),
+        ('System Uptime',              3600, 'all')
+) AS s(name, interval_seconds, platform)
+JOIN queries q ON q.name = s.name
 ON CONFLICT (name) DO UPDATE SET
     query_id = EXCLUDED.query_id,
     interval_seconds = EXCLUDED.interval_seconds,

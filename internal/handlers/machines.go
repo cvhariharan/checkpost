@@ -174,6 +174,26 @@ func (h *Handler) HandleDeleteMachineQuery(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
+func (h *Handler) HandleMachineMetrics(c echo.Context) error {
+	var req GetRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
+	}
+
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+
+	metrics, err := h.c.GetNodeMetrics(c.Request().Context(), models.NodeIdentity{ID: req.ID})
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting machine metrics %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"metrics": metrics,
+	})
+}
+
 func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {
 	var req MachineQueryRequest
 	if err := c.Bind(&req); err != nil {

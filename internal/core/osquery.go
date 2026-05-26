@@ -211,8 +211,34 @@ func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []result
 		if err := c.results.Submit(sched.Uuid, log.sqlVersion, rows); err != nil {
 			return fmt.Errorf("submit results for %s: %w", log.versionedName, err)
 		}
+		if sched.IsSystem && sched.Snapshot {
+			c.applySystemMetric(ctx, nodeID, sched.Name, rows, log.unixTime)
+		}
 	}
 	return nil
+}
+
+// applySystemMetric reduces a system schedule's result batch via the
+// registry and upserts the snapshot into node_metrics. Failures are logged
+// but never bubbled — the parquet write is authoritative.
+func (c *Core) applySystemMetric(ctx context.Context, nodeID int64, scheduleName string, rows []results.Row, collectedAt time.Time) {
+	snap, ok := c.systemMetrics.Apply(scheduleName, rows)
+	if !ok {
+		return
+	}
+	value, err := json.Marshal(snap.Value)
+	if err != nil {
+		c.logger.Warn("marshal system metric", "node_id", nodeID, "kind", snap.Kind, "error", err)
+		return
+	}
+	if err := c.store.UpsertNodeMetric(ctx, repo.UpsertNodeMetricParams{
+		NodeID:      nodeID,
+		Kind:        string(snap.Kind),
+		Value:       value,
+		CollectedAt: collectedAt,
+	}); err != nil {
+		c.logger.Warn("upsert node metric", "node_id", nodeID, "kind", snap.Kind, "error", err)
+	}
 }
 
 func parseResultLog(raw map[string]interface{}) (resultLog, bool) {

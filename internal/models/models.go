@@ -384,3 +384,11 @@ type Pack struct {
 
 type Packs map[string]Pack
 type Schedules map[string]Schedule
+
+// NodeMetric is one device-metric snapshot for a host, keyed by kind.
+type NodeMetric struct {
+	Kind        string      `json:"kind"`
+	Value       interface{} `json:"value"`
+	CollectedAt time.Time   `json:"collected_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}

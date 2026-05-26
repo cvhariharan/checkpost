@@ -19,7 +19,7 @@ services:
       - WATCHER_DB__PASSWORD=watcher
       - WATCHER_DB__DBNAME=watcher
     volumes:
-      - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,Z"
+      - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,z"
       - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,Z"
       - "./data:/app/data:Z"
     depends_on:
@@ -57,7 +57,7 @@ services:
       watcher:
         condition: service_started
     volumes:
-      - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem:ro,Z"
+      - "./testdata/server_cert.pem:/etc/osquery-tls/certs/server.pem:ro,z"
       - "osquery-db:/var/osquery/osquery.db"
     environment:
       - ENROLLMENT_SECRET=secret-key

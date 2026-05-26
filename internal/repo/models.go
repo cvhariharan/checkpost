@@ -60,6 +60,14 @@ type Node struct {
 	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
 }
 
+type NodeMetric struct {
+	NodeID      int64           `db:"node_id" json:"node_id"`
+	Kind        string          `db:"kind" json:"kind"`
+	Value       json.RawMessage `db:"value" json:"value"`
+	CollectedAt time.Time       `db:"collected_at" json:"collected_at"`
+	UpdatedAt   time.Time       `db:"updated_at" json:"updated_at"`
+}
+
 type OsqueryStatusLog struct {
 	ID           int64        `db:"id" json:"id"`
 	Uuid         uuid.UUID    `db:"uuid" json:"uuid"`

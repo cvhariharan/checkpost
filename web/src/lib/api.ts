@@ -117,6 +117,20 @@ export type Pack = {
   Targets?: number | string
 }
 
+export type NodeMetric = {
+  kind: string
+  value: unknown
+  collected_at?: string
+  updated_at?: string
+}
+
+export type NodeMetrics = Record<string, NodeMetric | undefined>
+
+export type MetricSchemas = {
+  schemas: Record<string, unknown>
+  kinds: string[]
+}
+
 type PageOpts = { page?: number; countPerPage?: number }
 
 const BASE_URL = '/api/v1'
@@ -317,6 +331,16 @@ export function updateMachineGroups(id: string, group_ids: string[]) {
 
 export function executeMachineQuery(id: string, query: string) {
   return jsonRequest<MachineQueryRecord>(`/machines/${encodeURIComponent(id)}/query`, 'POST', { query })
+}
+
+export function fetchMachineMetrics(id: string) {
+  return fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/metrics`).then((r) =>
+    handleResponse<{ metrics: NodeMetrics }>(r)
+  )
+}
+
+export function fetchMetricSchemas() {
+  return fetch(`${BASE_URL}/metrics/schemas`).then((r) => handleResponse<MetricSchemas>(r))
 }
 
 // Packs
