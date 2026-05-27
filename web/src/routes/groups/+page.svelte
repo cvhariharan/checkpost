@@ -7,6 +7,7 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import GroupFormDialog from '$lib/components/GroupFormDialog.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import ActionsMenu from '$lib/components/ActionsMenu.svelte'
 
   let loadedGroups: Group[] = []
   let currentPage = 1
@@ -95,9 +96,9 @@
 </script>
 
 <section class="vstack gap-4">
-  <header class="hstack justify-between">
+  <header class="hstack justify-between mb-4">
     <div>
-      <h1>Groups</h1>
+      <h1 class="mb-2">Groups</h1>
       <p class="text-light">Organize machines and target policies to specific collections</p>
     </div>
     <button type="button" onclick={openCreate}>Create Group</button>
@@ -122,30 +123,26 @@
             <th>Description</th>
             <th class="align-right">Machines</th>
             <th class="align-right">Policies</th>
-            <th class="align-right">Actions</th>
+            <th class="align-right"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           {#each groups as group}
             <tr>
-              <td><strong>{group.name || 'Untitled'}</strong></td>
+              <td>
+                <button type="button" class="cell-link" onclick={() => openEdit(group)}>
+                  {group.name || 'Untitled'}
+                </button>
+              </td>
               <td>{group.description || ''}</td>
               <td class="align-right">{group.machine_count || 0}</td>
               <td class="align-right">{group.policy_count || 0}</td>
               <td class="align-right">
-                <menu class="buttons">
-                  <li><button type="button" class="small outline" onclick={() => openEdit(group)}>Edit</button></li>
-                  <li>
-                    <button
-                      type="button"
-                      class="small outline"
-                      data-variant="danger"
-                      onclick={() => confirmDelete(group)}
-                    >
-                      Delete
-                    </button>
-                  </li>
-                </menu>
+                <ActionsMenu label={`Actions for ${group.name || 'group'}`}>
+                  <button role="menuitem" type="button" onclick={() => openEdit(group)}>Edit</button>
+                  <hr />
+                  <button role="menuitem" type="button" onclick={() => confirmDelete(group)}>Delete</button>
+                </ActionsMenu>
               </td>
             </tr>
           {:else}
@@ -172,6 +169,7 @@
   group={editingGroup}
   onClose={() => (formOpen = false)}
   onSaved={handleSaved}
+  onChanged={loadGroups}
 />
 
 <ConfirmDialog

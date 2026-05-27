@@ -152,3 +152,29 @@ func (h *Handler) HandleGroupMachines(c echo.Context) error {
 		PageCount:  page.PageCount,
 	})
 }
+
+func (h *Handler) HandlePatchGroupMachines(c echo.Context) error {
+	var req PatchGroupMachinesRequest
+	if err := c.Bind(&req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
+	}
+	SanitizeStruct(&req)
+	if req.ID == "" {
+		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	}
+
+	page, err := h.c.PatchGroupNodes(c.Request().Context(), models.GroupMachinesRequest{
+		GroupUUID: req.ID,
+		Page:      0,
+		Count:     CountPerPage,
+	}, req.AddNodeIDs, req.RemoveNodeIDs)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating group machines %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, GroupMachinesResponse{
+		Machines:   page.Items,
+		TotalCount: page.TotalCount,
+		PageCount:  page.PageCount,
+	})
+}

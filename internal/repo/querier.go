@@ -23,6 +23,7 @@ type Querier interface {
 	CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
 	DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeleteGroupMembershipForNode(ctx context.Context, arg DeleteGroupMembershipForNodeParams) error
 	DeleteGroupMembershipsForNode(ctx context.Context, nodeUuid uuid.UUID) error
 	DeleteMachineQueryResultByNodeAndUUID(ctx context.Context, arg DeleteMachineQueryResultByNodeAndUUIDParams) (int64, error)
 	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)

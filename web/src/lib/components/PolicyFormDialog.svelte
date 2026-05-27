@@ -2,11 +2,21 @@
   import { createPolicy, fetchGroups, updatePolicy, type Group, type Policy } from '$lib/api'
   import ErrorMessage from './ErrorMessage.svelte'
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
+  import SelectDropdown from './SelectDropdown.svelte'
 
   export let open = false
   export let policy: Policy | null = null
   export let onClose: () => void = () => {}
   export let onSaved: () => void = () => {}
+
+  const platformOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'any', label: 'Any' },
+    { value: 'posix', label: 'POSIX' },
+    { value: 'darwin', label: 'macOS' },
+    { value: 'linux', label: 'Linux' },
+    { value: 'windows', label: 'Windows' }
+  ]
 
   let dialog: HTMLDialogElement
   let preparedFor: string | null = null
@@ -116,17 +126,9 @@
         <textarea bind:value={resolution} rows="3" placeholder="How to resolve failing machines"></textarea>
       </label>
 
-      <label data-field>
-        Platform
-        <select bind:value={platform}>
-          <option value="all">All</option>
-          <option value="any">Any</option>
-          <option value="posix">POSIX</option>
-          <option value="darwin">macOS</option>
-          <option value="linux">Linux</option>
-          <option value="windows">Windows</option>
-        </select>
-      </label>
+      <div data-field>
+        <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} />
+      </div>
 
       <div data-field class="vstack gap-2">
         <span>Targets</span>

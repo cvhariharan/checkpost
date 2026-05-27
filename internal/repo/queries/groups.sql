@@ -96,6 +96,14 @@ USING nodes
 WHERE group_membership.node_id = nodes.id
   AND nodes.uuid = @node_uuid;
 
+-- name: DeleteGroupMembershipForNode :exec
+DELETE FROM group_membership
+USING groups, nodes
+WHERE group_membership.group_id = groups.id
+  AND group_membership.node_id = nodes.id
+  AND groups.uuid = @group_uuid
+  AND nodes.uuid = @node_uuid;
+
 -- name: CreateGroupMembership :exec
 INSERT INTO group_membership (
     group_id,

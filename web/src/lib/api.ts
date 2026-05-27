@@ -243,6 +243,24 @@ export function deleteGroup(uuid: string) {
   )
 }
 
+export function fetchGroupMachines(uuid: string, opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 100 } = opts
+  return fetch(
+    apiUrl(`/group/${encodeURIComponent(uuid)}/machines`, { page, count_per_page: countPerPage })
+  ).then((r) => handleResponse<Paginated<Machine, 'machines'>>(r))
+}
+
+export function patchGroupMachines(
+  uuid: string,
+  changes: { add?: string[]; remove?: string[] }
+) {
+  return jsonRequest<Paginated<Machine, 'machines'>>(
+    `/group/${encodeURIComponent(uuid)}/machines`,
+    'PATCH',
+    { add_node_ids: changes.add ?? [], remove_node_ids: changes.remove ?? [] }
+  )
+}
+
 // Machines
 export function fetchMachines(opts: PageOpts = {}) {
   const { page = 1, countPerPage = 100 } = opts

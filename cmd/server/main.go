@@ -132,6 +132,7 @@ func main() {
 	api.DELETE("/group/:id", h.HandleDeleteGroup)
 	api.PUT("/group/:id", h.HandleUpdateGroup)
 	api.GET("/group/:id/machines", h.HandleGroupMachines)
+	api.PATCH("/group/:id/machines", h.HandlePatchGroupMachines)
 
 	api.GET("/machines", h.HandleMachinesPagination)
 	api.GET("/machines/:id/queries", h.HandleMachineQueries)

@@ -6,7 +6,6 @@
     primaryProperty,
     progressFor,
     rootShape,
-    usageVariant,
     type JSONSchema,
     type MetricEntry
   } from '$lib/metricSchema'
@@ -25,7 +24,7 @@
 </script>
 
 {#if entry && schema}
-  <article class="card metric">
+  <article class="card vstack gap-2">
     <header class="hstack justify-between metric-header">
       <h3>{title}</h3>
       {#if entry.collected_at}
@@ -52,9 +51,7 @@
                   <td>
                     {#if progressFor(sub, r[name]) !== null}
                       {@const used = progressFor(sub, r[name]) as number}
-                      <div class="metric-bar" data-variant={usageVariant(used)}>
-                        <span style="width: {used.toFixed(1)}%"></span>
-                      </div>
+                      <meter class="metric-bar" min="0" max="100" low="75" high="90" optimum="0" value={used} aria-hidden="true"></meter>
                       <small class="text-light">{formatScalar(sub, r[name])}</small>
                     {:else}
                       {formatScalar(sub, r[name])}
@@ -80,14 +77,14 @@
                 <dt class="text-light">{sub.title || name}</dt>
                 <dd>
                   {#if isPills(sub) && Array.isArray(value[name])}
-                    {#each value[name] as item}
-                      <code class="metric-pill">{String(item)}</code>
-                    {/each}
+                    <span class="hstack gap-1">
+                      {#each value[name] as item}
+                        <span class="badge secondary">{String(item)}</span>
+                      {/each}
+                    </span>
                   {:else if progressFor(sub, value[name]) !== null}
                     {@const used = progressFor(sub, value[name]) as number}
-                    <div class="metric-bar" data-variant={usageVariant(used)}>
-                      <span style="width: {used.toFixed(1)}%"></span>
-                    </div>
+                    <meter class="metric-bar" min="0" max="100" low="75" high="90" optimum="0" value={used} aria-hidden="true"></meter>
                     <small class="text-light">{formatScalar(sub, value[name])}</small>
                   {:else}
                     {formatScalar(sub, value[name])}
@@ -103,34 +100,25 @@
 {/if}
 
 <style>
-  .metric {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
   .metric-header {
     align-items: baseline;
-    gap: 0.75rem;
     flex-wrap: wrap;
   }
   .metric-header h3 {
     margin: 0;
-    font-size: 1rem;
-  }
-  .metric-header small {
-    font-size: 0.75rem;
+    font-size: var(--text-6);
   }
   .metric-headline {
-    font-size: 1.35rem;
+    font-size: var(--text-4);
     line-height: 1.2;
     word-break: break-word;
   }
   .metric-fields {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 0.15rem 0.75rem;
+    gap: var(--space-1) var(--space-3);
     margin: 0;
-    font-size: 0.85rem;
+    font-size: var(--text-7);
   }
   .metric-field {
     display: contents;
@@ -144,30 +132,6 @@
     word-break: break-word;
   }
   .metric-bar {
-    width: 100%;
     max-width: 14rem;
-    height: 0.4rem;
-    background-color: rgb(from var(--muted) r g b / 0.35);
-    border-radius: 999px;
-    overflow: hidden;
-  }
-  .metric-bar span {
-    display: block;
-    height: 100%;
-    background-color: var(--success);
-  }
-  .metric-bar[data-variant='warning'] span {
-    background-color: var(--warning);
-  }
-  .metric-bar[data-variant='danger'] span {
-    background-color: var(--danger);
-  }
-  .metric-pill {
-    display: inline-block;
-    margin: 0.1rem 0.2rem 0.1rem 0;
-    padding: 0.05rem 0.4rem;
-    background-color: rgb(from var(--muted) r g b / 0.35);
-    border-radius: 0.25rem;
-    font-size: 0.8rem;
   }
 </style>

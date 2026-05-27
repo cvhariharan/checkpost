@@ -16,6 +16,7 @@ type Store interface {
 	CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error)
 	InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error
 	ListNodesMatchingIdentity(ctx context.Context, term string) ([]MatchNodesByIdentityPatternRow, error)
+	PatchGroupNodesTx(ctx context.Context, params PatchGroupNodesTxParams) error
 	ReplaceNodeGroupsTx(ctx context.Context, params ReplaceNodeGroupsTxParams) error
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
 	UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error)
@@ -50,6 +51,12 @@ type UpdatePolicyTxParams struct {
 type ReplaceNodeGroupsTxParams struct {
 	NodeUUID   uuid.UUID
 	GroupUUIDs []uuid.UUID
+}
+
+type PatchGroupNodesTxParams struct {
+	GroupUUID       uuid.UUID
+	AddNodeUUIDs    []uuid.UUID
+	RemoveNodeUUIDs []uuid.UUID
 }
 
 type CreateScheduleTxParams struct {
@@ -213,6 +220,49 @@ func (s *PostgresStore) ReplaceNodeGroupsTx(ctx context.Context, params ReplaceN
 	return nil
 }
 
+func (s *PostgresStore) PatchGroupNodesTx(ctx context.Context, params PatchGroupNodesTxParams) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin patch group nodes transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	group, err := q.GetGroupByUUID(ctx, params.GroupUUID)
+	if err != nil {
+		return fmt.Errorf("get group: %w", err)
+	}
+
+	nodes, err := loadNodesTx(ctx, q, params.AddNodeUUIDs)
+	if err != nil {
+		return err
+	}
+
+	for _, node := range nodes {
+		if err := q.CreateGroupMembership(ctx, CreateGroupMembershipParams{
+			GroupID: group.ID,
+			NodeID:  node.ID,
+		}); err != nil {
+			return fmt.Errorf("attach group node: %w", err)
+		}
+	}
+
+	for _, nodeUUID := range params.RemoveNodeUUIDs {
+		if err := q.DeleteGroupMembershipForNode(ctx, DeleteGroupMembershipForNodeParams{
+			GroupUuid: params.GroupUUID,
+			NodeUuid:  nodeUUID,
+		}); err != nil {
+			return fmt.Errorf("detach group node: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit patch group nodes transaction: %w", err)
+	}
+
+	return nil
+}
+
 func (s *PostgresStore) CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -312,4 +362,16 @@ func loadGroupsTx(ctx context.Context, q *Queries, groupUUIDs []uuid.UUID) ([]Gr
 		groups = append(groups, group)
 	}
 	return groups, nil
+}
+
+func loadNodesTx(ctx context.Context, q *Queries, nodeUUIDs []uuid.UUID) ([]Node, error) {
+	nodes := make([]Node, 0, len(nodeUUIDs))
+	for _, nodeUUID := range nodeUUIDs {
+		node, err := q.GetNodeByUUID(ctx, nodeUUID)
+		if err != nil {
+			return nil, fmt.Errorf("get node %s: %w", nodeUUID, err)
+		}
+		nodes = append(nodes, node)
+	}
+	return nodes, nil
 }

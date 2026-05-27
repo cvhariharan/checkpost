@@ -107,9 +107,9 @@
 </script>
 
 <section class="vstack gap-4">
-  <header class="hstack justify-between">
+  <header class="hstack justify-between mb-4">
     <div>
-      <h1>Query Schedules</h1>
+      <h1 class="mb-2">Query Schedules</h1>
       <p class="text-light">Schedule queries to run on specific machines</p>
     </div>
     <button type="button" onclick={openCreate}>Create Schedule</button>
@@ -139,7 +139,9 @@
           {#each schedules as schedule}
             <tr>
               <td>
-                <strong><Truncate text={schedule.title || 'Untitled'} /></strong>
+                <button type="button" class="cell-link" onclick={() => openEdit(schedule)}>
+                  <Truncate text={schedule.title || 'Untitled'} />
+                </button>
               </td>
               <td class="text-light">
                 <Truncate text={descriptionFor(schedule)} lines={2} />
@@ -198,16 +200,5 @@
   .schedules-table .col-actions {
     width: 3rem;
     text-align: right;
-  }
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
   }
 </style>

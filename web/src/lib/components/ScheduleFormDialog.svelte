@@ -8,6 +8,16 @@
   } from '$lib/api'
   import ErrorMessage from './ErrorMessage.svelte'
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
+  import SelectDropdown from './SelectDropdown.svelte'
+
+  const platformOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'any', label: 'Any' },
+    { value: 'posix', label: 'POSIX' },
+    { value: 'darwin', label: 'macOS' },
+    { value: 'linux', label: 'Linux' },
+    { value: 'windows', label: 'Windows' }
+  ]
 
   export let open = false
   export let schedule: Schedule | null = null
@@ -122,17 +132,9 @@
         <input type="number" bind:value={interval} required min="1" max="604800" />
       </label>
 
-      <label data-field>
-        Platform
-        <select bind:value={platform}>
-          <option value="all">All</option>
-          <option value="any">Any</option>
-          <option value="posix">POSIX</option>
-          <option value="darwin">macOS</option>
-          <option value="linux">Linux</option>
-          <option value="windows">Windows</option>
-        </select>
-      </label>
+      <div data-field>
+        <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} />
+      </div>
 
       <div data-field class="vstack gap-2">
         <span>Targets</span>

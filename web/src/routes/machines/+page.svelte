@@ -62,9 +62,9 @@
 </script>
 
 <section class="vstack gap-4">
-  <header class="hstack justify-between">
+  <header class="hstack justify-between mb-4">
     <div>
-      <h1>Connected Machines</h1>
+      <h1 class="mb-2">Connected Machines</h1>
       <p class="text-light">View and manage all connected osquery endpoints</p>
     </div>
   </header>

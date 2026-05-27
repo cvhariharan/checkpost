@@ -114,6 +114,25 @@ func (q *Queries) DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int
 	return result.RowsAffected()
 }
 
+const deleteGroupMembershipForNode = `-- name: DeleteGroupMembershipForNode :exec
+DELETE FROM group_membership
+USING groups, nodes
+WHERE group_membership.group_id = groups.id
+  AND group_membership.node_id = nodes.id
+  AND groups.uuid = $1
+  AND nodes.uuid = $2
+`
+
+type DeleteGroupMembershipForNodeParams struct {
+	GroupUuid uuid.UUID `db:"group_uuid" json:"group_uuid"`
+	NodeUuid  uuid.UUID `db:"node_uuid" json:"node_uuid"`
+}
+
+func (q *Queries) DeleteGroupMembershipForNode(ctx context.Context, arg DeleteGroupMembershipForNodeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteGroupMembershipForNode, arg.GroupUuid, arg.NodeUuid)
+	return err
+}
+
 const deleteGroupMembershipsForNode = `-- name: DeleteGroupMembershipsForNode :exec
 DELETE FROM group_membership
 USING nodes

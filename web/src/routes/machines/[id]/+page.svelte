@@ -288,9 +288,9 @@
   {#if loading}
     <Spinner />
   {:else}
-    <header class="hstack justify-between">
+    <header class="hstack justify-between mb-4">
       <div>
-        <h1>{machineHostname(machine!)}</h1>
+        <h1 class="mb-2">{machineHostname(machine!)}</h1>
         <p class="text-light">{machineOS(machine!)}</p>
       </div>
       <span class="badge" data-variant={isOnline(machine) ? 'success' : 'danger'}>

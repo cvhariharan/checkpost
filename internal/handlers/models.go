@@ -228,6 +228,12 @@ type GroupMachinesResponse struct {
 	PageCount  int           `json:"page_count"`
 }
 
+type PatchGroupMachinesRequest struct {
+	ID            string   `param:"id"`
+	AddNodeIDs    []string `json:"add_node_ids"`
+	RemoveNodeIDs []string `json:"remove_node_ids"`
+}
+
 type UpdateScheduleRequest struct {
 	ID            string   `param:"id"`
 	Query         string   `json:"query" validate:"required"`

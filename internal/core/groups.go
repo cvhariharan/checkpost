@@ -142,6 +142,33 @@ func (c *Core) ReplaceGroupsForNode(ctx context.Context, req models.NodeIdentity
 	return c.ListGroupsForNode(ctx, req)
 }
 
+func (c *Core) PatchGroupNodes(ctx context.Context, req models.GroupMachinesRequest, addIDs, removeIDs []string) (models.Page[models.Node], error) {
+	groupID, err := uuid.Parse(req.GroupUUID)
+	if err != nil {
+		return models.Page[models.Node]{}, fmt.Errorf("parse group uuid: %w", err)
+	}
+
+	addUUIDs, err := parseUUIDList(addIDs, "node")
+	if err != nil {
+		return models.Page[models.Node]{}, err
+	}
+
+	removeUUIDs, err := parseUUIDList(removeIDs, "node")
+	if err != nil {
+		return models.Page[models.Node]{}, err
+	}
+
+	if err := c.store.PatchGroupNodesTx(ctx, repo.PatchGroupNodesTxParams{
+		GroupUUID:       groupID,
+		AddNodeUUIDs:    addUUIDs,
+		RemoveNodeUUIDs: removeUUIDs,
+	}); err != nil {
+		return models.Page[models.Node]{}, fmt.Errorf("patch group nodes: %w", err)
+	}
+
+	return c.PaginateGroupMachines(ctx, req)
+}
+
 func (c *Core) PaginateGroupMachines(ctx context.Context, req models.GroupMachinesRequest) (models.Page[models.Node], error) {
 	groupID, err := uuid.Parse(req.GroupUUID)
 	if err != nil {
