@@ -9,5 +9,4 @@ DROP TABLE IF EXISTS policy_membership;
 DROP TABLE IF EXISTS policies;
 DROP TABLE IF EXISTS osquery_status_logs;
 DROP TABLE IF EXISTS schedules;
-DROP TABLE IF EXISTS queries;
 DROP TABLE IF EXISTS nodes;

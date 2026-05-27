@@ -39,20 +39,6 @@ func (h *Handler) HandleQueries(c echo.Context) error {
 	})
 }
 
-func (h *Handler) HandlePacks(c echo.Context) error {
-	packs := []Pack{
-		{ID: "p1", Name: "Security Essentials", Description: "Basic security checks", Queries: 5, Targets: 10},
-		{ID: "p2", Name: "Performance Monitoring", Description: "System performance metrics", Queries: 3, Targets: 8},
-		{ID: "p3", Name: "Compliance Checks", Description: "Compliance related queries", Queries: 7, Targets: 15},
-		{ID: "p4", Name: "Network Analysis", Description: "Network related checks", Queries: 4, Targets: 12},
-	}
-	return c.Render(200, "base.html", IndexPageData{
-		Title:  "Packs",
-		Active: "packs",
-		Packs:  packs,
-	})
-}
-
 func (h *Handler) HandleSchedules(c echo.Context) error {
 	schedules := []Schedule{
 		{ID: "s1", Name: "Daily Security Scan", Query: "Security Essentials", Interval: "24h", LastRun: "12 hours ago", NextRun: "in 12 hours"},

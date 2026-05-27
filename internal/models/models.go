@@ -99,40 +99,13 @@ type HostDetailsInfo struct {
 	Platform  PlatformInfo  `json:"platform_info"`
 }
 
-type Query struct {
-	ID          int64     `json:"-"`
-	UUID        string    `json:"uuid"`
-	Name        string    `json:"name"`
-	SQL         string    `json:"sql"`
-	Title       string    `json:"title"`
-	Query       string    `json:"query"`
-	IsSystem    bool      `json:"is_system"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type CreateQuery struct {
-	Name        string
-	SQL         string
-	Description string
-	IsSystem    bool
-}
-
-type UpdateQuery struct {
-	UUID        string
-	Name        string
-	SQL         string
-	Description string
-}
-
 type Schedule struct {
 	ID                int64     `json:"-"`
 	UUID              string    `json:"uuid"`
-	QueryID           string    `json:"query_id"`
-	Query             Query     `json:"query"`
 	Name              string    `json:"name"`
 	Title             string    `json:"title"`
+	SQL               string    `json:"sql"`
+	Description       string    `json:"description"`
 	VersionedName     string    `json:"versioned_name"`
 	SQLVersion        int       `json:"sql_version"`
 	IntervalSeconds   int       `json:"interval_seconds"`
@@ -152,8 +125,9 @@ type Schedule struct {
 }
 
 type CreateSchedule struct {
-	QueryUUID       string
 	Name            string
+	SQL             string
+	Description     string
 	IntervalSeconds int
 	Removed         bool
 	Snapshot        bool
@@ -168,8 +142,9 @@ type CreateSchedule struct {
 
 type UpdateSchedule struct {
 	UUID            string
-	QueryUUID       string
 	Name            string
+	SQL             string
+	Description     string
 	IntervalSeconds int
 	Removed         bool
 	Snapshot        bool
@@ -374,15 +349,6 @@ type OsqueryStatusLog struct {
 	Version      string
 }
 
-type Pack struct {
-	UUID      string   `json:"uuid"`
-	Discovery []string `json:"discovery"`
-	Platform  string   `json:"platform"`
-	Version   string   `json:"version"`
-	Shard     int      `json:"shard"`
-}
-
-type Packs map[string]Pack
 type Schedules map[string]Schedule
 
 // NodeMetric is one device-metric snapshot for a host, keyed by kind.

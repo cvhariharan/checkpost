@@ -34,7 +34,7 @@
     return (
       !search ||
       (s.title || '').toLowerCase().includes(search) ||
-      (s.query?.query || '').toLowerCase().includes(search) ||
+      (s.sql || '').toLowerCase().includes(search) ||
       String(s.interval || '').includes(search)
     )
   })
@@ -102,7 +102,7 @@
   }
 
   function descriptionFor(schedule: Schedule): string {
-    return schedule.query?.description || schedule.query?.query || ''
+    return schedule.description || schedule.sql || ''
   }
 </script>
 

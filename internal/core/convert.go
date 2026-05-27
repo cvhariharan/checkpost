@@ -69,222 +69,80 @@ func toModelNodeRow(node repo.ListNodesRow) models.Node {
 	}
 }
 
-func toModelQuery(query repo.Query) models.Query {
-	return models.Query{
-		ID:          query.ID,
-		UUID:        query.Uuid.String(),
-		Name:        query.Name,
-		SQL:         query.Sql,
-		Title:       query.Name,
-		Query:       query.Sql,
-		IsSystem:    query.IsSystem,
-		Description: query.Description,
-		CreatedAt:   query.CreatedAt,
-		UpdatedAt:   query.UpdatedAt,
-	}
-}
-
-func toModelQueryRow(query repo.ListQueriesRow) models.Query {
-	return models.Query{
-		ID:          query.ID,
-		UUID:        query.Uuid.String(),
-		Name:        query.Name,
-		SQL:         query.Sql,
-		Title:       query.Name,
-		Query:       query.Sql,
-		IsSystem:    query.IsSystem,
-		Description: query.Description,
-		CreatedAt:   query.CreatedAt,
-		UpdatedAt:   query.UpdatedAt,
-	}
-}
-
-func toModelSchedule(schedule repo.Schedule, query models.Query) models.Schedule {
+func toModelSchedule(schedule repo.Schedule) models.Schedule {
 	return scheduleFromParts(scheduleParts{
-		id:         schedule.ID,
-		uuid:       schedule.Uuid.String(),
-		name:       schedule.Name,
-		interval:   int(schedule.IntervalSeconds),
-		platform:   schedule.Platform,
-		version:    schedule.Version,
-		shard:      int(schedule.Shard),
-		denylist:   schedule.Denylist,
-		removed:    schedule.Removed,
-		snapshot:   schedule.Snapshot,
-		enabled:    schedule.Enabled,
-		isSystem:   schedule.IsSystem,
-		sqlVersion: int(schedule.SqlVersion),
-		createdAt:  schedule.CreatedAt,
-		updatedAt:  schedule.UpdatedAt,
-		query:      query,
+		id:          schedule.ID,
+		uuid:        schedule.Uuid.String(),
+		name:        schedule.Name,
+		sql:         schedule.Sql,
+		description: schedule.Description,
+		interval:    int(schedule.IntervalSeconds),
+		platform:    schedule.Platform,
+		version:     schedule.Version,
+		shard:       int(schedule.Shard),
+		denylist:    schedule.Denylist,
+		removed:     schedule.Removed,
+		snapshot:    schedule.Snapshot,
+		enabled:     schedule.Enabled,
+		isSystem:    schedule.IsSystem,
+		sqlVersion:  int(schedule.SqlVersion),
+		createdAt:   schedule.CreatedAt,
+		updatedAt:   schedule.UpdatedAt,
 	})
 }
 
-func toModelScheduleWithQueryRow(row repo.GetScheduleWithQueryByUUIDRow) models.Schedule {
-	query := models.Query{
-		ID:          row.QueryIDValue,
-		UUID:        row.QueryUuid.String(),
-		Name:        row.QueryName,
-		SQL:         row.QuerySql,
-		Title:       row.QueryName,
-		Query:       row.QuerySql,
-		IsSystem:    row.QueryIsSystem,
-		Description: row.QueryDescription,
-		CreatedAt:   row.QueryCreatedAt,
-		UpdatedAt:   row.QueryUpdatedAt,
-	}
-
+func toModelScheduleRow(row repo.ListSchedulesRow) models.Schedule {
 	return scheduleFromParts(scheduleParts{
-		id:         row.ID,
-		uuid:       row.Uuid.String(),
-		name:       row.Name,
-		interval:   int(row.IntervalSeconds),
-		platform:   row.Platform,
-		version:    row.Version,
-		shard:      int(row.Shard),
-		denylist:   row.Denylist,
-		removed:    row.Removed,
-		snapshot:   row.Snapshot,
-		enabled:    row.Enabled,
-		isSystem:   row.IsSystem,
-		sqlVersion: int(row.SqlVersion),
-		createdAt:  row.CreatedAt,
-		updatedAt:  row.UpdatedAt,
-		query:      query,
-	})
-}
-
-func toModelScheduleRow(row repo.ListSchedulesWithQueriesRow) models.Schedule {
-	query := models.Query{
-		ID:          row.QueryIDValue,
-		UUID:        row.QueryUuid.String(),
-		Name:        row.QueryName,
-		SQL:         row.QuerySql,
-		Title:       row.QueryName,
-		Query:       row.QuerySql,
-		IsSystem:    row.QueryIsSystem,
-		Description: row.QueryDescription,
-		CreatedAt:   row.QueryCreatedAt,
-		UpdatedAt:   row.QueryUpdatedAt,
-	}
-
-	return scheduleFromParts(scheduleParts{
-		id:         row.ID,
-		uuid:       row.Uuid.String(),
-		name:       row.Name,
-		interval:   int(row.IntervalSeconds),
-		platform:   row.Platform,
-		version:    row.Version,
-		shard:      int(row.Shard),
-		denylist:   row.Denylist,
-		removed:    row.Removed,
-		snapshot:   row.Snapshot,
-		enabled:    row.Enabled,
-		isSystem:   row.IsSystem,
-		sqlVersion: int(row.SqlVersion),
-		createdAt:  row.CreatedAt,
-		updatedAt:  row.UpdatedAt,
-		query:      query,
-	})
-}
-
-func toModelEnabledScheduleForNodeRow(row repo.ListEnabledSchedulesForNodeRow) models.Schedule {
-	query := models.Query{
-		ID:          row.QueryIDValue,
-		UUID:        row.QueryUuid.String(),
-		Name:        row.QueryName,
-		SQL:         row.QuerySql,
-		Title:       row.QueryName,
-		Query:       row.QuerySql,
-		IsSystem:    row.QueryIsSystem,
-		Description: row.QueryDescription,
-		CreatedAt:   row.QueryCreatedAt,
-		UpdatedAt:   row.QueryUpdatedAt,
-	}
-
-	return scheduleFromParts(scheduleParts{
-		id:         row.ID,
-		uuid:       row.Uuid.String(),
-		name:       row.Name,
-		interval:   int(row.IntervalSeconds),
-		platform:   row.Platform,
-		version:    row.Version,
-		shard:      int(row.Shard),
-		denylist:   row.Denylist,
-		removed:    row.Removed,
-		snapshot:   row.Snapshot,
-		enabled:    row.Enabled,
-		isSystem:   row.IsSystem,
-		sqlVersion: int(row.SqlVersion),
-		createdAt:  row.CreatedAt,
-		updatedAt:  row.UpdatedAt,
-		query:      query,
-	})
-}
-
-func toModelEnabledScheduleRow(row repo.ListEnabledSchedulesWithQueriesRow) models.Schedule {
-	query := models.Query{
-		ID:          row.QueryIDValue,
-		UUID:        row.QueryUuid.String(),
-		Name:        row.QueryName,
-		SQL:         row.QuerySql,
-		Title:       row.QueryName,
-		Query:       row.QuerySql,
-		IsSystem:    row.QueryIsSystem,
-		Description: row.QueryDescription,
-		CreatedAt:   row.QueryCreatedAt,
-		UpdatedAt:   row.QueryUpdatedAt,
-	}
-
-	return scheduleFromParts(scheduleParts{
-		id:         row.ID,
-		uuid:       row.Uuid.String(),
-		name:       row.Name,
-		interval:   int(row.IntervalSeconds),
-		platform:   row.Platform,
-		version:    row.Version,
-		shard:      int(row.Shard),
-		denylist:   row.Denylist,
-		removed:    row.Removed,
-		snapshot:   row.Snapshot,
-		enabled:    row.Enabled,
-		isSystem:   row.IsSystem,
-		sqlVersion: int(row.SqlVersion),
-		createdAt:  row.CreatedAt,
-		updatedAt:  row.UpdatedAt,
-		query:      query,
+		id:          row.ID,
+		uuid:        row.Uuid.String(),
+		name:        row.Name,
+		sql:         row.Sql,
+		description: row.Description,
+		interval:    int(row.IntervalSeconds),
+		platform:    row.Platform,
+		version:     row.Version,
+		shard:       int(row.Shard),
+		denylist:    row.Denylist,
+		removed:     row.Removed,
+		snapshot:    row.Snapshot,
+		enabled:     row.Enabled,
+		isSystem:    row.IsSystem,
+		sqlVersion:  int(row.SqlVersion),
+		createdAt:   row.CreatedAt,
+		updatedAt:   row.UpdatedAt,
 	})
 }
 
 // scheduleParts collects the fields shared across every sqlc schedule row
 // shape so model assembly lives in one place.
 type scheduleParts struct {
-	id         int64
-	uuid       string
-	name       string
-	interval   int
-	platform   string
-	version    string
-	shard      int
-	denylist   bool
-	removed    bool
-	snapshot   bool
-	enabled    bool
-	isSystem   bool
-	sqlVersion int
-	createdAt  time.Time
-	updatedAt  time.Time
-	query      models.Query
+	id          int64
+	uuid        string
+	name        string
+	sql         string
+	description string
+	interval    int
+	platform    string
+	version     string
+	shard       int
+	denylist    bool
+	removed     bool
+	snapshot    bool
+	enabled     bool
+	isSystem    bool
+	sqlVersion  int
+	createdAt   time.Time
+	updatedAt   time.Time
 }
 
 func scheduleFromParts(parts scheduleParts) models.Schedule {
 	return models.Schedule{
 		ID:              parts.id,
 		UUID:            parts.uuid,
-		QueryID:         parts.query.UUID,
-		Query:           parts.query,
 		Name:            parts.name,
 		Title:           parts.name,
+		SQL:             parts.sql,
+		Description:     parts.description,
 		VersionedName:   versionedScheduleName(parts.name, parts.sqlVersion),
 		SQLVersion:      parts.sqlVersion,
 		IntervalSeconds: parts.interval,

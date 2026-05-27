@@ -18,7 +18,6 @@ type Store interface {
 	ListNodesMatchingIdentity(ctx context.Context, term string) ([]MatchNodesByIdentityPatternRow, error)
 	ReplaceNodeGroupsTx(ctx context.Context, params ReplaceNodeGroupsTxParams) error
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
-	UpdateQueryTx(ctx context.Context, params UpdateQueryTxParams) (Query, error)
 	UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error)
 }
 
@@ -61,10 +60,6 @@ type CreateScheduleTxParams struct {
 type UpdateScheduleTxParams struct {
 	Schedule   UpdateScheduleByUUIDParams
 	GroupUUIDs []uuid.UUID
-}
-
-type UpdateQueryTxParams struct {
-	Query UpdateQueryByUUIDParams
 }
 
 // ListNodesMatchingIdentity wraps the generated pattern lookup, applying
@@ -270,7 +265,7 @@ func (s *PostgresStore) UpdateScheduleTx(ctx context.Context, params UpdateSched
 		return Schedule{}, fmt.Errorf("get existing schedule: %w", err)
 	}
 
-	if existing.QueryID != params.Schedule.QueryID || existing.Snapshot != params.Schedule.Snapshot {
+	if existing.Sql != params.Schedule.Sql || existing.Snapshot != params.Schedule.Snapshot {
 		if _, err := q.BumpScheduleVersion(ctx, existing.ID); err != nil {
 			return Schedule{}, fmt.Errorf("bump schedule version: %w", err)
 		}
@@ -305,44 +300,6 @@ func (s *PostgresStore) UpdateScheduleTx(ctx context.Context, params UpdateSched
 	}
 
 	return schedule, nil
-}
-
-func (s *PostgresStore) UpdateQueryTx(ctx context.Context, params UpdateQueryTxParams) (Query, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Query{}, fmt.Errorf("begin update query transaction: %w", err)
-	}
-	defer tx.Rollback()
-
-	q := s.Queries.WithTx(tx)
-
-	existing, err := q.GetQueryByUUID(ctx, params.Query.Uuid)
-	if err != nil {
-		return Query{}, fmt.Errorf("get existing query: %w", err)
-	}
-
-	updated, err := q.UpdateQueryByUUID(ctx, params.Query)
-	if err != nil {
-		return Query{}, fmt.Errorf("update query: %w", err)
-	}
-
-	if existing.Sql != updated.Sql {
-		schedules, err := q.ListSchedulesForQuery(ctx, updated.ID)
-		if err != nil {
-			return Query{}, fmt.Errorf("list schedules for query: %w", err)
-		}
-		for _, sched := range schedules {
-			if _, err := q.BumpScheduleVersion(ctx, sched.ID); err != nil {
-				return Query{}, fmt.Errorf("bump schedule version for %s: %w", sched.Uuid, err)
-			}
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return Query{}, fmt.Errorf("commit update query transaction: %w", err)
-	}
-
-	return updated, nil
 }
 
 func loadGroupsTx(ctx context.Context, q *Queries, groupUUIDs []uuid.UUID) ([]Group, error) {

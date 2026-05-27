@@ -71,7 +71,7 @@
   <header class="hstack justify-between">
     <div>
       <h2>{schedule?.title || 'Schedule results'}</h2>
-      <p class="text-light">{schedule?.query?.query || ''}</p>
+      <p class="text-light">{schedule?.sql || ''}</p>
     </div>
     <menu class="buttons">
       <li><button type="button" class="small outline" disabled={loading} onclick={onRefresh}>Refresh</button></li>

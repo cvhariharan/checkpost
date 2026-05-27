@@ -46,14 +46,6 @@ type Query struct {
 	LastRun     string
 }
 
-type Pack struct {
-	ID          string
-	Name        string
-	Description string
-	Queries     int
-	Targets     int
-}
-
 type Schedule struct {
 	ID       string
 	Name     string
@@ -68,7 +60,6 @@ type IndexPageData struct {
 	Active       string
 	Machines     []Machine
 	Queries      []Query
-	Packs        []Pack
 	Schedules    []Schedule
 	AllTags      []string
 	ErrorCode    int
@@ -94,12 +85,6 @@ type EnrollmentResponse struct {
 	NodeInvalid bool   `json:"node_invalid"`
 }
 
-type CreateQueryRequest struct {
-	Title       string `json:"title"`
-	Query       string `json:"query"`
-	Description string `json:"description"`
-}
-
 type CreateResponse struct {
 	ID string `json:"id"`
 }
@@ -107,12 +92,6 @@ type CreateResponse struct {
 type PaginateRequest struct {
 	Page  int `query:"page"`
 	Count int `query:"count_per_page"`
-}
-
-type PaginateQueriesResponse struct {
-	Queries    []models.Query `json:"queries"`
-	TotalCount int            `json:"total_count"`
-	PageCount  int            `json:"page_count"`
 }
 
 type PaginateMachinesResponse struct {
@@ -147,24 +126,18 @@ type MachineQueriesResponse struct {
 	PageCount  int                         `json:"page_count"`
 }
 
-type UpdateQueryRequest struct {
-	ID          string `param:"id"`
-	Title       string `json:"title"`
-	Query       string `json:"query"`
-	Description string `json:"description"`
-}
-
 type CreateScheduleRequest struct {
-	QueryID  string   `json:"query_id" validate:"required,uuid"`
-	Title    string   `json:"title" validate:"required,ascii"`
-	Interval int      `json:"interval" validate:"required,lte=604800"`
-	Removed  bool     `json:"removed"`
-	Snapshot bool     `json:"snapshot"`
-	Platform string   `json:"platform" validate:"oneof=darwin linux posix windows any all"`
-	Version  string   `json:"version"`
-	Shard    int      `json:"shard" validate:"lte=100"`
-	Denylist bool     `json:"denylist"`
-	GroupIDs []string `json:"group_ids"`
+	Query       string   `json:"query" validate:"required"`
+	Description string   `json:"description"`
+	Title       string   `json:"title" validate:"required,ascii"`
+	Interval    int      `json:"interval" validate:"required,lte=604800"`
+	Removed     bool     `json:"removed"`
+	Snapshot    bool     `json:"snapshot"`
+	Platform    string   `json:"platform" validate:"oneof=darwin linux posix windows any all"`
+	Version     string   `json:"version"`
+	Shard       int      `json:"shard" validate:"lte=100"`
+	Denylist    bool     `json:"denylist"`
+	GroupIDs    []string `json:"group_ids"`
 }
 
 type PaginateSchedulesResponse struct {
@@ -257,7 +230,8 @@ type GroupMachinesResponse struct {
 
 type UpdateScheduleRequest struct {
 	ID            string   `param:"id"`
-	QueryID       string   `json:"query_id" validate:"required,uuid"`
+	Query         string   `json:"query" validate:"required"`
+	Description   string   `json:"description"`
 	Title         string   `json:"title" validate:"required,ascii"`
 	Interval      int      `json:"interval" validate:"required,lte=604800"`
 	Removed       bool     `json:"removed"`

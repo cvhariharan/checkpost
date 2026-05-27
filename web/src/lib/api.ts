@@ -3,16 +3,6 @@ export type Paginated<T, K extends string> = {
   total_count?: number
 } & { [P in K]?: T[] }
 
-export type Query = {
-  uuid: string
-  title?: string
-  query: string
-  description?: string
-  is_system?: boolean
-  created_at?: string
-  updated_at?: string
-}
-
 export type Group = {
   uuid: string
   name?: string
@@ -41,12 +31,13 @@ export type Policy = {
 export type Schedule = {
   uuid: string
   title?: string
+  sql?: string
+  description?: string
   interval?: number
   platform?: string
   snapshot?: boolean
   groups?: Group[]
   target_all_machines?: boolean
-  query?: { uuid?: string; query?: string; description?: string }
 }
 
 export type Machine = {
@@ -110,13 +101,6 @@ export type ScheduleResultsPayload = {
   page_count: number
 }
 
-export type Pack = {
-  Name?: string
-  Description?: string
-  Queries?: number | string
-  Targets?: number | string
-}
-
 export type NodeMetric = {
   kind: string
   value: unknown
@@ -165,34 +149,6 @@ function jsonRequest<T>(path: string, method: string, body: unknown): Promise<T>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   }).then((res) => handleResponse<T>(res))
-}
-
-// Queries
-export function fetchQueries(opts: PageOpts = {}) {
-  const { page = 1, countPerPage = 10 } = opts
-  return fetch(apiUrl('/queries', { page, count_per_page: countPerPage })).then((r) =>
-    handleResponse<Paginated<Query, 'queries'>>(r)
-  )
-}
-
-export function fetchAllQueries() {
-  return fetch(apiUrl('/queries', { page: 1, count_per_page: 1000 })).then((r) =>
-    handleResponse<Paginated<Query, 'queries'>>(r)
-  )
-}
-
-export function createQuery(payload: { title: string; query: string; description?: string }) {
-  return jsonRequest<Query>('/query', 'POST', payload)
-}
-
-export function updateQuery(uuid: string, payload: { title: string; query: string; description?: string }) {
-  return jsonRequest<Query>(`/query/${encodeURIComponent(uuid)}`, 'PUT', payload)
-}
-
-export function deleteQuery(uuid: string) {
-  return fetch(`${BASE_URL}/query/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
-    handleResponse<unknown>(r)
-  )
 }
 
 // Schedules
@@ -341,9 +297,4 @@ export function fetchMachineMetrics(id: string) {
 
 export function fetchMetricSchemas() {
   return fetch(`${BASE_URL}/metrics/schemas`).then((r) => handleResponse<MetricSchemas>(r))
-}
-
-// Packs
-export function fetchPacks() {
-  return fetch(`${BASE_URL}/packs`).then((r) => handleResponse<Pack[] | { packs?: Pack[] }>(r))
 }

@@ -21,8 +21,9 @@ func (h *Handler) HandleCreateSchedule(c echo.Context) error {
 	}
 
 	sched, err := h.c.CreateSchedule(c.Request().Context(), models.CreateSchedule{
-		QueryUUID:       req.QueryID,
 		Name:            req.Title,
+		SQL:             req.Query,
+		Description:     req.Description,
 		IntervalSeconds: req.Interval,
 		Removed:         req.Removed,
 		Snapshot:        req.Snapshot,
@@ -122,8 +123,9 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 
 	q, err := h.c.UpdateSchedule(c.Request().Context(), models.UpdateSchedule{
 		UUID:            req.ID,
-		QueryUUID:       req.QueryID,
 		Name:            req.Title,
+		SQL:             req.Query,
+		Description:     req.Description,
 		IntervalSeconds: req.Interval,
 		Removed:         req.Removed,
 		Snapshot:        req.Snapshot,

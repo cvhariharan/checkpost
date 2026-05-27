@@ -1,0 +1,65 @@
+@layer theme {
+  :root {
+    color-scheme: light dark;
+
+    --background: light-dark(#faf5e9, #1a1715);
+    --foreground: light-dark(#1f1b16, #f5efe0);
+    --card: light-dark(#fffcf4, #221e1a);
+    --card-foreground: light-dark(#1f1b16, #f5efe0);
+
+    --primary: light-dark(#115e59, #2dd4bf);
+    --primary-foreground: light-dark(#faf5e9, #1a1715);
+
+    --secondary: light-dark(#f0e7d5, #2a2521);
+    --secondary-foreground: light-dark(#1f1b16, #f5efe0);
+    --muted: light-dark(#f1e8d6, #27211b);
+    --muted-foreground: light-dark(#78716c, #a89f90);
+    --faint: light-dark(#f7f0e0, #211c18);
+    --faint-foreground: light-dark(#9c8f7e, #78716c);
+    --accent: light-dark(#fef3c7, #422006);
+    --accent-foreground: light-dark(#78350f, #fcd34d);
+
+    --success: light-dark(#16a34a, #4ade80);
+    --success-foreground: light-dark(#faf5e9, #1a1715);
+    --warning: light-dark(#d97706, #fbbf24);
+    --warning-foreground: light-dark(#1f1b16, #1a1715);
+    --danger: light-dark(#b91c1c, #f87171);
+    --danger-foreground: light-dark(#faf5e9, #1a1715);
+
+    --border: light-dark(#e7dece, #322c26);
+    --input: light-dark(#e7dece, #322c26);
+    --ring: light-dark(#115e59, #2dd4bf);
+  }
+
+  :root {
+    --severity-critical: light-dark(#b91c1c, #f87171);
+    --severity-high: light-dark(#ea580c, #fb923c);
+    --severity-medium: light-dark(#d97706, #fbbf24);
+    --severity-low: light-dark(#65a30d, #a3e635);
+    --severity-info: light-dark(#78716c, #a89f90);
+
+    --agent-active: light-dark(#78350f, #fcd34d);
+    --agent-active-bg: light-dark(#fef3c7, #422006);
+    --agent-degraded: light-dark(#d97706, #fbbf24);
+    --agent-degraded-bg: light-dark(#fef0d7, #3a2a0a);
+    --agent-inactive: light-dark(#78716c, #a89f90);
+    --agent-inactive-bg: light-dark(#efe9dc, #2a2521);
+    --agent-quarantined: light-dark(#b91c1c, #f87171);
+    --agent-quarantined-bg: light-dark(#fbe3e1, #3a1716);
+
+    --viz-1: light-dark(#115e59, #2dd4bf);
+    --viz-2: light-dark(#d97706, #fbbf24);
+    --viz-3: light-dark(#b91c1c, #f87171);
+    --viz-4: light-dark(#16a34a, #4ade80);
+    --viz-5: light-dark(#9a3412, #fb923c);
+    --viz-6: light-dark(#0e7490, #22d3ee);
+    --viz-7: light-dark(#854d0e, #d6a66e);
+    --viz-8: light-dark(#7c2d12, #f0a87a);
+
+    --syntax-keyword: light-dark(#115e59, #2dd4bf);
+    --syntax-string: light-dark(#16a34a, #4ade80);
+    --syntax-number: light-dark(#b45309, #fcd34d);
+    --syntax-function: light-dark(#b91c1c, #f87171);
+    --syntax-comment: light-dark(#78716c, #a89f90);
+  }
+}

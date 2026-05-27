@@ -16,14 +16,8 @@ import (
 )
 
 func (c *Core) CreateSchedule(ctx context.Context, req models.CreateSchedule) (models.Schedule, error) {
-	queryID, err := uuid.Parse(req.QueryUUID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	q, err := c.store.GetQueryByUUID(ctx, queryID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("get query for schedule: %w", err)
+	if err := validateQuery(req.SQL); err != nil {
+		return models.Schedule{}, err
 	}
 
 	groupUUIDs, err := parseUUIDList(req.GroupIDs, "group")
@@ -33,8 +27,9 @@ func (c *Core) CreateSchedule(ctx context.Context, req models.CreateSchedule) (m
 
 	sched, err := c.store.CreateScheduleTx(ctx, repo.CreateScheduleTxParams{
 		Schedule: repo.CreateScheduleParams{
-			QueryID:         q.ID,
 			Name:            req.Name,
+			Sql:             req.SQL,
+			Description:     req.Description,
 			IntervalSeconds: int32(req.IntervalSeconds),
 			Platform:        defaultString(req.Platform, "all"),
 			Version:         req.Version,
@@ -51,12 +46,31 @@ func (c *Core) CreateSchedule(ctx context.Context, req models.CreateSchedule) (m
 		return models.Schedule{}, fmt.Errorf("create schedule: %w", err)
 	}
 
-	out := toModelSchedule(sched, toModelQuery(q))
+	out := toModelSchedule(sched)
 	out, err = c.attachGroupsToSchedule(ctx, out)
 	if err != nil {
 		return models.Schedule{}, err
 	}
 	return out, nil
+}
+
+// validateQuery is a best-effort sanity check that the inline schedule SQL
+// looks like a query rather than empty or junk. osquery enforces the real
+// grammar at runtime.
+func validateQuery(query string) error {
+	if strings.TrimSpace(query) == "" {
+		return fmt.Errorf("%w: query cannot be empty", ErrInvalidQuery)
+	}
+
+	keywords := []string{"SELECT", "FROM", "WHERE", "JOIN", "ORDER BY", "GROUP BY", "HAVING", "LIMIT"}
+	upper := strings.ToUpper(query)
+	for _, keyword := range keywords {
+		if strings.Contains(upper, keyword) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("%w: query does not appear to be valid SQL", ErrInvalidQuery)
 }
 
 func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResultsRequest) (models.ScheduleResults, error) {
@@ -246,7 +260,7 @@ func (c *Core) PaginateSchedules(ctx context.Context, req models.PageRequest) (m
 		page = 0
 	}
 
-	rows, err := c.store.ListSchedulesWithQueries(ctx, repo.ListSchedulesWithQueriesParams{
+	rows, err := c.store.ListSchedules(ctx, repo.ListSchedulesParams{
 		Limit:  int32(countPerPage),
 		Offset: int32(page * countPerPage),
 	})
@@ -273,14 +287,14 @@ func (c *Core) PaginateSchedules(ctx context.Context, req models.PageRequest) (m
 }
 
 func (c *Core) ListEnabledSchedules(ctx context.Context, req models.ScheduleListRequest) ([]models.Schedule, error) {
-	rows, err := c.store.ListEnabledSchedulesWithQueries(ctx, int32(req.Limit))
+	rows, err := c.store.ListEnabledSchedules(ctx, int32(req.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("list enabled schedules: %w", err)
 	}
 
 	out := make([]models.Schedule, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toModelEnabledScheduleRow(row))
+		out = append(out, toModelSchedule(row))
 	}
 	return out, nil
 }
@@ -301,7 +315,7 @@ func (c *Core) ListEnabledSchedulesForNode(ctx context.Context, req models.NodeK
 
 	out := make([]models.Schedule, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toModelEnabledScheduleForNodeRow(row))
+		out = append(out, toModelSchedule(row))
 	}
 	return out, nil
 }
@@ -312,12 +326,12 @@ func (c *Core) GetSchedule(ctx context.Context, req models.ResourceID) (models.S
 		return models.Schedule{}, fmt.Errorf("parse schedule uuid: %w", err)
 	}
 
-	sched, err := c.store.GetScheduleWithQueryByUUID(ctx, scheduleID)
+	sched, err := c.store.GetScheduleByUUID(ctx, scheduleID)
 	if err != nil {
 		return models.Schedule{}, fmt.Errorf("get schedule: %w", err)
 	}
 
-	out := toModelScheduleWithQueryRow(sched)
+	out := toModelSchedule(sched)
 	out, err = c.attachGroupsToSchedule(ctx, out)
 	if err != nil {
 		return models.Schedule{}, err
@@ -359,14 +373,8 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 		return models.Schedule{}, fmt.Errorf("parse schedule uuid: %w", err)
 	}
 
-	queryID, err := uuid.Parse(req.QueryUUID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("parse query uuid: %w", err)
-	}
-
-	q, err := c.store.GetQueryByUUID(ctx, queryID)
-	if err != nil {
-		return models.Schedule{}, fmt.Errorf("get query for schedule: %w", err)
+	if err := validateQuery(req.SQL); err != nil {
+		return models.Schedule{}, err
 	}
 
 	groupUUIDs, err := parseUUIDList(req.GroupIDs, "group")
@@ -377,8 +385,9 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 	sched, err := c.store.UpdateScheduleTx(ctx, repo.UpdateScheduleTxParams{
 		Schedule: repo.UpdateScheduleByUUIDParams{
 			Uuid:            scheduleID,
-			QueryID:         q.ID,
 			Name:            req.Name,
+			Sql:             req.SQL,
+			Description:     req.Description,
 			IntervalSeconds: int32(req.IntervalSeconds),
 			Platform:        defaultString(req.Platform, "all"),
 			Version:         req.Version,
@@ -395,7 +404,7 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 		return models.Schedule{}, fmt.Errorf("update schedule: %w", err)
 	}
 
-	out := toModelSchedule(sched, toModelQuery(q))
+	out := toModelSchedule(sched)
 	out, err = c.attachGroupsToSchedule(ctx, out)
 	if err != nil {
 		return models.Schedule{}, err

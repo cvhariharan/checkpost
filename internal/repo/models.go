@@ -111,17 +111,6 @@ type PolicyMembership struct {
 	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
 }
 
-type Query struct {
-	ID          int64     `db:"id" json:"id"`
-	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
-	Name        string    `db:"name" json:"name"`
-	Sql         string    `db:"sql" json:"sql"`
-	Description string    `db:"description" json:"description"`
-	IsSystem    bool      `db:"is_system" json:"is_system"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-}
-
 type QuerySchema struct {
 	ScheduleUuid     uuid.UUID       `db:"schedule_uuid" json:"schedule_uuid"`
 	SqlVersion       int32           `db:"sql_version" json:"sql_version"`
@@ -134,8 +123,9 @@ type QuerySchema struct {
 type Schedule struct {
 	ID              int64     `db:"id" json:"id"`
 	Uuid            uuid.UUID `db:"uuid" json:"uuid"`
-	QueryID         int64     `db:"query_id" json:"query_id"`
 	Name            string    `db:"name" json:"name"`
+	Sql             string    `db:"sql" json:"sql"`
+	Description     string    `db:"description" json:"description"`
 	IntervalSeconds int32     `db:"interval_seconds" json:"interval_seconds"`
 	Platform        string    `db:"platform" json:"platform"`
 	Version         string    `db:"version" json:"version"`

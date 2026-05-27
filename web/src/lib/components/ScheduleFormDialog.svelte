@@ -1,11 +1,9 @@
 <script lang="ts">
   import {
     createSchedule,
-    fetchAllQueries,
     fetchGroups,
     updateSchedule,
     type Group,
-    type Query,
     type Schedule
   } from '$lib/api'
   import ErrorMessage from './ErrorMessage.svelte'
@@ -18,9 +16,9 @@
 
   let dialog: HTMLDialogElement
   let preparedFor: string | null = null
-  let queries: Query[] = []
   let availableGroups: Group[] = []
-  let selectedQuery = ''
+  let query = ''
+  let description = ''
   let title = ''
   let interval = 3600
   let platform = 'all'
@@ -33,7 +31,6 @@
     const key = schedule?.uuid || 'new'
     if (preparedFor !== key) {
       loadForm(schedule)
-      loadQueries()
       loadGroups()
       preparedFor = key
     }
@@ -46,7 +43,8 @@
   }
 
   function loadForm(record: Schedule | null) {
-    selectedQuery = record?.query?.uuid || ''
+    query = record?.sql || ''
+    description = record?.description || ''
     title = record?.title || ''
     interval = record?.interval || 3600
     platform = record?.platform || 'all'
@@ -54,15 +52,6 @@
     groupIds = (record?.groups || []).map((g) => g.uuid)
     error = ''
     isSubmitting = false
-  }
-
-  async function loadQueries() {
-    try {
-      const data = await fetchAllQueries()
-      queries = data.queries || []
-    } catch (err) {
-      error = (err as Error).message || 'Failed to fetch queries'
-    }
   }
 
   async function loadGroups() {
@@ -84,7 +73,8 @@
     error = ''
     try {
       const payload = {
-        query_id: selectedQuery,
+        query,
+        description,
         title,
         interval: Number.parseInt(String(interval), 10),
         platform,
@@ -113,18 +103,18 @@
 
     <div class="vstack">
       <label data-field>
-        Query
-        <select bind:value={selectedQuery} required>
-          <option value="">Select a query...</option>
-          {#each queries as query}
-            <option value={query.uuid}>{query.title || query.description || query.query}</option>
-          {/each}
-        </select>
+        Title
+        <input bind:value={title} required placeholder="Schedule title" />
       </label>
 
       <label data-field>
-        Title
-        <input bind:value={title} required placeholder="Schedule title" />
+        Query
+        <textarea bind:value={query} required rows="4" placeholder="SELECT * FROM ..."></textarea>
+      </label>
+
+      <label data-field>
+        Description
+        <input bind:value={description} placeholder="Optional description" />
       </label>
 
       <label data-field>

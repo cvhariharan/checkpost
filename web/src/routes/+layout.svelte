@@ -1,13 +1,12 @@
 <script lang="ts">
   import '@knadh/oat/oat.min.css'
+  import '$lib/styles/theme.css'
   import '@knadh/oat/oat.min.js'
   import { page } from '$app/stores'
 
   const navItems: { href: string; label: string; section: string }[] = [
     { href: '/machines', label: 'Machines', section: 'machines' },
     { href: '/groups', label: 'Groups', section: 'groups' },
-    { href: '/queries', label: 'Queries', section: 'queries' },
-    { href: '/packs', label: 'Packs', section: 'packs' },
     { href: '/policies', label: 'Policies', section: 'policies' },
     { href: '/schedules', label: 'Schedules', section: 'schedules' }
   ]

@@ -24,30 +24,12 @@ CREATE INDEX nodes_last_seen_idx ON nodes (last_seen_at DESC);
 CREATE INDEX nodes_platform_idx ON nodes (platform);
 CREATE INDEX nodes_last_policy_check_at_idx ON nodes (last_policy_check_at);
 
-CREATE TABLE queries (
+CREATE TABLE schedules (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuidv7(),
     name TEXT NOT NULL,
     sql TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
-    is_system BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT queries_uuid_unique UNIQUE (uuid),
-    CONSTRAINT queries_name_unique UNIQUE (name),
-    CONSTRAINT queries_name_nonempty CHECK (length(trim(name)) > 0),
-    CONSTRAINT queries_sql_nonempty CHECK (length(trim(sql)) > 0)
-);
-
-CREATE INDEX queries_system_idx ON queries (is_system);
-CREATE INDEX queries_created_at_idx ON queries (created_at DESC);
-
-CREATE TABLE schedules (
-    id BIGSERIAL PRIMARY KEY,
-    uuid UUID NOT NULL DEFAULT uuidv7(),
-    query_id BIGINT NOT NULL REFERENCES queries (id) ON DELETE RESTRICT,
-    name TEXT NOT NULL,
     interval_seconds INTEGER NOT NULL,
     platform TEXT NOT NULL DEFAULT 'all',
     version TEXT NOT NULL DEFAULT '',
@@ -65,6 +47,7 @@ CREATE TABLE schedules (
     CONSTRAINT schedules_uuid_unique UNIQUE (uuid),
     CONSTRAINT schedules_name_unique UNIQUE (name),
     CONSTRAINT schedules_name_nonempty CHECK (length(trim(name)) > 0),
+    CONSTRAINT schedules_sql_nonempty CHECK (length(trim(sql)) > 0),
     CONSTRAINT schedules_interval_positive CHECK (interval_seconds > 0),
     CONSTRAINT schedules_interval_max CHECK (interval_seconds <= 604800),
     CONSTRAINT schedules_shard_range CHECK (shard >= 0 AND shard <= 100),
@@ -72,7 +55,6 @@ CREATE TABLE schedules (
     CONSTRAINT schedules_retention_days_range CHECK (retention_days BETWEEN 1 AND 365)
 );
 
-CREATE INDEX schedules_query_id_idx ON schedules (query_id);
 CREATE INDEX schedules_enabled_idx ON schedules (enabled);
 CREATE INDEX schedules_system_idx ON schedules (is_system);
 CREATE INDEX schedules_created_at_idx ON schedules (created_at DESC);
@@ -233,87 +215,67 @@ CREATE TABLE node_metrics (
 CREATE INDEX node_metrics_kind_idx ON node_metrics (kind);
 CREATE INDEX node_metrics_collected_at_idx ON node_metrics (collected_at DESC);
 
--- System queries: each ships paired with a schedule of the same name. The
--- schedule name is the key the systemmetrics registry maps to a metric kind.
-INSERT INTO queries (name, sql, description, is_system)
+-- System schedules carry their SQL inline. The schedule name is the key the
+-- systemmetrics registry maps to a metric kind.
+INSERT INTO schedules (name, sql, description, interval_seconds, platform, snapshot, is_system)
 VALUES
     (
         'Disk Usage POSIX',
         'SELECT path, type, ROUND((blocks_available * blocks_size * 10e-10), 2) AS free_gb, ROUND((blocks * blocks_size * 10e-10), 2) AS total_gb, ROUND ((blocks_available * 1.0 / blocks * 1.0) * 100, 2) AS free_perc FROM mounts WHERE path = ''/'';',
         'Disk usage for the root mount (POSIX).',
-        true
+        3600, 'posix', true, true
     ),
     (
         'Disk Usage Windows',
         'SELECT device_id AS path, type, (free_space * 10e-10) AS free_gb, (size * 10e-10) AS total_gb, ROUND((free_space * 1.0 / size * 1.0) * 100, 2) AS free_perc FROM logical_drives WHERE device_id = ''C:'';',
         'Disk usage for the C: drive (Windows).',
-        true
+        3600, 'windows', true, true
     ),
     (
         'Network Interfaces POSIX',
         'SELECT ia.interface AS name, ia.address AS address, id.mac AS mac FROM interface_addresses ia LEFT JOIN interface_details id ON id.interface = ia.interface;',
         'Network interface addresses and MACs (POSIX).',
-        true
+        3600, 'posix', true, true
     ),
     (
         'Network Interfaces Windows',
         'SELECT ia.interface AS name, ia.address AS address, id.mac AS mac FROM interface_addresses ia LEFT JOIN interface_details id ON id.interface = ia.interface;',
         'Network interface addresses and MACs (Windows).',
-        true
+        3600, 'windows', true, true
     ),
     (
         'Memory Usage POSIX',
         'SELECT memory_total AS total_bytes, memory_available AS available_bytes FROM memory_info;',
         'Total and available physical memory (POSIX).',
-        true
+        3600, 'posix', true, true
     ),
     (
         'Memory Usage Windows',
         'SELECT physical_memory AS total_bytes FROM system_info;',
         'Total physical memory (Windows). Available memory not reported.',
-        true
+        3600, 'windows', true, true
     ),
     (
         'CPU Info',
         'SELECT cpu_brand AS model, cpu_physical_cores AS physical_cores, cpu_logical_cores AS logical_cores FROM system_info;',
         'Primary CPU model and core counts.',
-        true
+        86400, 'all', true, true
     ),
     (
         'OS Info',
         'SELECT name, version, build, platform FROM os_version;',
         'Operating system name, version, and platform.',
-        true
+        86400, 'all', true, true
     ),
     (
         'System Uptime',
         'SELECT total_seconds AS seconds FROM uptime;',
         'System uptime in seconds.',
-        true
+        3600, 'all', true, true
     )
 ON CONFLICT (name) DO UPDATE SET
     sql = EXCLUDED.sql,
     description = EXCLUDED.description,
-    is_system = EXCLUDED.is_system,
-    updated_at = now();
-
-INSERT INTO schedules (name, query_id, interval_seconds, platform, snapshot, is_system)
-SELECT q.name, q.id, s.interval_seconds, s.platform, true, true
-FROM (
-    VALUES
-        ('Disk Usage POSIX',           3600, 'posix'),
-        ('Disk Usage Windows',         3600, 'windows'),
-        ('Network Interfaces POSIX',   3600, 'posix'),
-        ('Network Interfaces Windows', 3600, 'windows'),
-        ('Memory Usage POSIX',         3600, 'posix'),
-        ('Memory Usage Windows',       3600, 'windows'),
-        ('CPU Info',                   86400, 'all'),
-        ('OS Info',                    86400, 'all'),
-        ('System Uptime',              3600, 'all')
-) AS s(name, interval_seconds, platform)
-JOIN queries q ON q.name = s.name
-ON CONFLICT (name) DO UPDATE SET
-    query_id = EXCLUDED.query_id,
     interval_seconds = EXCLUDED.interval_seconds,
     platform = EXCLUDED.platform,
     snapshot = EXCLUDED.snapshot,
