@@ -141,6 +141,9 @@ func main() {
 	osqueryAPI.POST("/distributed/read", h.HandleDistributedRead)
 	osqueryAPI.POST("/distributed/write", h.HandleDistributedWrite)
 
+	e.GET("/bootstrap", h.HandleOsqueryBootstrap)
+	e.GET("/bootstrap/:platform", h.HandleOsqueryBootstrapScript)
+
 	buildFS, err := fs.Sub(webassets.StaticFiles, "dist")
 	if err != nil {
 		log.Fatalf("could not load embedded frontend: %v", err)

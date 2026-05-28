@@ -26,10 +26,11 @@ var (
 )
 
 type rawConfig struct {
-	AppConfig  rawAppConfig  `koanf:",squash"`
-	OIDCConfig rawOIDCConfig `koanf:",squash"`
-	DBConfig   rawDBConfig   `koanf:",squash"`
-	DataConfig rawDataConfig `koanf:",squash"`
+	AppConfig              rawAppConfig              `koanf:",squash"`
+	OIDCConfig             rawOIDCConfig             `koanf:",squash"`
+	DBConfig               rawDBConfig               `koanf:",squash"`
+	DataConfig             rawDataConfig             `koanf:",squash"`
+	OsqueryBootstrapConfig rawOsqueryBootstrapConfig `koanf:",squash"`
 }
 
 type rawAppConfig struct {
@@ -62,6 +63,22 @@ type rawDBConfig struct {
 type rawDataConfig struct {
 	ParquetRoot string `koanf:"data.parquet_root"`
 	DuckDBPath  string `koanf:"data.duckdb_path"`
+}
+
+type rawOsqueryBootstrapConfig struct {
+	Enabled                 bool   `koanf:"osquery_bootstrap.enabled"`
+	LinuxDEBAMD64URL        string `koanf:"osquery_bootstrap.linux.deb_amd64.url"`
+	LinuxDEBAMD64SHA256     string `koanf:"osquery_bootstrap.linux.deb_amd64.sha256"`
+	LinuxDEBARM64URL        string `koanf:"osquery_bootstrap.linux.deb_arm64.url"`
+	LinuxDEBARM64SHA256     string `koanf:"osquery_bootstrap.linux.deb_arm64.sha256"`
+	LinuxRPMAMD64URL        string `koanf:"osquery_bootstrap.linux.rpm_amd64.url"`
+	LinuxRPMAMD64SHA256     string `koanf:"osquery_bootstrap.linux.rpm_amd64.sha256"`
+	LinuxRPMARM64URL        string `koanf:"osquery_bootstrap.linux.rpm_arm64.url"`
+	LinuxRPMARM64SHA256     string `koanf:"osquery_bootstrap.linux.rpm_arm64.sha256"`
+	MacOSPKGUniversalURL    string `koanf:"osquery_bootstrap.macos.pkg_universal.url"`
+	MacOSPKGUniversalSHA256 string `koanf:"osquery_bootstrap.macos.pkg_universal.sha256"`
+	WindowsMSIAMD64URL      string `koanf:"osquery_bootstrap.windows.msi_amd64.url"`
+	WindowsMSIAMD64SHA256   string `koanf:"osquery_bootstrap.windows.msi_amd64.sha256"`
 }
 
 func Load(configFile string) (Config, error) {
@@ -111,6 +128,21 @@ func (r rawConfig) toConfig() (Config, error) {
 			EnrollmentKey:        r.AppConfig.EnrollmentKey,
 			PolicyUpdateInterval: policyUpdateInterval,
 			PolicyStaleAfter:     policyStaleAfter,
+			OsqueryBootstrap: OsqueryBootstrapConfig{
+				Enabled: r.OsqueryBootstrapConfig.Enabled,
+				Linux: LinuxBootstrapConfig{
+					DEBAMD64: packageConfig(r.OsqueryBootstrapConfig.LinuxDEBAMD64URL, r.OsqueryBootstrapConfig.LinuxDEBAMD64SHA256),
+					DEBARM64: packageConfig(r.OsqueryBootstrapConfig.LinuxDEBARM64URL, r.OsqueryBootstrapConfig.LinuxDEBARM64SHA256),
+					RPMAMD64: packageConfig(r.OsqueryBootstrapConfig.LinuxRPMAMD64URL, r.OsqueryBootstrapConfig.LinuxRPMAMD64SHA256),
+					RPMARM64: packageConfig(r.OsqueryBootstrapConfig.LinuxRPMARM64URL, r.OsqueryBootstrapConfig.LinuxRPMARM64SHA256),
+				},
+				MacOS: MacOSBootstrapConfig{
+					PKGUniversal: packageConfig(r.OsqueryBootstrapConfig.MacOSPKGUniversalURL, r.OsqueryBootstrapConfig.MacOSPKGUniversalSHA256),
+				},
+				Windows: WindowsBootstrapConfig{
+					MSIAMD64: packageConfig(r.OsqueryBootstrapConfig.WindowsMSIAMD64URL, r.OsqueryBootstrapConfig.WindowsMSIAMD64SHA256),
+				},
+			},
 		},
 		OIDCConfig: OIDCConfig{
 			Issuer:       r.OIDCConfig.Issuer,
@@ -250,24 +282,44 @@ func loadDefaults(k *koanf.Koanf) error {
 	}
 
 	return k.Load(confmap.Provider(map[string]any{
-		"app.admin_username":         "watcher_admin",
-		"app.admin_password":         "watcher_password",
-		"app.http_tls_cert":          "server_cert.pem",
-		"app.http_tls_key":           "server_key.pem",
-		"app.use_tls":                false,
-		"app.root_url":               "http://localhost:1323",
-		"app.secure_cookie_key":      key,
-		"app.enrollment_key":         enrollmentKey,
-		"app.policy_update_interval": "1h",
-		"app.policy_stale_after":     "2h",
-		"db.dbname":                  "watcher",
-		"db.host":                    "localhost",
-		"db.port":                    5432,
-		"db.password":                "watcher",
-		"db.user":                    "watcher",
-		"data.parquet_root":          "./data/results",
-		"data.duckdb_path":           "",
+		"app.admin_username":                           "watcher_admin",
+		"app.admin_password":                           "watcher_password",
+		"app.http_tls_cert":                            "server_cert.pem",
+		"app.http_tls_key":                             "server_key.pem",
+		"app.use_tls":                                  false,
+		"app.root_url":                                 "http://localhost:1323",
+		"app.secure_cookie_key":                        key,
+		"app.enrollment_key":                           enrollmentKey,
+		"app.policy_update_interval":                   "1h",
+		"app.policy_stale_after":                       "2h",
+		"db.dbname":                                    "watcher",
+		"db.host":                                      "localhost",
+		"db.port":                                      5432,
+		"db.password":                                  "watcher",
+		"db.user":                                      "watcher",
+		"data.parquet_root":                            "./data/results",
+		"data.duckdb_path":                             "",
+		"osquery_bootstrap.enabled":                    true,
+		"osquery_bootstrap.linux.deb_amd64.url":        "",
+		"osquery_bootstrap.linux.deb_amd64.sha256":     "",
+		"osquery_bootstrap.linux.deb_arm64.url":        "",
+		"osquery_bootstrap.linux.deb_arm64.sha256":     "",
+		"osquery_bootstrap.linux.rpm_amd64.url":        "",
+		"osquery_bootstrap.linux.rpm_amd64.sha256":     "",
+		"osquery_bootstrap.linux.rpm_arm64.url":        "",
+		"osquery_bootstrap.linux.rpm_arm64.sha256":     "",
+		"osquery_bootstrap.macos.pkg_universal.url":    "",
+		"osquery_bootstrap.macos.pkg_universal.sha256": "",
+		"osquery_bootstrap.windows.msi_amd64.url":      "",
+		"osquery_bootstrap.windows.msi_amd64.sha256":   "",
 	}, "."), nil)
+}
+
+func packageConfig(url, sha256 string) BootstrapPackage {
+	return BootstrapPackage{
+		URL:    strings.TrimSpace(url),
+		SHA256: strings.TrimSpace(sha256),
+	}
 }
 
 func generateSecret() (string, error) {

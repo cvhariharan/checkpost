@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TLS_HOSTNAME={{ sh .TLSHostname }}
+ENROLL_SECRET={{ sh .EnrollmentKey }}
+FLAGS_PATH="/etc/osquery/osquery.flags"
+SECRET_PATH="/etc/osquery/enroll_secret"
+DEB_AMD64_URL={{ sh .LinuxDEBAMD64URL }}
+DEB_AMD64_SHA256={{ sh .LinuxDEBAMD64SHA256 }}
+DEB_ARM64_URL={{ sh .LinuxDEBARM64URL }}
+DEB_ARM64_SHA256={{ sh .LinuxDEBARM64SHA256 }}
+RPM_AMD64_URL={{ sh .LinuxRPMAMD64URL }}
+RPM_AMD64_SHA256={{ sh .LinuxRPMAMD64SHA256 }}
+RPM_ARM64_URL={{ sh .LinuxRPMARM64URL }}
+RPM_ARM64_SHA256={{ sh .LinuxRPMARM64SHA256 }}
+
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "Run as root."
+    exit 1
+  fi
+}
+
+download_file() {
+  local url="$1"
+  local output="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL --retry 3 --connect-timeout 15 -o "${output}" "${url}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -O "${output}" "${url}"
+  else
+    echo "curl or wget is required to download osquery."
+    exit 1
+  fi
+}
+
+actual_sha256() {
+  local path="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${path}" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${path}" | awk '{print $1}'
+  else
+    echo "sha256sum or shasum is required to verify osquery package integrity."
+    exit 1
+  fi
+}
+
+verify_sha256() {
+  local path="$1"
+  local expected="$2"
+  local actual
+  actual="$(actual_sha256 "${path}")"
+  if [[ "${actual}" != "${expected}" ]]; then
+    echo "SHA256 mismatch for ${path}."
+    echo "Expected: ${expected}"
+    echo "Actual:   ${actual}"
+    exit 1
+  fi
+}
+
+arch_key() {
+  case "$(uname -m)" in
+    x86_64|amd64) echo "amd64" ;;
+    aarch64|arm64) echo "arm64" ;;
+    *)
+      echo "Unsupported architecture: $(uname -m)" >&2
+      exit 1
+      ;;
+  esac
+}
+
+package_family() {
+  if command -v dpkg >/dev/null 2>&1 || [[ -f /etc/debian_version ]]; then
+    echo "deb"
+  elif command -v rpm >/dev/null 2>&1 || [[ -f /etc/redhat-release ]] || [[ -f /etc/SuSE-release ]]; then
+    echo "rpm"
+  else
+    echo "Unsupported Linux distribution. Install osquery manually, then rerun this command to configure it." >&2
+    exit 1
+  fi
+}
+
+select_package() {
+  local family="$1"
+  local arch="$2"
+  case "${family}:${arch}" in
+    deb:amd64) PACKAGE_URL="${DEB_AMD64_URL}"; PACKAGE_SHA256="${DEB_AMD64_SHA256}"; PACKAGE_EXT="deb" ;;
+    deb:arm64) PACKAGE_URL="${DEB_ARM64_URL}"; PACKAGE_SHA256="${DEB_ARM64_SHA256}"; PACKAGE_EXT="deb" ;;
+    rpm:amd64) PACKAGE_URL="${RPM_AMD64_URL}"; PACKAGE_SHA256="${RPM_AMD64_SHA256}"; PACKAGE_EXT="rpm" ;;
+    rpm:arm64) PACKAGE_URL="${RPM_ARM64_URL}"; PACKAGE_SHA256="${RPM_ARM64_SHA256}"; PACKAGE_EXT="rpm" ;;
+    *) echo "No osquery package mapping for ${family}/${arch}." >&2; exit 1 ;;
+  esac
+
+  if [[ -z "${PACKAGE_URL}" || -z "${PACKAGE_SHA256}" ]]; then
+    echo "Watcher is missing osquery package URL or SHA256 for ${family}/${arch}."
+    exit 1
+  fi
+}
+
+install_deb() {
+  local package_path="$1"
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    apt-get install -y "${package_path}"
+  else
+    dpkg -i "${package_path}"
+  fi
+}
+
+install_rpm() {
+  local package_path="$1"
+  if command -v dnf >/dev/null 2>&1; then
+    dnf install -y "${package_path}"
+  elif command -v yum >/dev/null 2>&1; then
+    yum localinstall -y "${package_path}"
+  elif command -v zypper >/dev/null 2>&1; then
+    zypper --non-interactive install "${package_path}"
+  else
+    rpm -Uvh "${package_path}"
+  fi
+}
+
+install_osquery_if_missing() {
+  if command -v osqueryd >/dev/null 2>&1; then
+    echo "osquery is already installed; reconfiguring Watcher enrollment."
+    return
+  fi
+
+  local family
+  local arch
+  local package_path
+  family="$(package_family)"
+  arch="$(arch_key)"
+  select_package "${family}" "${arch}"
+
+  package_path="$(mktemp "/tmp/watcher-osquery.XXXXXX.${PACKAGE_EXT}")"
+  trap 'rm -f "${package_path}"' EXIT
+  download_file "${PACKAGE_URL}" "${package_path}"
+  verify_sha256 "${package_path}" "${PACKAGE_SHA256}"
+
+  if [[ "${family}" == "deb" ]]; then
+    install_deb "${package_path}"
+  else
+    install_rpm "${package_path}"
+  fi
+}
+
+write_watcher_config() {
+  mkdir -p /etc/osquery
+  printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
+  chmod 600 "${SECRET_PATH}"
+
+  cat > "${FLAGS_PATH}" <<EOF
+--host_identifier=uuid
+--enroll_secret_path=${SECRET_PATH}
+--tls_hostname=${TLS_HOSTNAME}
+--enroll_tls_endpoint=/api/v1/osquery/enroll
+--config_plugin=tls
+--config_tls_endpoint=/api/v1/osquery/config
+--logger_plugin=tls
+--logger_tls_endpoint=/api/v1/osquery/logger
+--distributed_plugin=tls
+--distributed_tls_read_endpoint=/api/v1/osquery/distributed/read
+--distributed_tls_write_endpoint=/api/v1/osquery/distributed/write
+--logger_tls_period=10
+--distributed_interval=10
+--disable_distributed=false
+EOF
+}
+
+restart_osquery() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl enable osqueryd
+    systemctl restart osqueryd
+  elif command -v service >/dev/null 2>&1; then
+    service osqueryd restart
+  elif command -v osqueryctl >/dev/null 2>&1; then
+    osqueryctl restart
+  else
+    echo "osquery configured, but no known service manager was found. Start osqueryd with ${FLAGS_PATH}."
+    return
+  fi
+}
+
+require_root
+install_osquery_if_missing
+write_watcher_config
+restart_osquery
+
+echo "osquery configured for Watcher."
+echo "Verify with: systemctl status osqueryd --no-pager"

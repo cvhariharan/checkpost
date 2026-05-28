@@ -20,6 +20,7 @@ type AppConfig struct {
 	EnrollmentKey        string        `validate:"required"`
 	PolicyUpdateInterval time.Duration `validate:"required"`
 	PolicyStaleAfter     time.Duration `validate:"required"`
+	OsqueryBootstrap     OsqueryBootstrapConfig
 }
 
 type OIDCConfig struct {
@@ -39,4 +40,31 @@ type DBConfig struct {
 type DataConfig struct {
 	ParquetRoot string `validate:"required"`
 	DuckDBPath  string
+}
+
+type OsqueryBootstrapConfig struct {
+	Enabled bool
+	Linux   LinuxBootstrapConfig
+	MacOS   MacOSBootstrapConfig
+	Windows WindowsBootstrapConfig
+}
+
+type LinuxBootstrapConfig struct {
+	DEBAMD64 BootstrapPackage
+	DEBARM64 BootstrapPackage
+	RPMAMD64 BootstrapPackage
+	RPMARM64 BootstrapPackage
+}
+
+type MacOSBootstrapConfig struct {
+	PKGUniversal BootstrapPackage
+}
+
+type WindowsBootstrapConfig struct {
+	MSIAMD64 BootstrapPackage
+}
+
+type BootstrapPackage struct {
+	URL    string
+	SHA256 string
 }

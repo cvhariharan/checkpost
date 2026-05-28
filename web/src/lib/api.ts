@@ -74,6 +74,7 @@ export type Machine = {
   last_seen_at?: string
   enrolled_at?: string
   osquery_version?: string
+  hardware_serial?: string
   groups?: Group[]
   inventory?: NodeInventory | null
 }
@@ -139,6 +140,44 @@ export type MetricSchemas = {
   kinds: string[]
 }
 
+export type OsqueryBootstrapPackage = {
+  key: string
+  label: string
+  platform: string
+  family: string
+  architecture: string
+  format: string
+  url: string
+  sha256: string
+}
+
+export type OsqueryBootstrapPlatform = {
+  key: string
+  label: string
+  command: string
+  script_url: string
+  verify_command: string
+  restart_command: string
+  package?: OsqueryBootstrapPackage
+  packages?: OsqueryBootstrapPackage[]
+  install_steps?: string[]
+  flagfile_path: string
+  secret_path: string
+  secret: string
+  flagfile: string
+  script: string
+  architecture_notes?: string
+  caveats?: string[]
+}
+
+export type OsqueryBootstrapProfile = {
+  ready: boolean
+  watcher_url: string
+  tls_hostname: string
+  warnings?: string[]
+  platforms?: OsqueryBootstrapPlatform[]
+}
+
 type PageOpts = { page?: number; countPerPage?: number }
 type MachinePageOpts = PageOpts & {
   query?: string
@@ -179,6 +218,10 @@ function jsonRequest<T>(path: string, method: string, body: unknown): Promise<T>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   }).then((res) => handleResponse<T>(res))
+}
+
+export function fetchOsqueryBootstrapProfile() {
+  return fetch('/bootstrap').then((r) => handleResponse<OsqueryBootstrapProfile>(r))
 }
 
 // Schedules

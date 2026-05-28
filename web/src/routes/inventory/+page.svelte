@@ -18,6 +18,7 @@
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
+  import OsqueryBootstrapDialog from '$lib/components/OsqueryBootstrapDialog.svelte'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
   type FilterOption = { value: string; label: string }
@@ -55,6 +56,7 @@
   let tabs: OatTabsElement
   let inventoryDialog: HTMLDialogElement
   let ownerDialog: HTMLDialogElement
+  let bootstrapDialogOpen = false
   let editingMachine: Machine | null = null
   let editingOwner: DeviceOwner | null = null
   let ownerToDelete: DeviceOwner | null = null
@@ -338,6 +340,7 @@
       <h1 class="mb-2">Inventory</h1>
       <p class="text-light">Track device owners and internal asset IDs</p>
     </div>
+    <button type="button" onclick={() => (bootstrapDialogOpen = true)}>Install osquery</button>
   </header>
 
   <ErrorMessage message={error} onClose={() => (error = '')} />
@@ -649,6 +652,8 @@
   onConfirm={confirmDeleteOwner}
   onCancel={() => (ownerToDelete = null)}
 />
+
+<OsqueryBootstrapDialog bind:open={bootstrapDialogOpen} />
 
 <style>
   .inventory-tabs {

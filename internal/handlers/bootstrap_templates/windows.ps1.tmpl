@@ -1,0 +1,98 @@
+$ErrorActionPreference = "Stop"
+
+$TlsHostname = {{ ps .TLSHostname }}
+$EnrollSecret = {{ ps .EnrollmentKey }}
+$PackageUrl = {{ ps .WindowsMSIAMD64URL }}
+$PackageSha256 = {{ ps .WindowsMSIAMD64SHA256 }}
+$BaseDir = "C:\ProgramData\Watcher\osquery"
+$FlagsPath = Join-Path $BaseDir "osquery.flags"
+$SecretPath = Join-Path $BaseDir "enroll_secret"
+$DefaultOsqueryExe = "C:\Program Files\osquery\osqueryd\osqueryd.exe"
+
+function Assert-Administrator {
+  $principal = [Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    throw "Run this script as Administrator."
+  }
+}
+
+function Get-OsqueryExe {
+  if (Test-Path $DefaultOsqueryExe) {
+    return $DefaultOsqueryExe
+  }
+  $cmd = Get-Command osqueryd.exe -ErrorAction SilentlyContinue
+  if ($cmd) {
+    return $cmd.Source
+  }
+  return ""
+}
+
+function Install-OsqueryIfMissing {
+  $existing = Get-OsqueryExe
+  if ($existing) {
+    Write-Host "osquery is already installed; reconfiguring Watcher enrollment."
+    return $existing
+  }
+
+  if ([string]::IsNullOrWhiteSpace($PackageUrl) -or [string]::IsNullOrWhiteSpace($PackageSha256)) {
+    throw "Watcher is missing Windows osquery package URL or SHA256."
+  }
+
+  $packagePath = Join-Path $env:TEMP ("watcher-osquery-" + [guid]::NewGuid().ToString() + ".msi")
+  Invoke-WebRequest -Uri $PackageUrl -OutFile $packagePath
+  $actual = (Get-FileHash -Path $packagePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  if ($actual -ne $PackageSha256.ToLowerInvariant()) {
+    throw "SHA256 mismatch for $packagePath. Expected $PackageSha256 but got $actual."
+  }
+
+  $process = Start-Process -FilePath "msiexec.exe" -ArgumentList @("/i", $packagePath, "/qn", "/norestart") -Wait -PassThru
+  if ($process.ExitCode -ne 0) {
+    throw "msiexec failed with exit code $($process.ExitCode)."
+  }
+
+  Remove-Item -Path $packagePath -Force -ErrorAction SilentlyContinue
+  $installed = Get-OsqueryExe
+  if (-not $installed) {
+    throw "osquery installed, but osqueryd.exe was not found."
+  }
+  return $installed
+}
+
+function Write-WatcherConfig {
+  New-Item -ItemType Directory -Force -Path $BaseDir | Out-Null
+  icacls $BaseDir /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" | Out-Null
+  Set-Content -Path $SecretPath -Value $EnrollSecret -NoNewline
+
+@"
+--host_identifier=uuid
+--enroll_secret_path=$SecretPath
+--tls_hostname=$TlsHostname
+--enroll_tls_endpoint=/api/v1/osquery/enroll
+--config_plugin=tls
+--config_tls_endpoint=/api/v1/osquery/config
+--logger_plugin=tls
+--logger_tls_endpoint=/api/v1/osquery/logger
+--distributed_plugin=tls
+--distributed_tls_read_endpoint=/api/v1/osquery/distributed/read
+--distributed_tls_write_endpoint=/api/v1/osquery/distributed/write
+--logger_tls_period=10
+--distributed_interval=10
+--disable_distributed=false
+"@ | Set-Content -Path $FlagsPath
+}
+
+function Restart-Osquery {
+  param([string]$OsqueryExe)
+
+  & $OsqueryExe --uninstall | Out-Null
+  & $OsqueryExe --install --flagfile=$FlagsPath | Out-Null
+  Start-Service osqueryd
+}
+
+Assert-Administrator
+$osqueryExe = Install-OsqueryIfMissing
+Write-WatcherConfig
+Restart-Osquery -OsqueryExe $osqueryExe
+
+Write-Host "osquery configured for Watcher."
+Write-Host "Verify with: Get-Service osqueryd"

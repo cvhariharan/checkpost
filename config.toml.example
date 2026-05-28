@@ -14,6 +14,33 @@ issuer = ''
 client_id = ''
 client_secret = ''
 
+[osquery_bootstrap]
+enabled = true
+
+[osquery_bootstrap.linux.deb_amd64]
+url = ''
+sha256 = ''
+
+[osquery_bootstrap.linux.deb_arm64]
+url = ''
+sha256 = ''
+
+[osquery_bootstrap.linux.rpm_amd64]
+url = ''
+sha256 = ''
+
+[osquery_bootstrap.linux.rpm_arm64]
+url = ''
+sha256 = ''
+
+[osquery_bootstrap.macos.pkg_universal]
+url = ''
+sha256 = ''
+
+[osquery_bootstrap.windows.msi_amd64]
+url = ''
+sha256 = ''
+
 [db]
 dbname = 'watcher'
 host = '127.0.0.1'

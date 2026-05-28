@@ -357,3 +357,41 @@ type DistributedWriteRequest struct {
 	Statuses map[string]OsqueryStatus `json:"statuses"`
 	Messages map[string]string        `json:"messages"`
 }
+
+type OsqueryBootstrapResponse struct {
+	Ready       bool                       `json:"ready"`
+	WatcherURL  string                     `json:"watcher_url"`
+	TLSHostname string                     `json:"tls_hostname"`
+	Warnings    []string                   `json:"warnings"`
+	Platforms   []OsqueryBootstrapPlatform `json:"platforms"`
+}
+
+type OsqueryBootstrapPlatform struct {
+	Key               string                    `json:"key"`
+	Label             string                    `json:"label"`
+	Command           string                    `json:"command"`
+	ScriptURL         string                    `json:"script_url"`
+	VerifyCommand     string                    `json:"verify_command"`
+	RestartCommand    string                    `json:"restart_command"`
+	Package           OsqueryBootstrapPackage   `json:"package"`
+	Packages          []OsqueryBootstrapPackage `json:"packages"`
+	InstallSteps      []string                  `json:"install_steps"`
+	FlagfilePath      string                    `json:"flagfile_path"`
+	SecretPath        string                    `json:"secret_path"`
+	Secret            string                    `json:"secret"`
+	Flagfile          string                    `json:"flagfile"`
+	Script            string                    `json:"script"`
+	ArchitectureNotes string                    `json:"architecture_notes"`
+	Caveats           []string                  `json:"caveats"`
+}
+
+type OsqueryBootstrapPackage struct {
+	Key          string `json:"key"`
+	Label        string `json:"label"`
+	Platform     string `json:"platform"`
+	Family       string `json:"family"`
+	Architecture string `json:"architecture"`
+	Format       string `json:"format"`
+	URL          string `json:"url"`
+	SHA256       string `json:"sha256"`
+}

@@ -9,6 +9,11 @@ export default defineConfig({
         target: 'https://localhost:1323',
         changeOrigin: true,
         secure: false
+      },
+      '/bootstrap': {
+        target: 'https://localhost:1323',
+        changeOrigin: true,
+        secure: false
       }
     }
   }

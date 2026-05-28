@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TLS_HOSTNAME={{ sh .TLSHostname }}
+ENROLL_SECRET={{ sh .EnrollmentKey }}
+PACKAGE_URL={{ sh .MacOSPKGUniversalURL }}
+PACKAGE_SHA256={{ sh .MacOSPKGUniversalSHA256 }}
+FLAGS_PATH="/etc/osquery/osquery.flags"
+SECRET_PATH="/private/var/osquery/enroll_secret"
+
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "Run with sudo."
+    exit 1
+  fi
+}
+
+download_file() {
+  local url="$1"
+  local output="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fL --retry 3 --connect-timeout 15 -o "${output}" "${url}"
+  else
+    echo "curl is required to download osquery."
+    exit 1
+  fi
+}
+
+verify_sha256() {
+  local path="$1"
+  local actual
+  actual="$(shasum -a 256 "${path}" | awk '{print $1}')"
+  if [[ "${actual}" != "${PACKAGE_SHA256}" ]]; then
+    echo "SHA256 mismatch for ${path}."
+    echo "Expected: ${PACKAGE_SHA256}"
+    echo "Actual:   ${actual}"
+    exit 1
+  fi
+}
+
+install_osquery_if_missing() {
+  if command -v osqueryd >/dev/null 2>&1; then
+    echo "osquery is already installed; reconfiguring Watcher enrollment."
+    return
+  fi
+  if [[ -z "${PACKAGE_URL}" || -z "${PACKAGE_SHA256}" ]]; then
+    echo "Watcher is missing macOS osquery package URL or SHA256."
+    exit 1
+  fi
+
+  local package_path
+  package_path="$(mktemp "/tmp/watcher-osquery.XXXXXX.pkg")"
+  trap 'rm -f "${package_path}"' EXIT
+  download_file "${PACKAGE_URL}" "${package_path}"
+  verify_sha256 "${package_path}"
+  installer -pkg "${package_path}" -target /
+}
+
+write_watcher_config() {
+  mkdir -p /etc/osquery /private/var/osquery
+  printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
+  chmod 600 "${SECRET_PATH}"
+
+  cat > "${FLAGS_PATH}" <<EOF
+--host_identifier=uuid
+--enroll_secret_path=${SECRET_PATH}
+--tls_hostname=${TLS_HOSTNAME}
+--enroll_tls_endpoint=/api/v1/osquery/enroll
+--config_plugin=tls
+--config_tls_endpoint=/api/v1/osquery/config
+--logger_plugin=tls
+--logger_tls_endpoint=/api/v1/osquery/logger
+--distributed_plugin=tls
+--distributed_tls_read_endpoint=/api/v1/osquery/distributed/read
+--distributed_tls_write_endpoint=/api/v1/osquery/distributed/write
+--logger_tls_period=10
+--distributed_interval=10
+--disable_distributed=false
+EOF
+}
+
+restart_osquery() {
+  if command -v osqueryctl >/dev/null 2>&1; then
+    osqueryctl start || osqueryctl restart
+  elif launchctl print system/io.osquery.agent >/dev/null 2>&1; then
+    launchctl kickstart -k system/io.osquery.agent
+  elif launchctl print system/com.facebook.osqueryd >/dev/null 2>&1; then
+    launchctl kickstart -k system/com.facebook.osqueryd
+  else
+    echo "osquery configured. Start the packaged LaunchDaemon using your normal service workflow."
+  fi
+}
+
+require_root
+install_osquery_if_missing
+write_watcher_config
+restart_osquery
+
+echo "osquery configured for Watcher."
+echo "Verify with: sudo launchctl print system/io.osquery.agent || sudo launchctl print system/com.facebook.osqueryd"
