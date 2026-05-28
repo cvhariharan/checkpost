@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/config"
-	"github.com/cvhariharan/watcher/internal/core/systemmetrics"
 	"github.com/cvhariharan/watcher/internal/repo"
 	"github.com/cvhariharan/watcher/internal/results"
 )
@@ -25,7 +24,7 @@ type Core struct {
 	results       *results.Writer
 	resultsReader *results.Reader
 
-	systemMetrics *systemmetrics.Registry
+	systemMetrics *SystemMetricsRegistry
 
 	policyUpdateInterval time.Duration
 	policyStaleAfter     time.Duration
@@ -46,7 +45,7 @@ func NewCore(logger *slog.Logger, store repo.Store, writer *results.Writer, read
 		logger:               logger.WithGroup("core"),
 		results:              writer,
 		resultsReader:        reader,
-		systemMetrics:        systemmetrics.Default(),
+		systemMetrics:        DefaultSystemMetrics(),
 		policyUpdateInterval: policyUpdateInterval,
 		policyStaleAfter:     policyStaleAfter,
 	}, nil

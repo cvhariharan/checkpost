@@ -1,4 +1,4 @@
-package systemmetrics
+package core
 
 import (
 	"reflect"
@@ -83,7 +83,7 @@ func TestRegistryRegisterFanout(t *testing.T) {
 }
 
 func TestDefaultCoversEveryKind(t *testing.T) {
-	r := Default()
+	r := DefaultSystemMetrics()
 	want := map[Kind][]string{
 		KindDisk:    {"Disk Usage POSIX", "Disk Usage Windows"},
 		KindNetwork: {"Network Interfaces POSIX", "Network Interfaces Windows"},
@@ -110,7 +110,7 @@ func TestDefaultCoversEveryKind(t *testing.T) {
 }
 
 func TestDefaultSchemasReflect(t *testing.T) {
-	r := Default()
+	r := DefaultSystemMetrics()
 	for kind, schema := range r.Schemas() {
 		if schema == nil {
 			t.Errorf("kind %q: nil schema", kind)
@@ -123,7 +123,7 @@ func TestDefaultSchemasReflect(t *testing.T) {
 }
 
 func TestDefaultKindsSorted(t *testing.T) {
-	got := Default().Kinds()
+	got := DefaultSystemMetrics().Kinds()
 	want := []Kind{KindCPU, KindDisk, KindMemory, KindNetwork, KindOSInfo, KindUptime}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/cvhariharan/watcher/internal/core/systemmetrics"
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/google/uuid"
 	"github.com/invopop/jsonschema"
@@ -49,8 +48,8 @@ func (c *Core) GetNodeMetrics(ctx context.Context, req models.NodeIdentity) (map
 // MetricSchemas returns the kind → JSON Schema map plus the canonical
 // render order. The result is read-only and safe to share.
 type MetricSchemas struct {
-	Schemas map[systemmetrics.Kind]*jsonschema.Schema `json:"schemas"`
-	Kinds   []systemmetrics.Kind                      `json:"kinds"`
+	Schemas map[Kind]*jsonschema.Schema `json:"schemas"`
+	Kinds   []Kind                      `json:"kinds"`
 }
 
 func (c *Core) GetMetricSchemas() MetricSchemas {
