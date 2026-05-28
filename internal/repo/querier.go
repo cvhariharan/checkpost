@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	BumpScheduleVersion(ctx context.Context, id int64) (BumpScheduleVersionRow, error)
 	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
+	CreateDeviceOwner(ctx context.Context, arg CreateDeviceOwnerParams) (DeviceOwner, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMembership(ctx context.Context, arg CreateGroupMembershipParams) error
 	CreateMachineQueryResult(ctx context.Context, arg CreateMachineQueryResultParams) (MachineQueryResult, error)
@@ -22,27 +23,33 @@ type Querier interface {
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
+	DeleteDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupMembershipForNode(ctx context.Context, arg DeleteGroupMembershipForNodeParams) error
 	DeleteGroupMembershipsForNode(ctx context.Context, nodeUuid uuid.UUID) error
 	DeleteMachineQueryResultByNodeAndUUID(ctx context.Context, arg DeleteMachineQueryResultByNodeAndUUIDParams) (int64, error)
+	DeleteNodeInventoryByNodeUUID(ctx context.Context, nodeUuid uuid.UUID) (int64, error)
 	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error
 	DeleteQuerySchema(ctx context.Context, arg DeleteQuerySchemaParams) error
 	DeleteQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
+	GetDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (DeviceOwner, error)
+	GetDeviceOwnerWithCountsByUUID(ctx context.Context, ownerUuid uuid.UUID) (GetDeviceOwnerWithCountsByUUIDRow, error)
 	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
 	GetGroupWithCountsByUUID(ctx context.Context, groupUuid uuid.UUID) (GetGroupWithCountsByUUIDRow, error)
 	GetNodeByID(ctx context.Context, id int64) (Node, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
 	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error)
+	GetNodeInventoryByNodeUUID(ctx context.Context, nodeUuid uuid.UUID) (GetNodeInventoryByNodeUUIDRow, error)
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
 	GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error)
 	GetQuerySchema(ctx context.Context, arg GetQuerySchemaParams) (QuerySchema, error)
 	GetScheduleByName(ctx context.Context, name string) (Schedule, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
 	ListAllQuerySchemas(ctx context.Context) ([]ListAllQuerySchemasRow, error)
+	ListDeviceOwnersWithCounts(ctx context.Context, arg ListDeviceOwnersWithCountsParams) ([]ListDeviceOwnersWithCountsRow, error)
 	ListEnabledPoliciesForNode(ctx context.Context, arg ListEnabledPoliciesForNodeParams) ([]Policy, error)
 	ListEnabledSchedules(ctx context.Context, limit int32) ([]Schedule, error)
 	ListEnabledSchedulesForNode(ctx context.Context, arg ListEnabledSchedulesForNodeParams) ([]Schedule, error)
@@ -51,10 +58,12 @@ type Querier interface {
 	ListGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]Group, error)
 	ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error)
 	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
+	ListNodeInventoriesByNodeUUIDs(ctx context.Context, nodeUuids []uuid.UUID) ([]ListNodeInventoriesByNodeUUIDsRow, error)
 	ListNodeMetricsByNodeUUID(ctx context.Context, argUuid uuid.UUID) ([]ListNodeMetricsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
 	ListNodesByGroup(ctx context.Context, arg ListNodesByGroupParams) ([]ListNodesByGroupRow, error)
 	ListNodesByIDs(ctx context.Context, ids []int64) ([]ListNodesByIDsRow, error)
+	ListNodesByOwner(ctx context.Context, arg ListNodesByOwnerParams) ([]ListNodesByOwnerRow, error)
 	ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error)
 	ListPendingMachineQueryResults(ctx context.Context, nodeID int64) ([]MachineQueryResult, error)
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
@@ -67,11 +76,13 @@ type Querier interface {
 	// @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
 	MatchNodesByIdentityPattern(ctx context.Context, arg MatchNodesByIdentityPatternParams) ([]MatchNodesByIdentityPatternRow, error)
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
+	UpdateDeviceOwnerByUUID(ctx context.Context, arg UpdateDeviceOwnerByUUIDParams) (DeviceOwner, error)
 	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
 	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
+	UpsertNodeInventory(ctx context.Context, arg UpsertNodeInventoryParams) (NodeInventory, error)
 	UpsertNodeMetric(ctx context.Context, arg UpsertNodeMetricParams) error
 	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error
 	// Atomically merges new columns into the persisted set. Concurrent writers

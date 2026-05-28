@@ -11,6 +11,29 @@ export type Group = {
   policy_count?: number
 }
 
+export type DeviceOwner = {
+  uuid: string
+  id?: string
+  display_name?: string
+  email?: string
+  external_id?: string
+  department?: string
+  title?: string
+  phone?: string
+  notes?: string
+  machine_count?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export type NodeInventory = {
+  internal_tracking_id?: string
+  notes?: string
+  owner?: DeviceOwner
+  created_at?: string
+  updated_at?: string
+}
+
 export type Policy = {
   uuid: string
   name?: string
@@ -52,6 +75,7 @@ export type Machine = {
   enrolled_at?: string
   osquery_version?: string
   groups?: Group[]
+  inventory?: NodeInventory | null
 }
 
 export type MachineQueryRecord = {
@@ -116,6 +140,12 @@ export type MetricSchemas = {
 }
 
 type PageOpts = { page?: number; countPerPage?: number }
+type MachinePageOpts = PageOpts & {
+  query?: string
+  platform?: string
+  ownerID?: string
+  assigned?: string
+}
 
 const BASE_URL = '/api/v1'
 
@@ -160,21 +190,21 @@ export function fetchSchedules(opts: PageOpts = {}) {
 }
 
 export function fetchSchedule(uuid: string) {
-  return fetch(`${BASE_URL}/schedule/${encodeURIComponent(uuid)}`).then((r) =>
+  return fetch(`${BASE_URL}/schedules/${encodeURIComponent(uuid)}`).then((r) =>
     handleResponse<Schedule>(r)
   )
 }
 
 export function createSchedule(payload: Record<string, unknown>) {
-  return jsonRequest<Schedule>('/schedule', 'POST', payload)
+  return jsonRequest<Schedule>('/schedules', 'POST', payload)
 }
 
 export function updateSchedule(uuid: string, payload: Record<string, unknown>) {
-  return jsonRequest<Schedule>(`/schedule/${encodeURIComponent(uuid)}`, 'PUT', payload)
+  return jsonRequest<Schedule>(`/schedules/${encodeURIComponent(uuid)}`, 'PUT', payload)
 }
 
 export function deleteSchedule(uuid: string) {
-  return fetch(`${BASE_URL}/schedule/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
+  return fetch(`${BASE_URL}/schedules/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
     handleResponse<unknown>(r)
   )
 }
@@ -185,7 +215,7 @@ export function fetchScheduleResults(
 ) {
   const { page = 1, countPerPage = 100, query = '' } = opts
   return fetch(
-    apiUrl(`/schedule/${encodeURIComponent(uuid)}/results`, { page, count_per_page: countPerPage, q: query })
+    apiUrl(`/schedules/${encodeURIComponent(uuid)}/results`, { page, count_per_page: countPerPage, q: query })
   ).then((r) => handleResponse<ScheduleResultsPayload>(r))
 }
 
@@ -198,15 +228,15 @@ export function fetchPolicies(opts: PageOpts = {}) {
 }
 
 export function createPolicy(payload: Record<string, unknown>) {
-  return jsonRequest<Policy>('/policy', 'POST', payload)
+  return jsonRequest<Policy>('/policies', 'POST', payload)
 }
 
 export function updatePolicy(uuid: string, payload: Record<string, unknown>) {
-  return jsonRequest<Policy>(`/policy/${encodeURIComponent(uuid)}`, 'PUT', payload)
+  return jsonRequest<Policy>(`/policies/${encodeURIComponent(uuid)}`, 'PUT', payload)
 }
 
 export function deletePolicy(uuid: string) {
-  return fetch(`${BASE_URL}/policy/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
+  return fetch(`${BASE_URL}/policies/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
     handleResponse<unknown>(r)
   )
 }
@@ -217,7 +247,7 @@ export function fetchPolicyMachines(
 ) {
   const { response = '', page = 1, countPerPage = 10 } = opts
   return fetch(
-    apiUrl(`/policy/${encodeURIComponent(uuid)}/machines`, { response, page, count_per_page: countPerPage })
+    apiUrl(`/policies/${encodeURIComponent(uuid)}/machines`, { response, page, count_per_page: countPerPage })
   ).then((r) => handleResponse<Paginated<PolicyMachineRow, 'machines'>>(r))
 }
 
@@ -230,15 +260,15 @@ export function fetchGroups(opts: PageOpts = {}) {
 }
 
 export function createGroup(payload: Record<string, unknown>) {
-  return jsonRequest<Group>('/group', 'POST', payload)
+  return jsonRequest<Group>('/groups', 'POST', payload)
 }
 
 export function updateGroup(uuid: string, payload: Record<string, unknown>) {
-  return jsonRequest<Group>(`/group/${encodeURIComponent(uuid)}`, 'PUT', payload)
+  return jsonRequest<Group>(`/groups/${encodeURIComponent(uuid)}`, 'PUT', payload)
 }
 
 export function deleteGroup(uuid: string) {
-  return fetch(`${BASE_URL}/group/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
+  return fetch(`${BASE_URL}/groups/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
     handleResponse<unknown>(r)
   )
 }
@@ -246,7 +276,7 @@ export function deleteGroup(uuid: string) {
 export function fetchGroupMachines(uuid: string, opts: PageOpts = {}) {
   const { page = 1, countPerPage = 100 } = opts
   return fetch(
-    apiUrl(`/group/${encodeURIComponent(uuid)}/machines`, { page, count_per_page: countPerPage })
+    apiUrl(`/groups/${encodeURIComponent(uuid)}/machines`, { page, count_per_page: countPerPage })
   ).then((r) => handleResponse<Paginated<Machine, 'machines'>>(r))
 }
 
@@ -255,16 +285,77 @@ export function patchGroupMachines(
   changes: { add?: string[]; remove?: string[] }
 ) {
   return jsonRequest<Paginated<Machine, 'machines'>>(
-    `/group/${encodeURIComponent(uuid)}/machines`,
+    `/groups/${encodeURIComponent(uuid)}/machines`,
     'PATCH',
     { add_node_ids: changes.add ?? [], remove_node_ids: changes.remove ?? [] }
   )
 }
 
-// Machines
-export function fetchMachines(opts: PageOpts = {}) {
+// Owners and inventory
+export function fetchOwners(opts: PageOpts & { query?: string } = {}) {
+  const { page = 1, countPerPage = 100, query = '' } = opts
+  return fetch(apiUrl('/owners', { page, count_per_page: countPerPage, q: query })).then((r) =>
+    handleResponse<Paginated<DeviceOwner, 'owners'>>(r)
+  )
+}
+
+export function createOwner(payload: Record<string, unknown>) {
+  return jsonRequest<{ id: string }>('/owners', 'POST', payload)
+}
+
+export function updateOwner(uuid: string, payload: Record<string, unknown>) {
+  return jsonRequest<DeviceOwner>(`/owners/${encodeURIComponent(uuid)}`, 'PUT', payload)
+}
+
+export function deleteOwner(uuid: string) {
+  return fetch(`${BASE_URL}/owners/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
+export function fetchOwnerMachines(uuid: string, opts: PageOpts = {}) {
   const { page = 1, countPerPage = 100 } = opts
-  return fetch(apiUrl('/machines', { page, count_per_page: countPerPage })).then((r) =>
+  return fetch(
+    apiUrl(`/owners/${encodeURIComponent(uuid)}/machines`, { page, count_per_page: countPerPage })
+  ).then((r) => handleResponse<Paginated<Machine, 'machines'>>(r))
+}
+
+export function fetchMachineInventory(id: string) {
+  return fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/inventory`).then((r) =>
+    handleResponse<{ inventory?: NodeInventory }>(r)
+  )
+}
+
+export function updateMachineInventory(
+  id: string,
+  payload: { owner_id?: string | null; internal_tracking_id?: string; notes?: string }
+) {
+  return jsonRequest<{ inventory?: NodeInventory }>(
+    `/machines/${encodeURIComponent(id)}/inventory`,
+    'PUT',
+    payload
+  )
+}
+
+export function deleteMachineInventory(id: string) {
+  return fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/inventory`, { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
+// Machines
+export function fetchMachines(opts: MachinePageOpts = {}) {
+  const { page = 1, countPerPage = 100, query = '', platform = '', ownerID = '', assigned = '' } = opts
+  return fetch(
+    apiUrl('/machines', {
+      page,
+      count_per_page: countPerPage,
+      q: query,
+      platform,
+      owner_id: ownerID,
+      assigned
+    })
+  ).then((r) =>
     handleResponse<Paginated<Machine, 'machines'>>(r)
   )
 }
@@ -304,7 +395,7 @@ export function updateMachineGroups(id: string, group_ids: string[]) {
 }
 
 export function executeMachineQuery(id: string, query: string) {
-  return jsonRequest<MachineQueryRecord>(`/machines/${encodeURIComponent(id)}/query`, 'POST', { query })
+  return jsonRequest<MachineQueryRecord>(`/machines/${encodeURIComponent(id)}/queries`, 'POST', { query })
 }
 
 export function fetchMachineMetrics(id: string) {

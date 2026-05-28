@@ -7,6 +7,7 @@ import (
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/google/uuid"
 )
 
 func toModelNode(node repo.Node) models.Node {
@@ -307,7 +308,166 @@ func toModelGroupCountRow(row repo.GetGroupWithCountsByUUIDRow) models.Group {
 	}
 }
 
+func toModelDeviceOwner(owner repo.DeviceOwner) models.DeviceOwner {
+	return models.DeviceOwner{
+		ID:          owner.ID,
+		ResourceID:  owner.Uuid.String(),
+		UUID:        owner.Uuid.String(),
+		DisplayName: owner.DisplayName,
+		Email:       owner.Email,
+		ExternalID:  owner.ExternalID,
+		Department:  owner.Department,
+		Title:       owner.Title,
+		Phone:       owner.Phone,
+		Notes:       owner.Notes,
+		CreatedAt:   owner.CreatedAt,
+		UpdatedAt:   owner.UpdatedAt,
+	}
+}
+
+func toModelDeviceOwnerRow(row repo.ListDeviceOwnersWithCountsRow) models.DeviceOwner {
+	return models.DeviceOwner{
+		ID:           row.ID,
+		ResourceID:   row.Uuid.String(),
+		UUID:         row.Uuid.String(),
+		DisplayName:  row.DisplayName,
+		Email:        row.Email,
+		ExternalID:   row.ExternalID,
+		Department:   row.Department,
+		Title:        row.Title,
+		Phone:        row.Phone,
+		Notes:        row.Notes,
+		MachineCount: int(row.MachineCount),
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func toModelDeviceOwnerCountRow(row repo.GetDeviceOwnerWithCountsByUUIDRow) models.DeviceOwner {
+	return models.DeviceOwner{
+		ID:           row.ID,
+		ResourceID:   row.Uuid.String(),
+		UUID:         row.Uuid.String(),
+		DisplayName:  row.DisplayName,
+		Email:        row.Email,
+		ExternalID:   row.ExternalID,
+		Department:   row.Department,
+		Title:        row.Title,
+		Phone:        row.Phone,
+		Notes:        row.Notes,
+		MachineCount: int(row.MachineCount),
+		CreatedAt:    row.CreatedAt,
+		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+type nodeInventoryParts struct {
+	internalTrackingID string
+	notes              string
+	createdAt          time.Time
+	updatedAt          time.Time
+	ownerID            sql.NullInt64
+	ownerUUID          uuid.NullUUID
+	ownerDisplayName   sql.NullString
+	ownerEmail         sql.NullString
+	ownerExternalID    sql.NullString
+	ownerDepartment    sql.NullString
+	ownerTitle         sql.NullString
+	ownerPhone         sql.NullString
+	ownerNotes         sql.NullString
+	ownerCreatedAt     sql.NullTime
+	ownerUpdatedAt     sql.NullTime
+}
+
+func toModelNodeInventory(row repo.GetNodeInventoryByNodeUUIDRow) models.NodeInventory {
+	return nodeInventoryFromParts(nodeInventoryParts{
+		internalTrackingID: row.InternalTrackingID,
+		notes:              row.Notes,
+		createdAt:          row.CreatedAt,
+		updatedAt:          row.UpdatedAt,
+		ownerID:            row.OwnerDbID,
+		ownerUUID:          row.OwnerUuid,
+		ownerDisplayName:   row.OwnerDisplayName,
+		ownerEmail:         row.OwnerEmail,
+		ownerExternalID:    row.OwnerExternalID,
+		ownerDepartment:    row.OwnerDepartment,
+		ownerTitle:         row.OwnerTitle,
+		ownerPhone:         row.OwnerPhone,
+		ownerNotes:         row.OwnerNotes,
+		ownerCreatedAt:     row.OwnerCreatedAt,
+		ownerUpdatedAt:     row.OwnerUpdatedAt,
+	})
+}
+
+func toModelNodeInventoryListRow(row repo.ListNodeInventoriesByNodeUUIDsRow) models.NodeInventory {
+	return nodeInventoryFromParts(nodeInventoryParts{
+		internalTrackingID: row.InternalTrackingID,
+		notes:              row.Notes,
+		createdAt:          row.CreatedAt,
+		updatedAt:          row.UpdatedAt,
+		ownerID:            row.OwnerDbID,
+		ownerUUID:          row.OwnerUuid,
+		ownerDisplayName:   row.OwnerDisplayName,
+		ownerEmail:         row.OwnerEmail,
+		ownerExternalID:    row.OwnerExternalID,
+		ownerDepartment:    row.OwnerDepartment,
+		ownerTitle:         row.OwnerTitle,
+		ownerPhone:         row.OwnerPhone,
+		ownerNotes:         row.OwnerNotes,
+		ownerCreatedAt:     row.OwnerCreatedAt,
+		ownerUpdatedAt:     row.OwnerUpdatedAt,
+	})
+}
+
+func nodeInventoryFromParts(parts nodeInventoryParts) models.NodeInventory {
+	inventory := models.NodeInventory{
+		InternalTrackingID: parts.internalTrackingID,
+		Notes:              parts.notes,
+		CreatedAt:          parts.createdAt,
+		UpdatedAt:          parts.updatedAt,
+	}
+	if parts.ownerID.Valid && parts.ownerUUID.Valid {
+		owner := models.DeviceOwner{
+			ID:          parts.ownerID.Int64,
+			ResourceID:  parts.ownerUUID.UUID.String(),
+			UUID:        parts.ownerUUID.UUID.String(),
+			DisplayName: parts.ownerDisplayName.String,
+			Email:       parts.ownerEmail.String,
+			ExternalID:  parts.ownerExternalID.String,
+			Department:  parts.ownerDepartment.String,
+			Title:       parts.ownerTitle.String,
+			Phone:       parts.ownerPhone.String,
+			Notes:       parts.ownerNotes.String,
+			CreatedAt:   parts.ownerCreatedAt.Time,
+			UpdatedAt:   parts.ownerUpdatedAt.Time,
+		}
+		inventory.Owner = &owner
+	}
+	return inventory
+}
+
 func toModelNodeFromGroupRow(row repo.ListNodesByGroupRow) models.Node {
+	return models.Node{
+		ID:                row.ID,
+		ResourceID:        row.Uuid.String(),
+		UUID:              row.Uuid.String(),
+		NodeKey:           row.NodeKey.String(),
+		HostIdentifier:    row.HostIdentifier,
+		Hostname:          row.Hostname,
+		Platform:          row.Platform,
+		OSName:            row.OsName,
+		OSVersion:         row.OsVersion,
+		OSQueryVersion:    row.OsqueryVersion,
+		HardwareSerial:    row.HardwareSerial,
+		EnrolledAt:        row.EnrolledAt,
+		LastSeenAt:        timePtrFromNull(row.LastSeenAt),
+		LastPolicyCheckAt: timePtrFromNull(row.LastPolicyCheckAt),
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+	}
+}
+
+func toModelNodeFromOwnerRow(row repo.ListNodesByOwnerRow) models.Node {
 	return models.Node{
 		ID:                row.ID,
 		ResourceID:        row.Uuid.String(),

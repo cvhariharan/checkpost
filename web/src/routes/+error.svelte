@@ -9,7 +9,7 @@
       <p>{$page.error?.message || 'Page not found or an error occurred.'}</p>
     </header>
     <footer>
-      <a href="/machines" class="button">Return Home</a>
+      <a href="/inventory" class="button">Return Home</a>
     </footer>
   </article>
 </section>

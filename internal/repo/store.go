@@ -18,6 +18,7 @@ type Store interface {
 	ListNodesMatchingIdentity(ctx context.Context, term string) ([]MatchNodesByIdentityPatternRow, error)
 	PatchGroupNodesTx(ctx context.Context, params PatchGroupNodesTxParams) error
 	ReplaceNodeGroupsTx(ctx context.Context, params ReplaceNodeGroupsTxParams) error
+	UpdateNodeInventoryTx(ctx context.Context, params UpdateNodeInventoryTxParams) (GetNodeInventoryByNodeUUIDRow, error)
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
 	UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error)
 }
@@ -57,6 +58,13 @@ type PatchGroupNodesTxParams struct {
 	GroupUUID       uuid.UUID
 	AddNodeUUIDs    []uuid.UUID
 	RemoveNodeUUIDs []uuid.UUID
+}
+
+type UpdateNodeInventoryTxParams struct {
+	NodeUUID           uuid.UUID
+	OwnerUUID          *uuid.UUID
+	InternalTrackingID string
+	Notes              string
 }
 
 type CreateScheduleTxParams struct {
@@ -261,6 +269,49 @@ func (s *PostgresStore) PatchGroupNodesTx(ctx context.Context, params PatchGroup
 	}
 
 	return nil
+}
+
+func (s *PostgresStore) UpdateNodeInventoryTx(ctx context.Context, params UpdateNodeInventoryTxParams) (GetNodeInventoryByNodeUUIDRow, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return GetNodeInventoryByNodeUUIDRow{}, fmt.Errorf("begin update node inventory transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	node, err := q.GetNodeByUUID(ctx, params.NodeUUID)
+	if err != nil {
+		return GetNodeInventoryByNodeUUIDRow{}, fmt.Errorf("get node: %w", err)
+	}
+
+	ownerID := sql.NullInt64{}
+	if params.OwnerUUID != nil {
+		owner, err := q.GetDeviceOwnerByUUID(ctx, *params.OwnerUUID)
+		if err != nil {
+			return GetNodeInventoryByNodeUUIDRow{}, fmt.Errorf("get owner: %w", err)
+		}
+		ownerID = sql.NullInt64{Int64: owner.ID, Valid: true}
+	}
+
+	if _, err := q.UpsertNodeInventory(ctx, UpsertNodeInventoryParams{
+		NodeID:             node.ID,
+		OwnerID:            ownerID,
+		InternalTrackingID: params.InternalTrackingID,
+		Notes:              params.Notes,
+	}); err != nil {
+		return GetNodeInventoryByNodeUUIDRow{}, fmt.Errorf("upsert node inventory: %w", err)
+	}
+
+	row, err := q.GetNodeInventoryByNodeUUID(ctx, params.NodeUUID)
+	if err != nil {
+		return GetNodeInventoryByNodeUUIDRow{}, fmt.Errorf("get node inventory: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return GetNodeInventoryByNodeUUIDRow{}, fmt.Errorf("commit update node inventory transaction: %w", err)
+	}
+
+	return row, nil
 }
 
 func (s *PostgresStore) CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error) {

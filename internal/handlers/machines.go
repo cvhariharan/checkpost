@@ -11,13 +11,17 @@ import (
 )
 
 func (h *Handler) HandleMachinesPagination(c echo.Context) error {
-	var req PaginateRequest
+	var req MachineListRequest
 	if err := c.Bind(&req); err != nil {
 		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
 	}
+	SanitizeStruct(&req)
 
 	if req.Page < 0 || req.Count < 0 {
 		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	}
+	if req.Assigned != "" && req.Assigned != "assigned" && req.Assigned != "unassigned" {
+		return wrapError(http.StatusBadRequest, "invalid assigned filter", fmt.Errorf("invalid assigned filter %q", req.Assigned), nil)
 	}
 
 	if req.Page > 0 {
@@ -28,9 +32,13 @@ func (h *Handler) HandleMachinesPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	page, err := h.c.PaginateNodes(c.Request().Context(), models.PageRequest{
-		Page:  req.Page,
-		Count: req.Count,
+	page, err := h.c.PaginateNodes(c.Request().Context(), models.NodeListRequest{
+		Page:     req.Page,
+		Count:    req.Count,
+		Query:    req.Query,
+		Platform: req.Platform,
+		OwnerID:  req.OwnerID,
+		Assigned: req.Assigned,
 	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get machines", err, nil)

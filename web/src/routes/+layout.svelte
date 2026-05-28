@@ -6,13 +6,14 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte'
 
   const navItems: { href: string; label: string; section: string }[] = [
-    { href: '/machines', label: 'Machines', section: 'machines' },
+    { href: '/inventory', label: 'Inventory', section: 'inventory' },
     { href: '/groups', label: 'Groups', section: 'groups' },
     { href: '/policies', label: 'Policies', section: 'policies' },
     { href: '/schedules', label: 'Schedules', section: 'schedules' }
   ]
 
-  $: section = $page.url.pathname.split('/')[1] || ''
+  $: rootSection = $page.url.pathname.split('/')[1] || ''
+  $: section = rootSection === 'machines' ? 'inventory' : rootSection
 </script>
 
 <div data-sidebar-layout="always">
@@ -38,7 +39,7 @@
         <path d="M9 3v18" />
       </svg>
     </button>
-    <a href="/machines" class="unstyled"><strong>Watcher</strong></a>
+    <a href="/inventory" class="unstyled"><strong>Watcher</strong></a>
   </nav>
 
   <aside data-sidebar>

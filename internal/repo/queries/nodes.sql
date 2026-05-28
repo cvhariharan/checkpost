@@ -48,7 +48,46 @@ UPDATE nodes SET last_seen_at = now(), updated_at = now() WHERE node_key = $1;
 
 -- name: ListNodes :many
 WITH filtered AS (
-    SELECT * FROM nodes
+    SELECT
+        nodes.id,
+        nodes.uuid,
+        nodes.node_key,
+        nodes.host_identifier,
+        nodes.hostname,
+        nodes.platform,
+        nodes.os_name,
+        nodes.os_version,
+        nodes.osquery_version,
+        nodes.hardware_serial,
+        nodes.enrolled_at,
+        nodes.last_seen_at,
+        nodes.last_policy_check_at,
+        nodes.created_at,
+        nodes.updated_at
+    FROM nodes
+    LEFT JOIN node_inventory ON node_inventory.node_id = nodes.id
+    LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
+    WHERE (
+        @query::text = ''
+        OR nodes.hostname ILIKE '%' || @query::text || '%'
+        OR nodes.host_identifier ILIKE '%' || @query::text || '%'
+        OR node_inventory.internal_tracking_id ILIKE '%' || @query::text || '%'
+        OR device_owners.display_name ILIKE '%' || @query::text || '%'
+        OR device_owners.email ILIKE '%' || @query::text || '%'
+    )
+      AND (
+        @platform::text = ''
+        OR nodes.platform = @platform::text
+    )
+      AND (
+        @owner_uuid::text = ''
+        OR device_owners.uuid::text = @owner_uuid::text
+    )
+      AND (
+        @assigned::text = ''
+        OR (@assigned::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
+        OR (@assigned::text = 'unassigned' AND node_inventory.owner_id IS NULL)
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -56,4 +95,4 @@ total AS (
 SELECT filtered.*, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
-LIMIT $1 OFFSET $2;
+LIMIT @limit OFFSET @offset;

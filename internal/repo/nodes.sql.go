@@ -162,7 +162,46 @@ func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, e
 
 const listNodes = `-- name: ListNodes :many
 WITH filtered AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes
+    SELECT
+        nodes.id,
+        nodes.uuid,
+        nodes.node_key,
+        nodes.host_identifier,
+        nodes.hostname,
+        nodes.platform,
+        nodes.os_name,
+        nodes.os_version,
+        nodes.osquery_version,
+        nodes.hardware_serial,
+        nodes.enrolled_at,
+        nodes.last_seen_at,
+        nodes.last_policy_check_at,
+        nodes.created_at,
+        nodes.updated_at
+    FROM nodes
+    LEFT JOIN node_inventory ON node_inventory.node_id = nodes.id
+    LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
+    WHERE (
+        $1::text = ''
+        OR nodes.hostname ILIKE '%' || $1::text || '%'
+        OR nodes.host_identifier ILIKE '%' || $1::text || '%'
+        OR node_inventory.internal_tracking_id ILIKE '%' || $1::text || '%'
+        OR device_owners.display_name ILIKE '%' || $1::text || '%'
+        OR device_owners.email ILIKE '%' || $1::text || '%'
+    )
+      AND (
+        $2::text = ''
+        OR nodes.platform = $2::text
+    )
+      AND (
+        $3::text = ''
+        OR device_owners.uuid::text = $3::text
+    )
+      AND (
+        $4::text = ''
+        OR ($4::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
+        OR ($4::text = 'unassigned' AND node_inventory.owner_id IS NULL)
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -170,12 +209,16 @@ total AS (
 SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
-LIMIT $1 OFFSET $2
+LIMIT $5 OFFSET $6
 `
 
 type ListNodesParams struct {
-	Limit  int32 `db:"limit" json:"limit"`
-	Offset int32 `db:"offset" json:"offset"`
+	Query     string `db:"query" json:"query"`
+	Platform  string `db:"platform" json:"platform"`
+	OwnerUuid string `db:"owner_uuid" json:"owner_uuid"`
+	Assigned  string `db:"assigned" json:"assigned"`
+	Limit     int32  `db:"limit" json:"limit"`
+	Offset    int32  `db:"offset" json:"offset"`
 }
 
 type ListNodesRow struct {
@@ -198,7 +241,14 @@ type ListNodesRow struct {
 }
 
 func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listNodes, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listNodes,
+		arg.Query,
+		arg.Platform,
+		arg.OwnerUuid,
+		arg.Assigned,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}

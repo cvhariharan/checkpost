@@ -9,8 +9,11 @@
     fetchMachineMetrics,
     fetchMachinePolicies,
     fetchMachineQueries,
+    fetchOwners,
     fetchMetricSchemas,
+    updateMachineInventory,
     updateMachineGroups,
+    type DeviceOwner,
     type Group,
     type Machine,
     type MachinePolicyPosture,
@@ -54,6 +57,11 @@
   let availableGroups: Group[] = []
   let selectedGroupIds: string[] = []
   let savingGroups = false
+  let availableOwners: DeviceOwner[] = []
+  let selectedOwnerId = ''
+  let internalTrackingId = ''
+  let inventoryNotes = ''
+  let savingInventory = false
 
   $: machineId = $page.params.id as string
   $: queryStartResult = queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1
@@ -65,21 +73,26 @@
     loading = true
     error = ''
     try {
-      const [machineData, historyData, policyData, groupData, metricsData, schemasData] = await Promise.all([
+      const [machineData, historyData, policyData, groupData, ownerData, metricsData, schemasData] = await Promise.all([
         fetchMachine(machineId),
         fetchMachineQueries(machineId, { page: currentQueryPage, countPerPage: queryCountPerPage }),
         fetchMachinePolicies(machineId),
         fetchGroups({ page: 1, countPerPage: 1000 }),
+        fetchOwners({ page: 1, countPerPage: 1000 }),
         fetchMachineMetrics(machineId).catch(() => ({ metrics: {} as NodeMetrics })),
         fetchMetricSchemas().catch(() => ({ schemas: {}, kinds: [] }) as MetricSchemas)
       ])
       machine = machineData
       selectedGroupIds = (machineData.groups || []).map((g) => g.uuid)
+      selectedOwnerId = machineData.inventory?.owner?.uuid || ''
+      internalTrackingId = machineData.inventory?.internal_tracking_id || ''
+      inventoryNotes = machineData.inventory?.notes || ''
       setQueryHistory(historyData)
       policyPosture = Array.isArray(policyData)
         ? policyData
         : (policyData as { policies?: MachinePolicyPosture[] }).policies || []
       availableGroups = groupData.groups || []
+      availableOwners = ownerData.owners || []
       metrics = metricsData.metrics || {}
       metricSchemas = schemasData
     } catch (err) {
@@ -263,6 +276,23 @@
     }
   }
 
+  async function saveInventory() {
+    savingInventory = true
+    error = ''
+    try {
+      await updateMachineInventory(machineId, {
+        owner_id: selectedOwnerId || null,
+        internal_tracking_id: internalTrackingId,
+        notes: inventoryNotes
+      })
+      await loadMachine()
+    } catch (err) {
+      error = (err as Error).message || 'Failed to update machine inventory'
+    } finally {
+      savingInventory = false
+    }
+  }
+
   function postureVariant(response?: string): 'success' | 'danger' | 'warning' {
     if (response === 'passing') return 'success'
     if (response === 'failing') return 'danger'
@@ -299,6 +329,52 @@
     </header>
 
     <ErrorMessage message={error} onClose={() => (error = '')} />
+
+    <article class="card">
+      <header class="hstack justify-between">
+        <div>
+          <h2>Inventory</h2>
+          <p class="text-light">
+            {machine?.inventory?.owner?.display_name || 'Unassigned'}
+            {internalTrackingId ? ` - ${internalTrackingId}` : ''}
+          </p>
+        </div>
+        <button
+          type="button"
+          class="small"
+          disabled={savingInventory}
+          aria-busy={savingInventory ? 'true' : undefined}
+          onclick={saveInventory}
+        >
+          {savingInventory ? 'Saving...' : 'Save Inventory'}
+        </button>
+      </header>
+      <div class="vstack gap-3">
+        <div class="row">
+          <div class="col-6">
+            <label data-field>
+              Owner
+              <select bind:value={selectedOwnerId}>
+                <option value="">Unassigned</option>
+                {#each availableOwners as owner}
+                  <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
+                {/each}
+              </select>
+            </label>
+          </div>
+          <div class="col-6">
+            <label data-field>
+              Internal tracking ID
+              <input bind:value={internalTrackingId} placeholder="ASSET-10042" />
+            </label>
+          </div>
+        </div>
+        <label data-field>
+          Notes
+          <textarea bind:value={inventoryNotes} rows="3"></textarea>
+        </label>
+      </div>
+    </article>
 
     {#if visibleMetricKinds.length > 0}
       <section class="vstack gap-3">

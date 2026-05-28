@@ -203,6 +203,9 @@ func (c *Core) PaginateGroupMachines(ctx context.Context, req models.GroupMachin
 	if err := c.attachGroupsToNodes(ctx, out); err != nil {
 		return models.Page[models.Node]{}, err
 	}
+	if err := c.attachInventoryToNodes(ctx, out); err != nil {
+		return models.Page[models.Node]{}, err
+	}
 
 	return models.Page[models.Node]{
 		Items:      out,

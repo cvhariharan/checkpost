@@ -13,6 +13,20 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type DeviceOwner struct {
+	ID          int64     `db:"id" json:"id"`
+	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Email       string    `db:"email" json:"email"`
+	ExternalID  string    `db:"external_id" json:"external_id"`
+	Department  string    `db:"department" json:"department"`
+	Title       string    `db:"title" json:"title"`
+	Phone       string    `db:"phone" json:"phone"`
+	Notes       string    `db:"notes" json:"notes"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type Group struct {
 	ID          int64     `db:"id" json:"id"`
 	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
@@ -58,6 +72,15 @@ type Node struct {
 	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
 	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+type NodeInventory struct {
+	NodeID             int64         `db:"node_id" json:"node_id"`
+	OwnerID            sql.NullInt64 `db:"owner_id" json:"owner_id"`
+	InternalTrackingID string        `db:"internal_tracking_id" json:"internal_tracking_id"`
+	Notes              string        `db:"notes" json:"notes"`
+	CreatedAt          time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type NodeMetric struct {

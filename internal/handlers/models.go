@@ -94,6 +94,15 @@ type PaginateRequest struct {
 	Count int `query:"count_per_page"`
 }
 
+type MachineListRequest struct {
+	Page     int    `query:"page"`
+	Count    int    `query:"count_per_page"`
+	Query    string `query:"q"`
+	Platform string `query:"platform"`
+	OwnerID  string `query:"owner_id"`
+	Assigned string `query:"assigned"`
+}
+
 type PaginateMachinesResponse struct {
 	Machines   []models.Node `json:"machines"`
 	TotalCount int           `json:"total_count"`
@@ -226,6 +235,62 @@ type GroupMachinesResponse struct {
 	Machines   []models.Node `json:"machines"`
 	TotalCount int           `json:"total_count"`
 	PageCount  int           `json:"page_count"`
+}
+
+type OwnersRequest struct {
+	Page  int    `query:"page"`
+	Count int    `query:"count_per_page"`
+	Query string `query:"q"`
+}
+
+type CreateOwnerRequest struct {
+	DisplayName string `json:"display_name" validate:"required"`
+	Email       string `json:"email" validate:"required,email"`
+	ExternalID  string `json:"external_id"`
+	Department  string `json:"department"`
+	Title       string `json:"title"`
+	Phone       string `json:"phone"`
+	Notes       string `json:"notes"`
+}
+
+type UpdateOwnerRequest struct {
+	ID          string `param:"id"`
+	DisplayName string `json:"display_name" validate:"required"`
+	Email       string `json:"email" validate:"required,email"`
+	ExternalID  string `json:"external_id"`
+	Department  string `json:"department"`
+	Title       string `json:"title"`
+	Phone       string `json:"phone"`
+	Notes       string `json:"notes"`
+}
+
+type PaginateOwnersResponse struct {
+	Owners     []models.DeviceOwner `json:"owners"`
+	TotalCount int                  `json:"total_count"`
+	PageCount  int                  `json:"page_count"`
+}
+
+type OwnerMachinesRequest struct {
+	ID    string `param:"id"`
+	Page  int    `query:"page"`
+	Count int    `query:"count_per_page"`
+}
+
+type OwnerMachinesResponse struct {
+	Machines   []models.Node `json:"machines"`
+	TotalCount int           `json:"total_count"`
+	PageCount  int           `json:"page_count"`
+}
+
+type UpdateMachineInventoryRequest struct {
+	ID                 string  `param:"id"`
+	OwnerID            *string `json:"owner_id"`
+	InternalTrackingID string  `json:"internal_tracking_id"`
+	Notes              string  `json:"notes"`
+}
+
+type MachineInventoryResponse struct {
+	Inventory models.NodeInventory `json:"inventory"`
 }
 
 type PatchGroupMachinesRequest struct {

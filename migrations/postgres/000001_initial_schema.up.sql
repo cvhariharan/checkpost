@@ -166,6 +166,52 @@ CREATE TABLE group_membership (
 CREATE INDEX group_membership_node_idx ON group_membership (node_id);
 CREATE INDEX group_membership_group_idx ON group_membership (group_id);
 
+CREATE TABLE device_owners (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    display_name TEXT NOT NULL,
+    email TEXT NOT NULL DEFAULT '',
+    external_id TEXT NOT NULL DEFAULT '',
+    department TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT device_owners_uuid_unique UNIQUE (uuid),
+    CONSTRAINT device_owners_display_name_nonempty CHECK (length(trim(display_name)) > 0),
+    CONSTRAINT device_owners_email_nonempty CHECK (length(trim(email)) > 0)
+);
+
+CREATE UNIQUE INDEX device_owners_email_unique_idx
+    ON device_owners (lower(trim(email)))
+    WHERE length(trim(email)) > 0;
+
+CREATE INDEX device_owners_email_search_idx ON device_owners (lower(email));
+CREATE UNIQUE INDEX device_owners_external_id_unique_idx
+    ON device_owners (lower(trim(external_id)))
+    WHERE length(trim(external_id)) > 0;
+
+CREATE INDEX device_owners_display_name_idx ON device_owners (lower(display_name));
+CREATE INDEX device_owners_created_at_idx ON device_owners (created_at DESC);
+
+CREATE TABLE node_inventory (
+    node_id BIGINT PRIMARY KEY REFERENCES nodes (id) ON DELETE CASCADE,
+    owner_id BIGINT REFERENCES device_owners (id) ON DELETE SET NULL,
+    internal_tracking_id TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX node_inventory_tracking_id_unique_idx
+    ON node_inventory (lower(trim(internal_tracking_id)))
+    WHERE length(trim(internal_tracking_id)) > 0;
+
+CREATE INDEX node_inventory_owner_idx ON node_inventory (owner_id);
+CREATE INDEX node_inventory_updated_at_idx ON node_inventory (updated_at DESC);
+
 CREATE TABLE policy_groups (
     policy_id BIGINT NOT NULL REFERENCES policies (id) ON DELETE CASCADE,
     group_id BIGINT NOT NULL REFERENCES groups (id) ON DELETE CASCADE,

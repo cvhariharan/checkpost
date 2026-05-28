@@ -74,10 +74,14 @@ func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models
 	if err != nil {
 		return models.Node{}, err
 	}
+	out, err = c.attachInventoryToNode(ctx, out)
+	if err != nil {
+		return models.Node{}, err
+	}
 	return out, nil
 }
 
-func (c *Core) PaginateNodes(ctx context.Context, req models.PageRequest) (models.Page[models.Node], error) {
+func (c *Core) PaginateNodes(ctx context.Context, req models.NodeListRequest) (models.Page[models.Node], error) {
 	page := req.Page
 	countPerPage := req.Count
 	if countPerPage <= 0 {
@@ -88,8 +92,12 @@ func (c *Core) PaginateNodes(ctx context.Context, req models.PageRequest) (model
 	}
 
 	rows, err := c.store.ListNodes(ctx, repo.ListNodesParams{
-		Limit:  int32(countPerPage),
-		Offset: int32(page * countPerPage),
+		Query:     strings.TrimSpace(req.Query),
+		Platform:  strings.TrimSpace(req.Platform),
+		OwnerUuid: strings.TrimSpace(req.OwnerID),
+		Assigned:  strings.TrimSpace(req.Assigned),
+		Limit:     int32(countPerPage),
+		Offset:    int32(page * countPerPage),
 	})
 	if err != nil {
 		return models.Page[models.Node]{}, fmt.Errorf("list nodes: %w", err)
@@ -103,6 +111,9 @@ func (c *Core) PaginateNodes(ctx context.Context, req models.PageRequest) (model
 	}
 
 	if err := c.attachGroupsToNodes(ctx, out); err != nil {
+		return models.Page[models.Node]{}, err
+	}
+	if err := c.attachInventoryToNodes(ctx, out); err != nil {
 		return models.Page[models.Node]{}, err
 	}
 

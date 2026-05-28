@@ -239,6 +239,16 @@ func (c *Core) PaginatePolicyMachines(ctx context.Context, req models.PolicyMach
 		}
 		out[i].Node = updated
 	}
+	nodes := make([]models.Node, len(out))
+	for i := range out {
+		nodes[i] = out[i].Node
+	}
+	if err := c.attachInventoryToNodes(ctx, nodes); err != nil {
+		return models.Page[models.PolicyMachine]{}, err
+	}
+	for i := range out {
+		out[i].Node = nodes[i]
+	}
 
 	return models.Page[models.PolicyMachine]{
 		Items:      out,

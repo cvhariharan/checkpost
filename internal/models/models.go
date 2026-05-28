@@ -18,6 +18,7 @@ type Node struct {
 	LastSeenAt        *time.Time      `json:"last_seen_at,omitempty"`
 	LastPolicyCheckAt *time.Time      `json:"last_policy_check_at,omitempty"`
 	Groups            []Group         `json:"groups,omitempty"`
+	Inventory         *NodeInventory  `json:"inventory,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 	EnrollmentInput   HostDetailsInfo `json:"-"`
@@ -251,6 +252,79 @@ type GroupMachinesRequest struct {
 	GroupUUID string
 	Page      int
 	Count     int
+}
+
+type DeviceOwner struct {
+	ID           int64     `json:"-"`
+	ResourceID   string    `json:"id"`
+	UUID         string    `json:"uuid"`
+	DisplayName  string    `json:"display_name"`
+	Email        string    `json:"email"`
+	ExternalID   string    `json:"external_id"`
+	Department   string    `json:"department"`
+	Title        string    `json:"title"`
+	Phone        string    `json:"phone"`
+	Notes        string    `json:"notes"`
+	MachineCount int       `json:"machine_count"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type CreateDeviceOwner struct {
+	DisplayName string
+	Email       string
+	ExternalID  string
+	Department  string
+	Title       string
+	Phone       string
+	Notes       string
+}
+
+type UpdateDeviceOwner struct {
+	UUID        string
+	DisplayName string
+	Email       string
+	ExternalID  string
+	Department  string
+	Title       string
+	Phone       string
+	Notes       string
+}
+
+type DeviceOwnerListRequest struct {
+	Page  int
+	Count int
+	Query string
+}
+
+type NodeListRequest struct {
+	Page     int
+	Count    int
+	Query    string
+	Platform string
+	OwnerID  string
+	Assigned string
+}
+
+type OwnerMachinesRequest struct {
+	OwnerUUID string
+	Page      int
+	Count     int
+}
+
+type NodeInventory struct {
+	InternalTrackingID string       `json:"internal_tracking_id"`
+	Notes              string       `json:"notes"`
+	Owner              *DeviceOwner `json:"owner,omitempty"`
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+}
+
+type UpdateNodeInventory struct {
+	NodeUUID           string
+	OwnerUUID          string
+	InternalTrackingID string
+	Notes              string
 }
 
 type PolicyPosture struct {
