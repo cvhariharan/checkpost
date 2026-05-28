@@ -25,19 +25,28 @@ func (c *Core) CreateSchedule(ctx context.Context, req models.CreateSchedule) (m
 		return models.Schedule{}, err
 	}
 
+	platform := strings.TrimSpace(req.Platform)
+	if platform == "" {
+		platform = "all"
+	}
+	shard := req.Shard
+	if shard == 0 {
+		shard = 100
+	}
+
 	sched, err := c.store.CreateScheduleTx(ctx, repo.CreateScheduleTxParams{
 		Schedule: repo.CreateScheduleParams{
 			Name:            req.Name,
 			Sql:             req.SQL,
 			Description:     req.Description,
 			IntervalSeconds: int32(req.IntervalSeconds),
-			Platform:        defaultString(req.Platform, "all"),
+			Platform:        platform,
 			Version:         req.Version,
-			Shard:           int32(defaultInt(req.Shard, 100)),
+			Shard:           int32(shard),
 			Denylist:        req.Denylist,
 			Removed:         req.Removed,
 			Snapshot:        req.Snapshot,
-			Enabled:         defaultBool(req.Enabled, true),
+			Enabled:         req.Enabled,
 			IsSystem:        req.IsSystem,
 		},
 		GroupUUIDs: groupUUIDs,
@@ -382,6 +391,15 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 		return models.Schedule{}, err
 	}
 
+	platform := strings.TrimSpace(req.Platform)
+	if platform == "" {
+		platform = "all"
+	}
+	shard := req.Shard
+	if shard == 0 {
+		shard = 100
+	}
+
 	sched, err := c.store.UpdateScheduleTx(ctx, repo.UpdateScheduleTxParams{
 		Schedule: repo.UpdateScheduleByUUIDParams{
 			Uuid:            scheduleID,
@@ -389,13 +407,13 @@ func (c *Core) UpdateSchedule(ctx context.Context, req models.UpdateSchedule) (m
 			Sql:             req.SQL,
 			Description:     req.Description,
 			IntervalSeconds: int32(req.IntervalSeconds),
-			Platform:        defaultString(req.Platform, "all"),
+			Platform:        platform,
 			Version:         req.Version,
-			Shard:           int32(defaultInt(req.Shard, 100)),
+			Shard:           int32(shard),
 			Denylist:        req.Denylist,
 			Removed:         req.Removed,
 			Snapshot:        req.Snapshot,
-			Enabled:         defaultBool(req.Enabled, true),
+			Enabled:         req.Enabled,
 			RetentionDays:   int32(req.RetentionDays),
 		},
 		GroupUUIDs: groupUUIDs,

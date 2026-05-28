@@ -1,9 +1,7 @@
 package main
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,16 +21,9 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/knadh/koanf/parsers/toml"
-	"github.com/knadh/koanf/providers/confmap"
-	"github.com/knadh/koanf/providers/env"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/v2"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 )
-
-var k = koanf.New(".")
 
 func main() {
 	loglevel := slog.LevelError
@@ -51,19 +42,12 @@ func main() {
 	flag.StringVar(&configFile, "config", "config.toml", "Path to the config file. If the file doesn't exist, a default file will be generated")
 	flag.Parse()
 
-	if err := setDefaultConfig(); err != nil {
-		log.Fatalf("error creating default config: %v", err)
-	}
-
-	if err := loadOrCreateConfigFile(configFile); err != nil {
+	cfg, err := config.Load(configFile)
+	if err != nil {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	if err := loadEnvConfig(); err != nil {
-		log.Fatalf("could not load env config: %v", err)
-	}
-
-	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", k.String("db.user"), k.String("db.password"), k.String("db.host"), k.Int("db.port"), k.String("db.dbname")))
+	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", cfg.DBConfig.User, cfg.DBConfig.Password, cfg.DBConfig.Host, cfg.DBConfig.Port, cfg.DBConfig.DBName))
 	if err != nil {
 		log.Fatalf("could not open database: %v", err)
 	}
@@ -78,11 +62,6 @@ func main() {
 	}
 
 	store := repo.NewPostgresStore(db)
-
-	var cfg config.Config
-	if err := k.UnmarshalWithConf("", &cfg, koanf.UnmarshalConf{Tag: "koanf", FlatPaths: true}); err != nil {
-		log.Fatal(err)
-	}
 
 	resultsWriter, err := results.NewWriter(cfg.DataConfig.ParquetRoot, results.NewQueryStore(store), logger)
 	if err != nil {
@@ -183,7 +162,7 @@ func main() {
 		return c.Stream(http.StatusOK, "text/html; charset=utf-8", indexFile)
 	})
 
-	if cfg.UseTLS {
+	if cfg.AppConfig.UseTLS {
 		e.Logger.Fatal(e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath))
 	} else {
 		e.Logger.Fatal(e.Start(":1323"))
@@ -218,77 +197,4 @@ func runDBMigration(db *sql.DB) error {
 	}
 
 	return nil
-}
-
-func loadOrCreateConfigFile(configFile string) error {
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		log.Println("config file not found, creating default config file")
-
-		f, err := os.Create(configFile)
-		if err != nil {
-			return fmt.Errorf("error creating config file: %v", err)
-		}
-		defer f.Close()
-
-		cfgBytes, err := k.Marshal(toml.Parser())
-		if err != nil {
-			return fmt.Errorf("could not marshal default config: %v", err)
-		}
-
-		if _, err := f.Write(cfgBytes); err != nil {
-			return fmt.Errorf("could not write default config file: %v", err)
-		}
-
-		return nil
-	}
-
-	if err := k.Load(file.Provider(configFile), toml.Parser()); err != nil {
-		log.Fatalf("error loading config: %v", err)
-	}
-	return nil
-}
-
-func loadEnvConfig() error {
-	const prefix = "WATCHER_"
-
-	return k.Load(env.Provider(prefix, ".", func(s string) string {
-		key := strings.TrimPrefix(s, prefix)
-		key = strings.ToLower(key)
-		return strings.ReplaceAll(key, "__", ".")
-	}), nil)
-}
-
-func setDefaultConfig() error {
-	key := make([]byte, 16)
-	enrollmentKey := make([]byte, 16)
-
-	if _, err := rand.Read(key); err != nil {
-		return fmt.Errorf("could not generate random key for securecookie encryption: %w", err)
-	}
-
-	if _, err := rand.Read(enrollmentKey); err != nil {
-		return fmt.Errorf("could not generate random enrollment key for osquery: %w", err)
-	}
-
-	return k.Load(confmap.Provider(map[string]any{
-		"app.admin_username":         "watcher_admin",
-		"app.admin_password":         "watcher_password",
-		"app.http_tls_cert":          "server_cert.pem",
-		"app.http_tls_key":           "server_key.pem",
-		"app.use_tls":                false,
-		"app.root_url":               "http://localhost:1323",
-		"app.secure_cookie_key":      hex.EncodeToString(key),
-		"app.enrollment_key":         hex.EncodeToString(enrollmentKey),
-		"app.policy_update_interval": "1h",
-		"app.policy_stale_after":     "2h",
-
-		"db.dbname":   "watcher",
-		"db.host":     "localhost",
-		"db.port":     5432,
-		"db.password": "watcher",
-		"db.user":     "watcher",
-
-		"data.parquet_root": "./data/results",
-		"data.duckdb_path":  "",
-	}, "."), nil)
 }

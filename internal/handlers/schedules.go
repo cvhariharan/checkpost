@@ -12,12 +12,8 @@ import (
 
 func (h *Handler) HandleCreateSchedule(c echo.Context) error {
 	var req CreateScheduleRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	sched, err := h.c.CreateSchedule(c.Request().Context(), models.CreateSchedule{
@@ -45,12 +41,8 @@ func (h *Handler) HandleCreateSchedule(c echo.Context) error {
 
 func (h *Handler) HandleSchedulesPagination(c echo.Context) error {
 	var req PaginateRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if req.Page > 0 {
@@ -78,12 +70,8 @@ func (h *Handler) HandleSchedulesPagination(c echo.Context) error {
 
 func (h *Handler) HandleGetSchedule(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	q, err := h.c.GetSchedule(c.Request().Context(), models.ResourceID{UUID: req.ID})
@@ -96,12 +84,8 @@ func (h *Handler) HandleGetSchedule(c echo.Context) error {
 
 func (h *Handler) HandleDeleteSchedule(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if err := h.c.DeleteSchedule(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
@@ -113,12 +97,8 @@ func (h *Handler) HandleDeleteSchedule(c echo.Context) error {
 
 func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 	var req UpdateScheduleRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	q, err := h.c.UpdateSchedule(c.Request().Context(), models.UpdateSchedule{
@@ -146,12 +126,8 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 
 func (h *Handler) HandleScheduleResults(c echo.Context) error {
 	var req ScheduleResultsRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if req.Page > 0 {

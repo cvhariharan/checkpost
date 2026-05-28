@@ -55,10 +55,6 @@ func (c *Core) RecordNodeHeartbeat(ctx context.Context, req models.NodeKeyReques
 }
 
 func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models.Node, error) {
-	if strings.TrimSpace(req.ID) == "" {
-		return models.Node{}, fmt.Errorf("node id cannot be empty")
-	}
-
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
 		return models.Node{}, fmt.Errorf("parse node uuid: %w", err)
@@ -122,4 +118,13 @@ func (c *Core) PaginateNodes(ctx context.Context, req models.NodeListRequest) (m
 		TotalCount: totalCount,
 		PageCount:  pageCountFor(totalCount, countPerPage),
 	}, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

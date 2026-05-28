@@ -67,8 +67,8 @@ type IndexPageData struct {
 }
 
 type EnrollmentRequest struct {
-	EnrollSecret   string `json:"enroll_secret"`
-	HostIdentifier string `json:"host_identifier"`
+	EnrollSecret   string `json:"enroll_secret" validate:"required"`
+	HostIdentifier string `json:"host_identifier" validate:"required"`
 
 	HostDetails models.HostDetailsInfo `json:"host_details"`
 }
@@ -90,17 +90,17 @@ type CreateResponse struct {
 }
 
 type PaginateRequest struct {
-	Page  int `query:"page"`
-	Count int `query:"count_per_page"`
+	Page  int `query:"page" validate:"gte=0"`
+	Count int `query:"count_per_page" validate:"gte=0"`
 }
 
 type MachineListRequest struct {
-	Page     int    `query:"page"`
-	Count    int    `query:"count_per_page"`
-	Query    string `query:"q"`
-	Platform string `query:"platform"`
-	OwnerID  string `query:"owner_id"`
-	Assigned string `query:"assigned"`
+	Page     int    `query:"page" validate:"gte=0"`
+	Count    int    `query:"count_per_page" validate:"gte=0"`
+	Query    string `query:"q" validate:"lte=4096"`
+	Platform string `query:"platform" validate:"lte=255"`
+	OwnerID  string `query:"owner_id" validate:"omitempty,uuid"`
+	Assigned string `query:"assigned" validate:"omitempty,oneof=assigned unassigned"`
 }
 
 type PaginateMachinesResponse struct {
@@ -110,23 +110,23 @@ type PaginateMachinesResponse struct {
 }
 
 type GetRequest struct {
-	ID string `param:"id"`
+	ID string `param:"id" validate:"required,uuid"`
 }
 
 type MachineQueryRequest struct {
-	ID    string `param:"id"`
-	Query string `json:"query"`
+	ID    string `param:"id" validate:"required,uuid"`
+	Query string `json:"query" validate:"required"`
 }
 
 type MachineQueriesRequest struct {
-	ID    string `param:"id"`
-	Page  int    `query:"page"`
-	Count int    `query:"count_per_page"`
+	ID    string `param:"id" validate:"required,uuid"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0"`
 }
 
 type DeleteMachineQueryRequest struct {
-	ID      string `param:"id"`
-	QueryID string `param:"query_id"`
+	ID      string `param:"id" validate:"required,uuid"`
+	QueryID string `param:"query_id" validate:"required,uuid"`
 }
 
 type MachineQueriesResponse struct {
@@ -139,14 +139,14 @@ type CreateScheduleRequest struct {
 	Query       string   `json:"query" validate:"required"`
 	Description string   `json:"description"`
 	Title       string   `json:"title" validate:"required,ascii"`
-	Interval    int      `json:"interval" validate:"required,lte=604800"`
+	Interval    int      `json:"interval" validate:"gte=1,lte=604800"`
 	Removed     bool     `json:"removed"`
 	Snapshot    bool     `json:"snapshot"`
-	Platform    string   `json:"platform" validate:"oneof=darwin linux posix windows any all"`
+	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
 	Version     string   `json:"version"`
-	Shard       int      `json:"shard" validate:"lte=100"`
+	Shard       int      `json:"shard" validate:"gte=0,lte=100"`
 	Denylist    bool     `json:"denylist"`
-	GroupIDs    []string `json:"group_ids"`
+	GroupIDs    []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
 
 type PaginateSchedulesResponse struct {
@@ -162,18 +162,18 @@ type CreatePolicyRequest struct {
 	Resolution  string   `json:"resolution"`
 	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
 	Enabled     *bool    `json:"enabled"`
-	GroupIDs    []string `json:"group_ids"`
+	GroupIDs    []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
 
 type UpdatePolicyRequest struct {
-	ID          string   `param:"id"`
+	ID          string   `param:"id" validate:"required,uuid"`
 	Title       string   `json:"title" validate:"required"`
 	Query       string   `json:"query" validate:"required"`
 	Description string   `json:"description"`
 	Resolution  string   `json:"resolution"`
 	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
 	Enabled     *bool    `json:"enabled"`
-	GroupIDs    []string `json:"group_ids"`
+	GroupIDs    []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
 
 type PaginatePoliciesResponse struct {
@@ -183,10 +183,10 @@ type PaginatePoliciesResponse struct {
 }
 
 type PolicyMachinesRequest struct {
-	ID       string `param:"id"`
-	Response string `query:"response"`
-	Page     int    `query:"page"`
-	Count    int    `query:"count_per_page"`
+	ID       string `param:"id" validate:"required,uuid"`
+	Response string `query:"response" validate:"omitempty,oneof=passing failing unknown"`
+	Page     int    `query:"page" validate:"gte=0"`
+	Count    int    `query:"count_per_page" validate:"gte=0"`
 }
 
 type PolicyMachinesResponse struct {
@@ -201,7 +201,7 @@ type CreateGroupRequest struct {
 }
 
 type UpdateGroupRequest struct {
-	ID          string `param:"id"`
+	ID          string `param:"id" validate:"required,uuid"`
 	Title       string `json:"title" validate:"required"`
 	Description string `json:"description"`
 }
@@ -213,12 +213,12 @@ type PaginateGroupsResponse struct {
 }
 
 type MachineGroupsRequest struct {
-	ID string `param:"id"`
+	ID string `param:"id" validate:"required,uuid"`
 }
 
 type ReplaceMachineGroupsRequest struct {
-	ID       string   `param:"id"`
-	GroupIDs []string `json:"group_ids"`
+	ID       string   `param:"id" validate:"required,uuid"`
+	GroupIDs []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
 
 type MachineGroupsResponse struct {
@@ -226,9 +226,9 @@ type MachineGroupsResponse struct {
 }
 
 type GroupMachinesRequest struct {
-	ID    string `param:"id"`
-	Page  int    `query:"page"`
-	Count int    `query:"count_per_page"`
+	ID    string `param:"id" validate:"required,uuid"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0"`
 }
 
 type GroupMachinesResponse struct {
@@ -238,9 +238,9 @@ type GroupMachinesResponse struct {
 }
 
 type OwnersRequest struct {
-	Page  int    `query:"page"`
-	Count int    `query:"count_per_page"`
-	Query string `query:"q"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0"`
+	Query string `query:"q" validate:"lte=4096"`
 }
 
 type CreateOwnerRequest struct {
@@ -254,7 +254,7 @@ type CreateOwnerRequest struct {
 }
 
 type UpdateOwnerRequest struct {
-	ID          string `param:"id"`
+	ID          string `param:"id" validate:"required,uuid"`
 	DisplayName string `json:"display_name" validate:"required"`
 	Email       string `json:"email" validate:"required,email"`
 	ExternalID  string `json:"external_id"`
@@ -271,9 +271,9 @@ type PaginateOwnersResponse struct {
 }
 
 type OwnerMachinesRequest struct {
-	ID    string `param:"id"`
-	Page  int    `query:"page"`
-	Count int    `query:"count_per_page"`
+	ID    string `param:"id" validate:"required,uuid"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0"`
 }
 
 type OwnerMachinesResponse struct {
@@ -283,8 +283,8 @@ type OwnerMachinesResponse struct {
 }
 
 type UpdateMachineInventoryRequest struct {
-	ID                 string  `param:"id"`
-	OwnerID            *string `json:"owner_id"`
+	ID                 string  `param:"id" validate:"required,uuid"`
+	OwnerID            *string `json:"owner_id" validate:"omitempty,uuid"`
 	InternalTrackingID string  `json:"internal_tracking_id"`
 	Notes              string  `json:"notes"`
 }
@@ -294,25 +294,25 @@ type MachineInventoryResponse struct {
 }
 
 type PatchGroupMachinesRequest struct {
-	ID            string   `param:"id"`
-	AddNodeIDs    []string `json:"add_node_ids"`
-	RemoveNodeIDs []string `json:"remove_node_ids"`
+	ID            string   `param:"id" validate:"required,uuid"`
+	AddNodeIDs    []string `json:"add_node_ids" validate:"omitempty,dive,uuid"`
+	RemoveNodeIDs []string `json:"remove_node_ids" validate:"omitempty,dive,uuid"`
 }
 
 type UpdateScheduleRequest struct {
-	ID            string   `param:"id"`
+	ID            string   `param:"id" validate:"required,uuid"`
 	Query         string   `json:"query" validate:"required"`
 	Description   string   `json:"description"`
 	Title         string   `json:"title" validate:"required,ascii"`
-	Interval      int      `json:"interval" validate:"required,lte=604800"`
+	Interval      int      `json:"interval" validate:"gte=1,lte=604800"`
 	Removed       bool     `json:"removed"`
 	Snapshot      bool     `json:"snapshot"`
-	Platform      string   `json:"platform" validate:"oneof=darwin linux posix windows any all"`
+	Platform      string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
 	Version       string   `json:"version"`
-	Shard         int      `json:"shard" validate:"lte=100"`
+	Shard         int      `json:"shard" validate:"gte=0,lte=100"`
 	Denylist      bool     `json:"denylist"`
 	RetentionDays int      `json:"retention_days" validate:"omitempty,gte=1,lte=365"`
-	GroupIDs      []string `json:"group_ids"`
+	GroupIDs      []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
 
 type ScheduleResultsRequest struct {
@@ -338,9 +338,9 @@ type OSQueryConfigResponse struct {
 }
 
 type LogRequest struct {
-	NodeKey string                   `json:"node_key"`
-	Data    []map[string]interface{} `json:"data"`
-	LogType string                   `json:"log_type"`
+	NodeKey string                   `json:"node_key" validate:"required,uuid"`
+	Data    []map[string]interface{} `json:"data" validate:"required"`
+	LogType string                   `json:"log_type" validate:"required,oneof=result status"`
 }
 
 type DistributedReadRequest struct {
@@ -353,7 +353,7 @@ type DistributedReadResponse struct {
 
 type DistributedWriteRequest struct {
 	NodeKey  string                   `json:"node_key" validate:"required,uuid"`
-	Queries  map[string]interface{}   `json:"queries"`
+	Queries  map[string]interface{}   `json:"queries" validate:"required"`
 	Statuses map[string]OsqueryStatus `json:"statuses"`
 	Messages map[string]string        `json:"messages"`
 }

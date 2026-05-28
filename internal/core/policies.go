@@ -33,13 +33,18 @@ func (c *Core) CreatePolicy(ctx context.Context, req models.CreatePolicy) (model
 		return models.Policy{}, err
 	}
 
+	platform := strings.TrimSpace(req.Platform)
+	if platform == "" {
+		platform = "all"
+	}
+
 	policy, err := c.store.CreatePolicyTx(ctx, repo.CreatePolicyTxParams{
 		Policy: repo.CreatePolicyParams{
 			Name:        strings.TrimSpace(req.Name),
 			Query:       strings.TrimSpace(req.Query),
 			Description: req.Description,
 			Resolution:  req.Resolution,
-			Platform:    defaultString(req.Platform, "all"),
+			Platform:    platform,
 			Enabled:     req.Enabled,
 			IsSystem:    req.IsSystem,
 		},
@@ -128,6 +133,11 @@ func (c *Core) UpdatePolicy(ctx context.Context, req models.UpdatePolicy) (model
 		return models.Policy{}, err
 	}
 
+	platform := strings.TrimSpace(req.Platform)
+	if platform == "" {
+		platform = "all"
+	}
+
 	policy, err := c.store.UpdatePolicyTx(ctx, repo.UpdatePolicyTxParams{
 		Policy: repo.UpdatePolicyByUUIDParams{
 			Uuid:        policyID,
@@ -135,7 +145,7 @@ func (c *Core) UpdatePolicy(ctx context.Context, req models.UpdatePolicy) (model
 			Query:       strings.TrimSpace(req.Query),
 			Description: req.Description,
 			Resolution:  req.Resolution,
-			Platform:    defaultString(req.Platform, "all"),
+			Platform:    platform,
 			Enabled:     req.Enabled,
 		},
 		GroupUUIDs: groupUUIDs,

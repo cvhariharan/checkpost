@@ -12,16 +12,8 @@ import (
 
 func (h *Handler) HandleMachinesPagination(c echo.Context) error {
 	var req MachineListRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
-	}
-	if req.Assigned != "" && req.Assigned != "assigned" && req.Assigned != "unassigned" {
-		return wrapError(http.StatusBadRequest, "invalid assigned filter", fmt.Errorf("invalid assigned filter %q", req.Assigned), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if req.Page > 0 {
@@ -53,12 +45,8 @@ func (h *Handler) HandleMachinesPagination(c echo.Context) error {
 
 func (h *Handler) HandleGetMachine(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	node, err := h.c.GetNodeByID(c.Request().Context(), models.NodeIdentity{ID: req.ID})
@@ -71,15 +59,8 @@ func (h *Handler) HandleGetMachine(c echo.Context) error {
 
 func (h *Handler) HandleMachineQueries(c echo.Context) error {
 	var req MachineQueriesRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
@@ -105,12 +86,8 @@ func (h *Handler) HandleMachineQueries(c echo.Context) error {
 
 func (h *Handler) HandleMachinePolicies(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	policies, err := h.c.ListPoliciesForNode(c.Request().Context(), models.NodeIdentity{ID: req.ID})
@@ -125,11 +102,8 @@ func (h *Handler) HandleMachinePolicies(c echo.Context) error {
 
 func (h *Handler) HandleMachineGroups(c echo.Context) error {
 	var req MachineGroupsRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	groups, err := h.c.ListGroupsForNode(c.Request().Context(), models.NodeIdentity{ID: req.ID})
@@ -142,13 +116,8 @@ func (h *Handler) HandleMachineGroups(c echo.Context) error {
 
 func (h *Handler) HandleReplaceMachineGroups(c echo.Context) error {
 	var req ReplaceMachineGroupsRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	groups, err := h.c.ReplaceGroupsForNode(c.Request().Context(), models.NodeIdentity{ID: req.ID}, req.GroupIDs)
@@ -161,15 +130,8 @@ func (h *Handler) HandleReplaceMachineGroups(c echo.Context) error {
 
 func (h *Handler) HandleDeleteMachineQuery(c echo.Context) error {
 	var req DeleteMachineQueryRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if req.QueryID == "" {
-		return wrapError(http.StatusBadRequest, "query id cannot be empty", fmt.Errorf("query id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if err := h.c.DeleteMachineQuery(c.Request().Context(), models.NodeIdentity{ID: req.ID}, models.ResourceID{UUID: req.QueryID}); err != nil {
@@ -184,12 +146,8 @@ func (h *Handler) HandleDeleteMachineQuery(c echo.Context) error {
 
 func (h *Handler) HandleMachineMetrics(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	metrics, err := h.c.GetNodeMetrics(c.Request().Context(), models.NodeIdentity{ID: req.ID})
@@ -204,16 +162,8 @@ func (h *Handler) HandleMachineMetrics(c echo.Context) error {
 
 func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {
 	var req MachineQueryRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if req.Query == "" {
-		return wrapError(http.StatusBadRequest, "query cannot be empty", fmt.Errorf("query is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	result, err := h.c.ExecuteMachineQuery(c.Request().Context(), models.MachineQueryRequest{

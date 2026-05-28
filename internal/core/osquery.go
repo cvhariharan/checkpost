@@ -147,10 +147,10 @@ func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBat
 // logs ("added"/"removed") carry a single `columns` map; snapshot logs
 // carry a `snapshot` array of row maps.
 type resultLog struct {
-	versionedName string                   // "schedule_name/v3"
-	scheduleName  string                   // "schedule_name"
-	sqlVersion    int32                    // 3
-	action        string                   // "added" | "removed" | "snapshot"
+	versionedName string // "schedule_name/v3"
+	scheduleName  string // "schedule_name"
+	sqlVersion    int32  // 3
+	action        string // "added" | "removed" | "snapshot"
 	calendarTime  string
 	unixTime      time.Time
 	columns       map[string]interface{}   // differential row payload
@@ -251,11 +251,16 @@ func parseResultLog(raw map[string]interface{}) (resultLog, bool) {
 		return resultLog{}, false
 	}
 
+	action := strings.TrimSpace(stringValue(raw["action"]))
+	if action == "" {
+		action = "snapshot"
+	}
+
 	log := resultLog{
 		versionedName: versionedName,
 		scheduleName:  scheduleName,
 		sqlVersion:    sqlVersion,
-		action:        defaultString(stringValue(raw["action"]), "snapshot"),
+		action:        action,
 		calendarTime:  stringValue(raw["calendarTime"]),
 		unixTime:      ingestUnixTime(raw),
 	}

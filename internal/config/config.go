@@ -1,41 +1,42 @@
 package config
 
+import "time"
+
 type Config struct {
-	AppConfig  `koanf:",squash"`
-	OIDCConfig `koanf:",squash"`
-	DBConfig   `koanf:",squash"`
-	DataConfig `koanf:",squash"`
+	AppConfig  AppConfig
+	OIDCConfig OIDCConfig
+	DBConfig   DBConfig
+	DataConfig DataConfig
 }
 
 type AppConfig struct {
-	AdminUsername   string `koanf:"app.admin_username"`
-	AdminPassword   string `koanf:"app.admin_password"`
-	TLSCertPath     string `koanf:"app.http_tls_cert"`
-	TLSKeyPath      string `koanf:"app.http_tls_key"`
-	RootURL         string `koanf:"app.root_url"`
-	UseTLS          bool   `koanf:"app.use_tls"`
-	SecureCookieKey string `koanf:"app.secure_cookie_key"`
-	EnrollmentKey   string `koanf:"app.enrollment_key"`
-
-	PolicyUpdateInterval string `koanf:"app.policy_update_interval"`
-	PolicyStaleAfter     string `koanf:"app.policy_stale_after"`
+	AdminUsername        string `validate:"required"`
+	AdminPassword        string `validate:"required"`
+	TLSCertPath          string
+	TLSKeyPath           string
+	RootURL              string `validate:"required,url"`
+	UseTLS               bool
+	SecureCookieKey      string        `validate:"required"`
+	EnrollmentKey        string        `validate:"required"`
+	PolicyUpdateInterval time.Duration `validate:"required"`
+	PolicyStaleAfter     time.Duration `validate:"required"`
 }
 
 type OIDCConfig struct {
-	Issuer       string `koanf:"app.oidc.issuer"`
-	ClientID     string `koanf:"app.oidc.client_id"`
-	ClientSecret string `koanf:"app.oidc.client_secret"`
+	Issuer       string
+	ClientID     string
+	ClientSecret string
 }
 
 type DBConfig struct {
-	DBName   string `koanf:"db.dbname"`
-	Host     string `koanf:"db.host"`
-	Port     int    `koanf:"db.port"`
-	User     string `koanf:"db.user"`
-	Password string `koanf:"db.password"`
+	DBName   string `validate:"required"`
+	Host     string `validate:"required"`
+	Port     int    `validate:"gt=0,lte=65535"`
+	User     string `validate:"required"`
+	Password string
 }
 
 type DataConfig struct {
-	ParquetRoot string `koanf:"data.parquet_root"`
-	DuckDBPath  string `koanf:"data.duckdb_path"`
+	ParquetRoot string `validate:"required"`
+	DuckDBPath  string
 }

@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io"
-	"reflect"
+	"net/http"
 	"runtime"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -43,35 +43,6 @@ func toJSON(v any) string {
 // 	return t
 // }
 
-// SanitizeString removes null bytes and invalid UTF-8 characters
-func SanitizeString(s string) string {
-	return strings.ReplaceAll(s, "\x00", "")
-}
-
-// SanitizeStruct recursively sanitizes all string fields in a struct
-func SanitizeStruct(obj interface{}) {
-	v := reflect.ValueOf(obj)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	if v.Kind() != reflect.Struct {
-		return
-	}
-
-	for i := 0; i < v.NumField(); i++ {
-		field := v.Field(i)
-
-		if field.Kind() == reflect.String && field.CanSet() {
-			field.SetString(SanitizeString(field.String()))
-		} else if field.Kind() == reflect.Struct {
-			SanitizeStruct(field.Addr().Interface())
-		} else if field.Kind() == reflect.Ptr && !field.IsNil() && field.Elem().Kind() == reflect.Struct {
-			SanitizeStruct(field.Interface())
-		}
-	}
-}
-
 type HTTPError struct {
 	code           int
 	msg            string
@@ -101,4 +72,14 @@ func wrapError(code int, msg string, err error, customResponse interface{}) erro
 	}
 
 	return he
+}
+
+func (h *Handler) bindAndValidate(c echo.Context, req interface{}, customResponse interface{}) error {
+	if err := c.Bind(req); err != nil {
+		return wrapError(http.StatusBadRequest, "invalid request", err, customResponse)
+	}
+	if err := h.validate.Struct(req); err != nil {
+		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, customResponse)
+	}
+	return nil
 }

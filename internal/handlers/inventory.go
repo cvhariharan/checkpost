@@ -13,12 +13,8 @@ import (
 
 func (h *Handler) HandleCreateOwner(c echo.Context) error {
 	var req CreateOwnerRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	owner, err := h.c.CreateDeviceOwner(c.Request().Context(), models.CreateDeviceOwner{
@@ -42,12 +38,8 @@ func (h *Handler) HandleCreateOwner(c echo.Context) error {
 
 func (h *Handler) HandleOwnersPagination(c echo.Context) error {
 	var req OwnersRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
@@ -74,11 +66,8 @@ func (h *Handler) HandleOwnersPagination(c echo.Context) error {
 
 func (h *Handler) HandleGetOwner(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	owner, err := h.c.GetDeviceOwner(c.Request().Context(), models.ResourceID{UUID: req.ID})
@@ -94,15 +83,8 @@ func (h *Handler) HandleGetOwner(c echo.Context) error {
 
 func (h *Handler) HandleUpdateOwner(c echo.Context) error {
 	var req UpdateOwnerRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	owner, err := h.c.UpdateDeviceOwner(c.Request().Context(), models.UpdateDeviceOwner{
@@ -130,11 +112,8 @@ func (h *Handler) HandleUpdateOwner(c echo.Context) error {
 
 func (h *Handler) HandleDeleteOwner(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if err := h.c.DeleteDeviceOwner(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
@@ -149,14 +128,8 @@ func (h *Handler) HandleDeleteOwner(c echo.Context) error {
 
 func (h *Handler) HandleOwnerMachines(c echo.Context) error {
 	var req OwnerMachinesRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
@@ -186,11 +159,8 @@ func (h *Handler) HandleOwnerMachines(c echo.Context) error {
 
 func (h *Handler) HandleMachineInventory(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	inventory, err := h.c.GetNodeInventory(c.Request().Context(), models.NodeIdentity{ID: req.ID})
@@ -206,12 +176,8 @@ func (h *Handler) HandleMachineInventory(c echo.Context) error {
 
 func (h *Handler) HandleUpdateMachineInventory(c echo.Context) error {
 	var req UpdateMachineInventoryRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	ownerID := ""
@@ -240,11 +206,8 @@ func (h *Handler) HandleUpdateMachineInventory(c echo.Context) error {
 
 func (h *Handler) HandleDeleteMachineInventory(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if err := h.c.DeleteNodeInventory(c.Request().Context(), models.NodeIdentity{ID: req.ID}); err != nil {

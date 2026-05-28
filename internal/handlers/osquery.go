@@ -24,11 +24,9 @@ const (
 
 func (h *Handler) HandleEnrollment(c echo.Context) error {
 	var req EnrollmentRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid enrollment request", err, EnrollmentResponse{NodeInvalid: true})
+	if err := h.bindAndValidate(c, &req, EnrollmentResponse{NodeInvalid: true}); err != nil {
+		return err
 	}
-
-	SanitizeStruct(&req)
 
 	if req.EnrollSecret != h.cfg.EnrollmentKey {
 		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"), EnrollmentResponse{NodeInvalid: true})
@@ -47,12 +45,8 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 
 func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 	var req ConfigRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	s, err := h.c.ListEnabledSchedulesForNode(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, ScheduleMax)
@@ -80,8 +74,8 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 
 func (h *Handler) HandleLog(c echo.Context) error {
 	var req LogRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	h.logger.Debug("request", "log", req)
@@ -105,12 +99,8 @@ func (h *Handler) HandleLog(c echo.Context) error {
 
 func (h *Handler) HandleDistributedRead(c echo.Context) error {
 	var req DistributedReadRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	queries, err := h.c.ReadDistributedQueries(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey})
@@ -123,12 +113,8 @@ func (h *Handler) HandleDistributedRead(c echo.Context) error {
 
 func (h *Handler) HandleDistributedWrite(c echo.Context) error {
 	var req DistributedWriteRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	statuses := make(map[string]string, len(req.Statuses))

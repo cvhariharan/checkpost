@@ -12,12 +12,8 @@ import (
 
 func (h *Handler) HandleCreateGroup(c echo.Context) error {
 	var req CreateGroupRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	group, err := h.c.CreateGroup(c.Request().Context(), models.CreateGroup{
@@ -33,11 +29,8 @@ func (h *Handler) HandleCreateGroup(c echo.Context) error {
 
 func (h *Handler) HandleGroupsPagination(c echo.Context) error {
 	var req PaginateRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
@@ -60,11 +53,8 @@ func (h *Handler) HandleGroupsPagination(c echo.Context) error {
 
 func (h *Handler) HandleGetGroup(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	group, err := h.c.GetGroup(c.Request().Context(), models.ResourceID{UUID: req.ID})
@@ -77,15 +67,8 @@ func (h *Handler) HandleGetGroup(c echo.Context) error {
 
 func (h *Handler) HandleUpdateGroup(c echo.Context) error {
 	var req UpdateGroupRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	group, err := h.c.UpdateGroup(c.Request().Context(), models.UpdateGroup{
@@ -102,11 +85,8 @@ func (h *Handler) HandleUpdateGroup(c echo.Context) error {
 
 func (h *Handler) HandleDeleteGroup(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if err := h.c.DeleteGroup(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
@@ -121,14 +101,8 @@ func (h *Handler) HandleDeleteGroup(c echo.Context) error {
 
 func (h *Handler) HandleGroupMachines(c echo.Context) error {
 	var req GroupMachinesRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
@@ -155,12 +129,8 @@ func (h *Handler) HandleGroupMachines(c echo.Context) error {
 
 func (h *Handler) HandlePatchGroupMachines(c echo.Context) error {
 	var req PatchGroupMachinesRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	SanitizeStruct(&req)
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	page, err := h.c.PatchGroupNodes(c.Request().Context(), models.GroupMachinesRequest{

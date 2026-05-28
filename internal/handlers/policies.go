@@ -10,11 +10,8 @@ import (
 
 func (h *Handler) HandleCreatePolicy(c echo.Context) error {
 	var req CreatePolicyRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusBadRequest, "invalid request", err, nil)
-	}
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	enabled := true
@@ -40,11 +37,8 @@ func (h *Handler) HandleCreatePolicy(c echo.Context) error {
 
 func (h *Handler) HandlePoliciesPagination(c echo.Context) error {
 	var req PaginateRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
@@ -67,11 +61,8 @@ func (h *Handler) HandlePoliciesPagination(c echo.Context) error {
 
 func (h *Handler) HandleGetPolicy(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	policy, err := h.c.GetPolicy(c.Request().Context(), models.ResourceID{UUID: req.ID})
@@ -84,14 +75,8 @@ func (h *Handler) HandleGetPolicy(c echo.Context) error {
 
 func (h *Handler) HandleUpdatePolicy(c echo.Context) error {
 	var req UpdatePolicyRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if err := h.validate.Struct(req); err != nil {
-		return wrapError(http.StatusBadRequest, fmt.Sprintf("invalid request: %s", formatValidationErrors(err)), err, nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	enabled := true
@@ -118,11 +103,8 @@ func (h *Handler) HandleUpdatePolicy(c echo.Context) error {
 
 func (h *Handler) HandleDeletePolicy(c echo.Context) error {
 	var req GetRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 
 	if err := h.c.DeletePolicy(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
@@ -134,14 +116,8 @@ func (h *Handler) HandleDeletePolicy(c echo.Context) error {
 
 func (h *Handler) HandlePolicyMachines(c echo.Context) error {
 	var req PolicyMachinesRequest
-	if err := c.Bind(&req); err != nil {
-		return wrapError(http.StatusInternalServerError, "invalid request", err, nil)
-	}
-	if req.ID == "" {
-		return wrapError(http.StatusBadRequest, "id cannot be empty", fmt.Errorf("id is empty"), nil)
-	}
-	if req.Page < 0 || req.Count < 0 {
-		return wrapError(http.StatusInternalServerError, "invalid request, page or count per page cannot be less than 0", fmt.Errorf("page and count per page less than zero"), nil)
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
 	}
 	if req.Page > 0 {
 		req.Page -= 1
