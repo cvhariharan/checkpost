@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
   import { page } from '$app/stores'
   import {
     deleteMachineQuery,
@@ -29,6 +29,9 @@
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
+  import BadgeList from '$lib/components/BadgeList.svelte'
+
+  type OatTabsElement = HTMLElement & { activeIndex: number }
 
   type ResultView =
     | { type: 'pending' }
@@ -51,23 +54,51 @@
   let queryPageCount = 1
   let queryTotalCount = 0
   const queryCountPerPage = 10
+  const queryPollIntervalMs = 3000
+  const maxQueryPollAttempts = 20
+  let pollTimer: ReturnType<typeof setTimeout> | null = null
+  let pollAttempts = 0
+  let pollEpoch = 0
   let deleteDialogOpen = false
   let queryToDelete: MachineQueryRecord | null = null
   let deletingQuery = false
   let availableGroups: Group[] = []
   let selectedGroupIds: string[] = []
-  let savingGroups = false
   let availableOwners: DeviceOwner[] = []
   let selectedOwnerId = ''
   let internalTrackingId = ''
   let inventoryNotes = ''
-  let savingInventory = false
+  let editing = false
+  let saving = false
+  let tabs: OatTabsElement
+  let activeTabIndex = 0
+  let mounted = false
+  let loadedMachineId = ''
 
   $: machineId = $page.params.id as string
+  $: if (tabs && tabs.activeIndex !== activeTabIndex) tabs.activeIndex = activeTabIndex
+  $: if (activeTabIndex === 2) ensurePolling()
+  // onMount only fires once; when the router reuses this component for a
+  // different :id, reload and reset poll/edit state so we don't show stale
+  // data or leak a poll timer onto the new machine.
+  $: if (mounted && machineId !== loadedMachineId) switchMachine(machineId)
   $: queryStartResult = queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1
   $: queryEndResult = Math.min(currentQueryPage * queryCountPerPage, queryTotalCount)
 
-  onMount(loadMachine)
+  onMount(() => {
+    loadedMachineId = machineId
+    mounted = true
+    loadMachine()
+  })
+  onDestroy(stopPolling)
+
+  function switchMachine(id: string) {
+    loadedMachineId = id
+    stopPolling()
+    editing = false
+    currentQueryPage = 1
+    loadMachine()
+  }
 
   async function loadMachine() {
     loading = true
@@ -123,6 +154,54 @@
     }
   }
 
+  // Bumping the epoch invalidates any in-flight silent poll so it neither
+  // reschedules nor clobbers the view after the user has navigated.
+  function stopPolling() {
+    pollEpoch += 1
+    if (pollTimer) {
+      clearTimeout(pollTimer)
+      pollTimer = null
+    }
+  }
+
+  function hasPendingQueries() {
+    return queryHistory.some((query) => query.status === 'pending')
+  }
+
+  // osquery returns ad-hoc query results asynchronously on its distributed_interval
+  // (~10s), so poll quietly until the newest query leaves the 'pending' state.
+  function startPollingForResults() {
+    stopPolling()
+    pollAttempts = 0
+    pollTimer = setTimeout(pollForResults, queryPollIntervalMs)
+  }
+
+  // Resume polling when returning to the Query tab (or after a remount) while
+  // results are still pending and no poll loop is already running.
+  function ensurePolling() {
+    if (pollTimer || currentQueryPage !== 1) return
+    if (hasPendingQueries()) startPollingForResults()
+  }
+
+  // Quiet refresh that fetches page 1 directly (no spinner, no row collapse) and
+  // applies results only if the user hasn't navigated away mid-request.
+  async function pollForResults() {
+    pollTimer = null
+    if (currentQueryPage !== 1) return
+    const epoch = pollEpoch
+    pollAttempts += 1
+    try {
+      const data = await fetchMachineQueries(machineId, { page: 1, countPerPage: queryCountPerPage })
+      if (epoch !== pollEpoch || currentQueryPage !== 1) return
+      setQueryHistory(data)
+    } catch {
+      // transient failure — keep existing results and retry below
+    }
+    if (epoch === pollEpoch && currentQueryPage === 1 && hasPendingQueries() && pollAttempts < maxQueryPollAttempts) {
+      pollTimer = setTimeout(pollForResults, queryPollIntervalMs)
+    }
+  }
+
   async function runQuery() {
     if (!queryText.trim()) return
     executing = true
@@ -131,7 +210,7 @@
       await executeMachineQuery(machineId, queryText)
       queryText = ''
       await loadQueryHistory(1)
-      setTimeout(() => loadQueryHistory(1), 6000)
+      startPollingForResults()
     } catch (err) {
       error = (err as Error).message || 'Query execution failed'
     } finally {
@@ -141,7 +220,10 @@
 
   async function changeQueryPage(targetPage: number) {
     if (targetPage < 1 || targetPage > queryPageCount || targetPage === currentQueryPage || historyLoading) return
+    stopPolling()
     await loadQueryHistory(targetPage)
+    // Landing back on page 1 with results still pending should resume polling.
+    ensurePolling()
   }
 
   function confirmDeleteQuery(query: MachineQueryRecord) {
@@ -263,33 +345,62 @@
     return isPlainObject(value) && Object.values(value).every((cell) => cell === null || typeof cell !== 'object')
   }
 
-  async function saveGroups() {
-    savingGroups = true
-    error = ''
-    try {
-      await updateMachineGroups(machineId, selectedGroupIds)
-      await loadMachine()
-    } catch (err) {
-      error = (err as Error).message || 'Failed to update machine groups'
-    } finally {
-      savingGroups = false
-    }
+  function handleTabChange(event: CustomEvent<{ index: number }>) {
+    activeTabIndex = event.detail.index
   }
 
-  async function saveInventory() {
-    savingInventory = true
+  function seedEditFields() {
+    selectedGroupIds = (machine?.groups || []).map((g) => g.uuid)
+    selectedOwnerId = machine?.inventory?.owner?.uuid || ''
+    internalTrackingId = machine?.inventory?.internal_tracking_id || ''
+    inventoryNotes = machine?.inventory?.notes || ''
+  }
+
+  function startEdit() {
+    seedEditFields()
+    activeTabIndex = 0
+    editing = true
+  }
+
+  function cancelEdit() {
+    seedEditFields()
+    editing = false
+  }
+
+  async function saveOverview() {
+    saving = true
     error = ''
     try {
-      await updateMachineInventory(machineId, {
-        owner_id: selectedOwnerId || null,
-        internal_tracking_id: internalTrackingId,
-        notes: inventoryNotes
-      })
+      // Settle both so a partial failure can be reported precisely instead of a
+      // generic message that hides which write already landed. Both endpoints are
+      // idempotent, so staying in edit mode lets the user simply retry.
+      const [inventoryResult, groupsResult] = await Promise.allSettled([
+        updateMachineInventory(machineId, {
+          owner_id: selectedOwnerId || null,
+          internal_tracking_id: internalTrackingId,
+          notes: inventoryNotes
+        }),
+        updateMachineGroups(machineId, selectedGroupIds)
+      ])
+      const failed: string[] = []
+      if (inventoryResult.status === 'rejected') failed.push('inventory')
+      if (groupsResult.status === 'rejected') failed.push('groups')
+      if (failed.length > 0) {
+        const reason =
+          inventoryResult.status === 'rejected'
+            ? inventoryResult.reason
+            : groupsResult.status === 'rejected'
+              ? groupsResult.reason
+              : undefined
+        error = `Failed to update ${failed.join(' and ')}: ${(reason as Error)?.message || 'unknown error'}`
+        return
+      }
       await loadMachine()
+      editing = false
     } catch (err) {
-      error = (err as Error).message || 'Failed to update machine inventory'
+      error = (err as Error).message || 'Failed to update machine'
     } finally {
-      savingInventory = false
+      saving = false
     }
   }
 
@@ -321,274 +432,282 @@
     <header class="hstack justify-between mb-4">
       <div>
         <h1 class="mb-2">{machineHostname(machine!)}</h1>
-        <p class="text-light">{machineOS(machine!)}</p>
+        <p class="text-light">
+          {machineOS(machine!)}
+          {machine?.inventory?.internal_tracking_id ? ` · ${machine.inventory.internal_tracking_id}` : ''}
+        </p>
       </div>
-      <span class="badge" data-variant={isOnline(machine) ? 'success' : 'danger'}>
-        {isOnline(machine) ? 'Online' : 'Offline'}
-      </span>
+      <div class="hstack gap-2">
+        <span class="badge" data-variant={isOnline(machine) ? 'success' : 'danger'}>
+          {isOnline(machine) ? 'Online' : 'Offline'}
+        </span>
+        {#if editing}
+          <button type="button" class="outline" onclick={cancelEdit} disabled={saving}>Cancel</button>
+          <button type="button" onclick={saveOverview} disabled={saving} aria-busy={saving ? 'true' : undefined}>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        {:else}
+          <button type="button" onclick={startEdit}>Update</button>
+        {/if}
+      </div>
     </header>
 
     <ErrorMessage message={error} onClose={() => (error = '')} />
 
-    <article class="card">
-      <header class="hstack justify-between">
-        <div>
-          <h2>Inventory</h2>
-          <p class="text-light">
-            {machine?.inventory?.owner?.display_name || 'Unassigned'}
-            {internalTrackingId ? ` - ${internalTrackingId}` : ''}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="small"
-          disabled={savingInventory}
-          aria-busy={savingInventory ? 'true' : undefined}
-          onclick={saveInventory}
-        >
-          {savingInventory ? 'Saving...' : 'Save Inventory'}
+    <ot-tabs bind:this={tabs} onot-tab-change={handleTabChange}>
+      <div role="tablist" aria-label="Machine sections">
+        <button type="button" role="tab" aria-selected={activeTabIndex === 0} onclick={() => (activeTabIndex = 0)}>
+          Overview
         </button>
-      </header>
-      <div class="vstack gap-3">
-        <div class="row">
-          <div class="col-6">
-            <label data-field>
-              Owner
-              <select bind:value={selectedOwnerId}>
-                <option value="">Unassigned</option>
-                {#each availableOwners as owner}
-                  <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
-                {/each}
-              </select>
-            </label>
-          </div>
-          <div class="col-6">
-            <label data-field>
-              Internal tracking ID
-              <input bind:value={internalTrackingId} placeholder="ASSET-10042" />
-            </label>
-          </div>
-        </div>
-        <label data-field>
-          Notes
-          <textarea bind:value={inventoryNotes} rows="3"></textarea>
-        </label>
-      </div>
-    </article>
-
-    {#if visibleMetricKinds.length > 0}
-      <section class="vstack gap-3">
-        <h2>Device Metrics</h2>
-        {#if summaryMetricKinds.length > 0}
-          <div class="metric-grid">
-            {#each summaryMetricKinds as kind}
-              <MetricRenderer
-                {kind}
-                schema={metricSchemas.schemas[kind] as JSONSchema}
-                entry={metrics[kind]}
-              />
-            {/each}
-          </div>
-        {/if}
-        {#each tableMetricKinds as kind}
-          <MetricRenderer
-            {kind}
-            schema={metricSchemas.schemas[kind] as JSONSchema}
-            entry={metrics[kind]}
-          />
-        {/each}
-      </section>
-    {/if}
-
-    <article class="card">
-      <header class="hstack justify-between">
-        <div>
-          <h2>Groups</h2>
-          <p class="text-light">
-            {selectedGroupIds.length === 0
-              ? 'No groups assigned'
-              : `${selectedGroupIds.length} groups assigned`}
-          </p>
-        </div>
-        <button
-          type="button"
-          class="small"
-          disabled={savingGroups}
-          aria-busy={savingGroups ? 'true' : undefined}
-          onclick={saveGroups}
-        >
-          {savingGroups ? 'Saving...' : 'Save Groups'}
+        <button type="button" role="tab" aria-selected={activeTabIndex === 1} onclick={() => (activeTabIndex = 1)}>
+          Policies
         </button>
-      </header>
-      <div class="vstack gap-3">
-        <MultiSelectDropdown
-          label="Assigned Groups"
-          options={availableGroups}
-          bind:value={selectedGroupIds}
-          placeholder="No groups assigned"
-          searchPlaceholder="Search groups..."
-          emptyLabel="No groups available yet"
-        />
+        <button type="button" role="tab" aria-selected={activeTabIndex === 2} onclick={() => (activeTabIndex = 2)}>
+          Query
+        </button>
       </div>
-    </article>
 
-    <section class="vstack gap-3">
-      <h2>Policy Posture</h2>
-      <div class="table">
-        <table>
-          <thead>
-            <tr>
-              <th>Policy</th>
-              <th>Response</th>
-              <th>Checked</th>
-              <th>Error</th>
-              <th>Resolution</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each policyPosture as policy}
-              <tr>
-                <td>
-                  <strong>{policy.name || policy.title}</strong>
-                  {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
-                </td>
-                <td>
-                  <span class="badge" data-variant={postureVariant(policy.response)}>
-                    {policy.stale ? `${policy.response} stale` : policy.response}
-                  </span>
-                </td>
-                <td>{formatTimestamp(policy.checked_at)}</td>
-                <td>{policy.last_error || ''}</td>
-                <td>{policy.response === 'failing' ? policy.resolution || '' : ''}</td>
-              </tr>
-            {:else}
-              <tr>
-                <td colspan="5" class="align-center text-light">No policies target this machine</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <article class="card">
-      <header><h2>Execute Query</h2></header>
-      <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
-        <label data-field>
-          SQL Query
-          <textarea bind:value={queryText} rows="6" placeholder="SELECT * FROM processes LIMIT 10;"></textarea>
-        </label>
-        <footer class="hstack justify-end mt-4">
-          <button
-            type="submit"
-            disabled={executing || !queryText.trim()}
-            aria-busy={executing ? 'true' : undefined}
-          >
-            {executing ? 'Executing...' : 'Run Query'}
-          </button>
-        </footer>
-      </form>
-    </article>
-
-    <section class="vstack gap-4">
-      <div class="hstack justify-between">
-        <h2>Query History</h2>
-        <p class="text-light">
-          Showing <strong>{queryStartResult}</strong> to <strong>{queryEndResult}</strong> of
-          <strong>{queryTotalCount}</strong> results
-        </p>
-      </div>
-      {#if historyLoading}
-        <Spinner />
-      {:else}
-        {#each queryHistory as query}
-          <article class="card">
-            <div class="hstack justify-between query-history-header">
-              <code class="query-text">{query.query}</code>
-              <div class="hstack gap-2 query-history-actions">
-                {#if query.status}
-                  <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
-                {/if}
-                <small class="text-light">{formatTimestamp(query.timestamp)}</small>
-                <button
-                  type="button"
-                  class="small outline"
-                  data-variant="danger"
-                  onclick={() => confirmDeleteQuery(query)}
-                  aria-label="Delete query result"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-            {#if query.error}
-              <pre class="result-fallback"><code>{query.error}</code></pre>
-            {:else}
-              {@const result = queryResultView(query)}
-              {#if result.type === 'pending'}
-                <p class="text-light result-message">Awaiting results...</p>
-              {:else if result.type === 'empty'}
-                <p class="text-light result-message">{result.message}</p>
-              {:else if result.type === 'table'}
-                <div class="table query-results-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        {#each result.columns as column}
-                          <th class="result-header">{column}</th>
-                        {/each}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {#each result.rows as row, rowIndex}
-                        {@const rowKey = resultRowKey(query, rowIndex)}
-                        <tr
-                          class="result-row"
-                          class:expanded-result-row={expandedResultRowKey === rowKey}
-                          tabindex="0"
-                          aria-expanded={expandedResultRowKey === rowKey}
-                          title="Click to show full row"
-                          onclick={() => toggleResultRowByKey(rowKey)}
-                          onkeydown={(e) => handleResultRowKeydown(e, query, rowIndex)}
-                        >
-                          {#each result.columns as column}
-                            <td class="result-cell" title={formatCellValue(row[column])}>
-                              <span class="result-cell-content">{formatCellValue(row[column])}</span>
-                            </td>
-                          {/each}
-                        </tr>
-                        {#if expandedResultRowKey === rowKey}
-                          <tr class="result-row-details">
-                            <td colspan={result.columns.length}>
-                              <pre class="result-row-json"><code>{formatResults(row)}</code></pre>
-                            </td>
-                          </tr>
-                        {/if}
+      <div role="tabpanel">
+        <div class="vstack gap-4">
+          {#if editing}
+            <div class="vstack gap-3">
+              <div class="row">
+                <div class="col-6">
+                  <label data-field>
+                    Owner
+                    <select bind:value={selectedOwnerId}>
+                      <option value="">Unassigned</option>
+                      {#each availableOwners as owner}
+                        <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
                       {/each}
-                    </tbody>
-                  </table>
+                    </select>
+                  </label>
                 </div>
-              {:else}
-                <pre class="result-fallback"><code>{result.text}</code></pre>
+                <div class="col-6">
+                  <label data-field>
+                    Internal tracking ID
+                    <input bind:value={internalTrackingId} placeholder="ASSET-10042" />
+                  </label>
+                </div>
+              </div>
+              <MultiSelectDropdown
+                label="Assigned Groups"
+                options={availableGroups}
+                bind:value={selectedGroupIds}
+                placeholder="No groups assigned"
+                searchPlaceholder="Search groups..."
+                emptyLabel="No groups available yet"
+              />
+              <label data-field>
+                Notes
+                <textarea bind:value={inventoryNotes} rows="3"></textarea>
+              </label>
+            </div>
+          {:else}
+            <dl class="facts">
+              <div>
+                <dt>Owner</dt>
+                <dd>{machine?.inventory?.owner?.display_name || machine?.inventory?.owner?.email || 'Unassigned'}</dd>
+              </div>
+              <div>
+                <dt>Internal tracking ID</dt>
+                <dd>{machine?.inventory?.internal_tracking_id || '—'}</dd>
+              </div>
+              <div>
+                <dt>Groups</dt>
+                <dd><BadgeList items={machine?.groups || []} max={99} /></dd>
+              </div>
+              <div class="full">
+                <dt>Notes</dt>
+                <dd class="notes">{machine?.inventory?.notes || '—'}</dd>
+              </div>
+            </dl>
+          {/if}
+
+          <section class="vstack gap-3">
+            <h3>Device Metrics</h3>
+            {#if visibleMetricKinds.length > 0}
+              {#if summaryMetricKinds.length > 0}
+                <div class="metric-grid">
+                  {#each summaryMetricKinds as kind}
+                    <MetricRenderer
+                      {kind}
+                      schema={metricSchemas.schemas[kind] as JSONSchema}
+                      entry={metrics[kind]}
+                    />
+                  {/each}
+                </div>
               {/if}
+              {#each tableMetricKinds as kind}
+                <MetricRenderer
+                  {kind}
+                  schema={metricSchemas.schemas[kind] as JSONSchema}
+                  entry={metrics[kind]}
+                />
+              {/each}
+            {:else}
+              <p class="text-light">No metrics reported for this machine</p>
             {/if}
-          </article>
-        {:else}
-          <article class="card align-center text-light">No queries executed yet</article>
-        {/each}
-      {/if}
-      {#if queryTotalCount > 0}
-        <footer class="hstack justify-end">
-          <Pagination
-            currentPage={currentQueryPage}
-            pageCount={queryPageCount}
-            disabled={historyLoading}
-            label="Query history pagination"
-            onPageChange={changeQueryPage}
-          />
-        </footer>
-      {/if}
-    </section>
+          </section>
+        </div>
+      </div>
+
+      <div role="tabpanel">
+        <div class="table">
+          <table>
+            <thead>
+              <tr>
+                <th>Policy</th>
+                <th>Response</th>
+                <th>Checked</th>
+                <th>Error</th>
+                <th>Resolution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each policyPosture as policy}
+                <tr>
+                  <td>
+                    <strong>{policy.name || policy.title}</strong>
+                    {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
+                  </td>
+                  <td>
+                    <span class="badge" data-variant={postureVariant(policy.response)}>
+                      {policy.stale ? `${policy.response} stale` : policy.response}
+                    </span>
+                  </td>
+                  <td>{formatTimestamp(policy.checked_at)}</td>
+                  <td>{policy.last_error || ''}</td>
+                  <td>{policy.response === 'failing' ? policy.resolution || '' : ''}</td>
+                </tr>
+              {:else}
+                <tr>
+                  <td colspan="5" class="align-center text-light">No policies target this machine</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div role="tabpanel">
+        <div class="vstack gap-4">
+          <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
+            <label data-field>
+              SQL Query
+              <textarea bind:value={queryText} rows="6" placeholder="SELECT * FROM processes LIMIT 10;"></textarea>
+            </label>
+            <footer class="hstack justify-end mt-4">
+              <button
+                type="submit"
+                disabled={executing || !queryText.trim()}
+                aria-busy={executing ? 'true' : undefined}
+              >
+                {executing ? 'Executing...' : 'Run Query'}
+              </button>
+            </footer>
+          </form>
+
+          <div class="hstack justify-between">
+            <h2>Query History</h2>
+            <p class="text-light">
+              Showing <strong>{queryStartResult}</strong> to <strong>{queryEndResult}</strong> of
+              <strong>{queryTotalCount}</strong> results
+            </p>
+          </div>
+          {#if historyLoading}
+            <Spinner />
+          {:else}
+            {#each queryHistory as query}
+              <article class="card">
+                <div class="hstack justify-between query-history-header">
+                  <code class="query-text">{query.query}</code>
+                  <div class="hstack gap-2 query-history-actions">
+                    {#if query.status}
+                      <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
+                    {/if}
+                    <small class="text-light">{formatTimestamp(query.timestamp)}</small>
+                    <button
+                      type="button"
+                      class="small outline"
+                      data-variant="danger"
+                      onclick={() => confirmDeleteQuery(query)}
+                      aria-label="Delete query result"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+                {#if query.error}
+                  <pre class="result-fallback"><code>{query.error}</code></pre>
+                {:else}
+                  {@const result = queryResultView(query)}
+                  {#if result.type === 'pending'}
+                    <p class="text-light result-message">Awaiting results...</p>
+                  {:else if result.type === 'empty'}
+                    <p class="text-light result-message">{result.message}</p>
+                  {:else if result.type === 'table'}
+                    <div class="table query-results-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            {#each result.columns as column}
+                              <th class="result-header">{column}</th>
+                            {/each}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {#each result.rows as row, rowIndex}
+                            {@const rowKey = resultRowKey(query, rowIndex)}
+                            <tr
+                              class="result-row"
+                              class:expanded-result-row={expandedResultRowKey === rowKey}
+                              tabindex="0"
+                              aria-expanded={expandedResultRowKey === rowKey}
+                              title="Click to show full row"
+                              onclick={() => toggleResultRowByKey(rowKey)}
+                              onkeydown={(e) => handleResultRowKeydown(e, query, rowIndex)}
+                            >
+                              {#each result.columns as column}
+                                <td class="result-cell" title={formatCellValue(row[column])}>
+                                  <span class="result-cell-content">{formatCellValue(row[column])}</span>
+                                </td>
+                              {/each}
+                            </tr>
+                            {#if expandedResultRowKey === rowKey}
+                              <tr class="result-row-details">
+                                <td colspan={result.columns.length}>
+                                  <pre class="result-row-json"><code>{formatResults(row)}</code></pre>
+                                </td>
+                              </tr>
+                            {/if}
+                          {/each}
+                        </tbody>
+                      </table>
+                    </div>
+                  {:else}
+                    <pre class="result-fallback"><code>{result.text}</code></pre>
+                  {/if}
+                {/if}
+              </article>
+            {:else}
+              <article class="card align-center text-light">No queries executed yet</article>
+            {/each}
+          {/if}
+          {#if queryTotalCount > 0}
+            <footer class="hstack justify-end">
+              <Pagination
+                currentPage={currentQueryPage}
+                pageCount={queryPageCount}
+                disabled={historyLoading}
+                label="Query history pagination"
+                onPageChange={changeQueryPage}
+              />
+            </footer>
+          {/if}
+        </div>
+      </div>
+    </ot-tabs>
   {/if}
 </section>
 
@@ -661,5 +780,29 @@
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
     gap: var(--space-3, 1rem);
     align-items: stretch;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4, 1.25rem) var(--space-8, 2rem);
+    margin: 0;
+  }
+  .facts > div {
+    min-width: 0;
+  }
+  .facts > .full {
+    grid-column: 1 / -1;
+  }
+  .facts dt {
+    margin: 0 0 var(--space-1, 0.25rem);
+    font-size: var(--text-8);
+    color: var(--muted-foreground);
+  }
+  .facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .facts dd.notes {
+    white-space: pre-wrap;
   }
 </style>
