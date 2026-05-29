@@ -1,12 +1,14 @@
-# Fedora test client: installs osquery via Watcher's bootstrap installer.
-FROM fedora:latest
+# Debian test client: installs osquery via Watcher's bootstrap installer.
+FROM debian:stable-slim
 
 # Prerequisites to fetch and run the bootstrap installer.
-RUN dnf install -y curl ca-certificates && dnf clean all
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Trust the Watcher test server certificate so the installer's HTTPS download validates.
-COPY server_cert.pem /etc/pki/ca-trust/source/anchors/watcher-test.pem
-RUN update-ca-trust extract
+COPY server_cert.pem /usr/local/share/ca-certificates/watcher-test.crt
+RUN update-ca-certificates
 
 # osquery ignores the system trust store, so also keep the cert at a fixed path the
 # enrollment flags can point at via --tls_server_certs.
