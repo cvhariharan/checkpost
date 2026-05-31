@@ -344,6 +344,97 @@ CREATE TABLE node_metrics (
 CREATE INDEX node_metrics_kind_idx ON node_metrics (kind);
 CREATE INDEX node_metrics_collected_at_idx ON node_metrics (collected_at DESC);
 
+-- AUTHENTICATION & AUTHORIZATION ------------------------------------------
+
+CREATE TABLE users (
+    id            BIGSERIAL PRIMARY KEY,
+    uuid          UUID NOT NULL DEFAULT uuidv7(),
+    username      TEXT NOT NULL,                 -- login id; for SSO users this is the email
+    name          TEXT NOT NULL DEFAULT '',
+    email         TEXT NOT NULL DEFAULT '',
+    password_hash TEXT,                          -- bcrypt; NULL for SSO users
+    login_type    TEXT NOT NULL DEFAULT 'oidc',  -- 'standard' | 'oidc'
+    disabled      BOOLEAN NOT NULL DEFAULT false,
+    last_login_at TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT users_uuid_unique UNIQUE (uuid),
+    CONSTRAINT users_login_type_check CHECK (login_type IN ('standard','oidc'))
+);
+CREATE UNIQUE INDEX users_username_unique ON users (lower(username));
+
+-- simplesessions postgres store (v3) backing table.
+CREATE TABLE sessions (
+    id         TEXT PRIMARY KEY,
+    data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX sessions_created_at_idx ON sessions (created_at);
+
+-- USER GROUPS (authz subjects) — distinct from machine `groups`.
+CREATE TABLE user_groups (
+    id               BIGSERIAL PRIMARY KEY,
+    uuid             UUID NOT NULL DEFAULT uuidv7(),
+    name             TEXT NOT NULL,
+    description      TEXT NOT NULL DEFAULT '',
+    oidc_claim_value TEXT NOT NULL DEFAULT '',  -- if set, OIDC `groups` claim entries matching this auto-populate membership
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT user_groups_uuid_unique UNIQUE (uuid),
+    CONSTRAINT user_groups_name_unique UNIQUE (name)
+);
+CREATE UNIQUE INDEX user_groups_claim_idx ON user_groups (lower(oidc_claim_value))
+    WHERE length(trim(oidc_claim_value)) > 0;
+
+CREATE TABLE user_group_members (
+    user_group_id BIGINT NOT NULL REFERENCES user_groups (id) ON DELETE CASCADE,
+    user_id       BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    source        TEXT NOT NULL DEFAULT 'manual',  -- 'manual' | 'oidc'
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_group_id, user_id),
+    CONSTRAINT user_group_members_source_check CHECK (source IN ('manual','oidc'))
+);
+CREATE INDEX user_group_members_user_idx ON user_group_members (user_id);
+
+-- ROLE BINDINGS: subject (user XOR user_group) -> built-in role name, optionally
+-- scoped to one machine group. Roles themselves are code-defined (no roles table).
+CREATE TABLE role_bindings (
+    id             BIGSERIAL PRIMARY KEY,
+    uuid           UUID NOT NULL DEFAULT uuidv7(),
+    user_id        BIGINT REFERENCES users (id) ON DELETE CASCADE,
+    user_group_id  BIGINT REFERENCES user_groups (id) ON DELETE CASCADE,
+    role           TEXT NOT NULL,                                    -- 'admin'|'operator'|'analyst'|'viewer'
+    scope_group_id BIGINT REFERENCES groups (id) ON DELETE CASCADE,  -- NULL = global; FK -> machine groups
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT role_bindings_uuid_unique UNIQUE (uuid),
+    CONSTRAINT role_bindings_role_check CHECK (role IN ('admin','operator','analyst','viewer')),
+    CONSTRAINT role_bindings_single_subject CHECK (
+        (user_id IS NOT NULL AND user_group_id IS NULL) OR
+        (user_id IS NULL AND user_group_id IS NOT NULL)
+    ),
+    CONSTRAINT role_bindings_user_unique  UNIQUE (user_id, role, scope_group_id),
+    CONSTRAINT role_bindings_group_unique UNIQUE (user_group_id, role, scope_group_id)
+);
+CREATE INDEX role_bindings_user_idx  ON role_bindings (user_id)       WHERE user_id IS NOT NULL;
+CREATE INDEX role_bindings_group_idx ON role_bindings (user_group_id) WHERE user_group_id IS NOT NULL;
+
+-- Casbin adapter table (memwey/casbin-sqlx-adapter). The adapter does NOT
+-- auto-create this table — it validates existence and panics if missing — so
+-- the migration MUST create it. Column names (`ptype`, `v0..v5`) match the
+-- adapter's CasbinRule struct.
+CREATE TABLE casbin_rule (
+    id    BIGSERIAL PRIMARY KEY,
+    ptype VARCHAR(100) NOT NULL DEFAULT '',
+    v0    VARCHAR(256) NOT NULL DEFAULT '',
+    v1    VARCHAR(256) NOT NULL DEFAULT '',
+    v2    VARCHAR(256) NOT NULL DEFAULT '',
+    v3    VARCHAR(256) NOT NULL DEFAULT '',
+    v4    VARCHAR(256) NOT NULL DEFAULT '',
+    v5    VARCHAR(256) NOT NULL DEFAULT '',
+    CONSTRAINT casbin_rule_unique UNIQUE (ptype, v0, v1, v2, v3, v4, v5)
+);
+
 -- System schedules carry their SQL inline. The schedule name is the key the
 -- systemmetrics registry maps to a metric kind.
 INSERT INTO schedules (name, sql, description, interval_seconds, platform, snapshot, is_system)

@@ -13,54 +13,66 @@
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
   import Pagination from './Pagination.svelte'
 
-  export let open = false
-  export let group: Group | null = null
-  export let onClose: () => void = () => {}
-  export let onSaved: () => void = () => {}
-  export let onChanged: () => void = () => {}
+  let {
+    open = false,
+    group = null,
+    onClose = () => {},
+    onSaved = () => {},
+    onChanged = () => {},
+    canManageMembers = true
+  }: {
+    open?: boolean
+    group?: Group | null
+    onClose?: () => void
+    onSaved?: () => void
+    onChanged?: () => void
+    canManageMembers?: boolean
+  } = $props()
 
   const machinesPerPage = 100
 
-  let dialog: HTMLDialogElement
-  let preparedFor: string | null = null
-  let title = ''
-  let description = ''
-  let error = ''
-  let isSubmitting = false
+  let dialog = $state<HTMLDialogElement>()
+  let preparedFor = $state<string | null>(null)
+  let title = $state('')
+  let description = $state('')
+  let error = $state('')
+  let isSubmitting = $state(false)
 
-  let machines: Machine[] = []
-  let machinePage = 1
-  let machinePageCount = 1
-  let machineTotal = 0
-  let machinesLoading = false
-  let machinesError = ''
+  let machines = $state<Machine[]>([])
+  let machinePage = $state(1)
+  let machinePageCount = $state(1)
+  let machineTotal = $state(0)
+  let machinesLoading = $state(false)
+  let machinesError = $state('')
 
-  let allMachines: Machine[] = []
-  let addIds: string[] = []
-  let membersSaving = false
+  let allMachines = $state<Machine[]>([])
+  let addIds = $state<string[]>([])
+  let membersSaving = $state(false)
 
-  $: memberIds = machines.map((m) => m.uuid)
-  $: addOptions = allMachines
+  const memberIds = $derived(machines.map((m) => m.uuid))
+  const addOptions = $derived(allMachines
     .filter((m) => !memberIds.includes(m.uuid))
-    .map((m) => ({ value: m.uuid, label: machineHostname(m) }))
+    .map((m) => ({ value: m.uuid, label: machineHostname(m) })))
 
-  $: if (open && dialog) {
+  $effect(() => {
+    if (!open || !dialog) return
     const key = group?.uuid || 'new'
     if (preparedFor !== key) {
       loadForm(group)
       preparedFor = key
       if (group?.uuid) {
         loadMachines(group.uuid, 1)
-        loadAllMachines()
+        if (canManageMembers) loadAllMachines()
       }
     }
     if (!dialog.open) dialog.showModal()
-  }
+  })
 
-  $: if (!open && dialog) {
+  $effect(() => {
+    if (open || !dialog) return
     preparedFor = null
     if (dialog.open) dialog.close()
-  }
+  })
 
   function loadForm(record: Group | null) {
     title = record?.name || ''
@@ -107,7 +119,7 @@
   }
 
   async function patchMembers(changes: { add?: string[]; remove?: string[] }) {
-    if (!group?.uuid) return
+    if (!group?.uuid || !canManageMembers) return
     membersSaving = true
     machinesError = ''
     try {
@@ -144,7 +156,7 @@
       if (group?.uuid) await updateGroup(group.uuid, payload)
       else await createGroup(payload)
       onSaved()
-      dialog.close()
+      dialog?.close()
     } catch (err) {
       error = (err as Error).message || 'Failed to save group'
     } finally {
@@ -178,31 +190,33 @@
         <h3 class="mb-0">Hosts <span class="text-light">({machineTotal})</span></h3>
         <ErrorMessage message={machinesError} onClose={() => (machinesError = '')} />
 
-        <div class="vstack gap-2">
-          <span>Add hosts</span>
-          <div class="hstack gap-2 add-hosts">
-            <div class="add-hosts-select">
-              <MultiSelectDropdown
-                label=""
-                options={addOptions}
-                bind:value={addIds}
-                placeholder="Select hosts to add"
-                searchPlaceholder="Search hosts..."
-                emptyLabel="No more hosts to add"
-                disabled={membersSaving || machinesLoading}
-              />
+        {#if canManageMembers}
+          <div class="vstack gap-2">
+            <span>Add hosts</span>
+            <div class="hstack gap-2 add-hosts">
+              <div class="add-hosts-select">
+                <MultiSelectDropdown
+                  label=""
+                  options={addOptions}
+                  bind:value={addIds}
+                  placeholder="Select hosts to add"
+                  searchPlaceholder="Search hosts..."
+                  emptyLabel="No more hosts to add"
+                  disabled={membersSaving || machinesLoading}
+                />
+              </div>
+              <button
+                type="button"
+                class="add-hosts-button"
+                onclick={addHosts}
+                disabled={addIds.length === 0 || membersSaving}
+                aria-busy={membersSaving ? 'true' : undefined}
+              >
+                Add{addIds.length ? ` (${addIds.length})` : ''}
+              </button>
             </div>
-            <button
-              type="button"
-              class="add-hosts-button"
-              onclick={addHosts}
-              disabled={addIds.length === 0 || membersSaving}
-              aria-busy={membersSaving ? 'true' : undefined}
-            >
-              Add{addIds.length ? ` (${addIds.length})` : ''}
-            </button>
           </div>
-        </div>
+        {/if}
 
         <div class="hosts-scroll table" aria-busy={machinesLoading || membersSaving ? 'true' : undefined}>
           <table>
@@ -212,12 +226,14 @@
                 <th>Platform</th>
                 <th>OS</th>
                 <th>Last seen</th>
-                <th class="align-right"><span class="sr-only">Actions</span></th>
+                {#if canManageMembers}
+                  <th class="align-right"><span class="sr-only">Actions</span></th>
+                {/if}
               </tr>
             </thead>
             <tbody>
               {#if machinesLoading}
-                <tr><td colspan="5" class="align-center text-light">Loading hosts...</td></tr>
+                <tr><td colspan={canManageMembers ? 5 : 4} class="align-center text-light">Loading hosts...</td></tr>
               {:else}
                 {#each machines as machine}
                   <tr>
@@ -227,21 +243,23 @@
                     <td>{machine.platform || 'Unknown'}</td>
                     <td>{machine.os_name || ''} {machine.os_version || ''}</td>
                     <td>{formatTimestamp(machine.last_seen_at)}</td>
-                    <td class="align-right">
-                      <button
-                        type="button"
-                        class="small outline"
-                        data-variant="danger"
-                        disabled={membersSaving}
-                        onclick={() => removeHost(machine.uuid)}
-                        aria-label={`Remove ${machineHostname(machine)} from group`}
-                      >
-                        Remove
-                      </button>
-                    </td>
+                    {#if canManageMembers}
+                      <td class="align-right">
+                        <button
+                          type="button"
+                          class="small outline"
+                          data-variant="danger"
+                          disabled={membersSaving}
+                          onclick={() => removeHost(machine.uuid)}
+                          aria-label={`Remove ${machineHostname(machine)} from group`}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    {/if}
                   </tr>
                 {:else}
-                  <tr><td colspan="5" class="align-center text-light">No hosts in this group</td></tr>
+                  <tr><td colspan={canManageMembers ? 5 : 4} class="align-center text-light">No hosts in this group</td></tr>
                 {/each}
               {/if}
             </tbody>
@@ -260,7 +278,7 @@
     {/if}
 
     <footer>
-      <button type="button" class="outline" onclick={() => dialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => dialog?.close()}>Cancel</button>
       <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined}>
         {isSubmitting ? (group ? 'Updating...' : 'Creating...') : group ? 'Update' : 'Create'}
       </button>

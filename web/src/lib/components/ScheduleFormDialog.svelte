@@ -19,25 +19,33 @@
     { value: 'windows', label: 'Windows' }
   ]
 
-  export let open = false
-  export let schedule: Schedule | null = null
-  export let onClose: () => void = () => {}
-  export let onSaved: () => void = () => {}
+  let {
+    open = false,
+    schedule = null,
+    onClose = () => {},
+    onSaved = () => {}
+  }: {
+    open?: boolean
+    schedule?: Schedule | null
+    onClose?: () => void
+    onSaved?: () => void
+  } = $props()
 
-  let dialog: HTMLDialogElement
-  let preparedFor: string | null = null
-  let availableGroups: Group[] = []
-  let query = ''
-  let description = ''
-  let title = ''
-  let interval = 3600
-  let platform = 'all'
-  let snapshot = false
-  let groupIds: string[] = []
-  let error = ''
-  let isSubmitting = false
+  let dialog = $state<HTMLDialogElement>()
+  let preparedFor = $state<string | null>(null)
+  let availableGroups = $state<Group[]>([])
+  let query = $state('')
+  let description = $state('')
+  let title = $state('')
+  let interval = $state(3600)
+  let platform = $state('all')
+  let snapshot = $state(false)
+  let groupIds = $state<string[]>([])
+  let error = $state('')
+  let isSubmitting = $state(false)
 
-  $: if (open && dialog) {
+  $effect(() => {
+    if (!open || !dialog) return
     const key = schedule?.uuid || 'new'
     if (preparedFor !== key) {
       loadForm(schedule)
@@ -45,12 +53,13 @@
       preparedFor = key
     }
     if (!dialog.open) dialog.showModal()
-  }
+  })
 
-  $: if (!open && dialog) {
+  $effect(() => {
+    if (open || !dialog) return
     preparedFor = null
     if (dialog.open) dialog.close()
-  }
+  })
 
   function loadForm(record: Schedule | null) {
     query = record?.sql || ''
@@ -94,7 +103,7 @@
       if (schedule?.uuid) await updateSchedule(schedule.uuid, payload)
       else await createSchedule(payload)
       onSaved()
-      dialog.close()
+      dialog?.close()
     } catch (err) {
       error = (err as Error).message || 'Failed to save schedule'
     } finally {
@@ -158,7 +167,7 @@
     </div>
 
     <footer>
-      <button type="button" class="outline" onclick={() => dialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => dialog?.close()}>Cancel</button>
       <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined}>
         {isSubmitting
           ? schedule

@@ -14,22 +14,23 @@
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import Truncate from '$lib/components/Truncate.svelte'
+  import { canFrom, me } from '$lib/auth'
 
-  let loadedSchedules: Schedule[] = []
-  let currentPage = 1
-  let pageCount = 1
-  let totalCount = 0
+  let loadedSchedules = $state<Schedule[]>([])
+  let currentPage = $state(1)
+  let pageCount = $state(1)
+  let totalCount = $state(0)
   const countPerPage = 10
-  let searchTerm = ''
-  let error = ''
-  let loading = true
-  let formOpen = false
-  let editingSchedule: Schedule | null = null
-  let deleteOpen = false
-  let selectedSchedule: Schedule | null = null
-  let isDeleting = false
+  let searchTerm = $state('')
+  let error = $state('')
+  let loading = $state(true)
+  let formOpen = $state(false)
+  let editingSchedule = $state<Schedule | null>(null)
+  let deleteOpen = $state(false)
+  let selectedSchedule = $state<Schedule | null>(null)
+  let isDeleting = $state(false)
 
-  $: schedules = loadedSchedules.filter((s) => {
+  const schedules = $derived(loadedSchedules.filter((s) => {
     const search = searchTerm.trim().toLowerCase()
     return (
       !search ||
@@ -37,9 +38,12 @@
       (s.sql || '').toLowerCase().includes(search) ||
       String(s.interval || '').includes(search)
     )
-  })
-  $: startResult = loadedSchedules.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1
-  $: endResult = Math.min(currentPage * countPerPage, totalCount)
+  }))
+  const startResult = $derived(loadedSchedules.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
+  const endResult = $derived(Math.min(currentPage * countPerPage, totalCount))
+  const canCreateSchedule = $derived(canFrom($me, 'schedule', 'create'))
+  const canUpdateSchedule = $derived(canFrom($me, 'schedule', 'update'))
+  const canDeleteSchedule = $derived(canFrom($me, 'schedule', 'delete'))
 
   onMount(loadSchedules)
 
@@ -66,11 +70,13 @@
   }
 
   function openCreate() {
+    if (!canCreateSchedule) return
     editingSchedule = null
     formOpen = true
   }
 
   function openEdit(schedule: Schedule) {
+    if (!canUpdateSchedule) return
     editingSchedule = schedule
     formOpen = true
   }
@@ -81,6 +87,7 @@
   }
 
   function confirmDelete(schedule: Schedule) {
+    if (!canDeleteSchedule) return
     selectedSchedule = schedule
     deleteOpen = true
   }
@@ -112,7 +119,9 @@
       <h1 class="mb-2">Query Schedules</h1>
       <p class="text-light">Schedule queries to run on specific machines</p>
     </div>
-    <button type="button" onclick={openCreate}>Create Schedule</button>
+    {#if canCreateSchedule}
+      <button type="button" onclick={openCreate}>Create Schedule</button>
+    {/if}
   </header>
 
   <ErrorMessage message={error} onClose={() => (error = '')} />
@@ -139,9 +148,13 @@
           {#each schedules as schedule}
             <tr>
               <td>
-                <button type="button" class="cell-link" onclick={() => openEdit(schedule)}>
-                  <Truncate text={schedule.title || 'Untitled'} />
-                </button>
+                {#if canUpdateSchedule}
+                  <button type="button" class="cell-link" onclick={() => openEdit(schedule)}>
+                    <Truncate text={schedule.title || 'Untitled'} />
+                  </button>
+                {:else}
+                  <strong><Truncate text={schedule.title || 'Untitled'} /></strong>
+                {/if}
               </td>
               <td class="text-light">
                 <Truncate text={descriptionFor(schedule)} lines={2} />
@@ -149,9 +162,14 @@
               <td class="col-actions">
                 <ActionsMenu label={`Actions for ${schedule.title || 'schedule'}`}>
                   <button role="menuitem" type="button" onclick={() => goto(`/schedules/${schedule.uuid}`)}>Results</button>
-                  <button role="menuitem" type="button" onclick={() => openEdit(schedule)}>Edit</button>
-                  <hr />
-                  <button role="menuitem" type="button" onclick={() => confirmDelete(schedule)}>Delete</button>
+                  {#if canUpdateSchedule || canDeleteSchedule}<hr />{/if}
+                  {#if canUpdateSchedule}
+                    <button role="menuitem" type="button" onclick={() => openEdit(schedule)}>Edit</button>
+                  {/if}
+                  {#if canUpdateSchedule && canDeleteSchedule}<hr />{/if}
+                  {#if canDeleteSchedule}
+                    <button role="menuitem" type="button" onclick={() => confirmDelete(schedule)}>Delete</button>
+                  {/if}
                 </ActionsMenu>
               </td>
             </tr>

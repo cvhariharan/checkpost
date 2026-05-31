@@ -10,17 +10,24 @@
     type MetricEntry
   } from '$lib/metricSchema'
 
-  export let kind: string
-  export let schema: JSONSchema | undefined
-  export let entry: MetricEntry | undefined
+  let {
+    kind,
+    schema = undefined,
+    entry = undefined
+  }: {
+    kind: string
+    schema?: JSONSchema
+    entry?: MetricEntry
+  } = $props()
 
-  $: title = schema?.title || kind
-  $: shape = rootShape(schema)
-  $: value = (entry?.value ?? {}) as Record<string, unknown>
-  $: tableRows =
+  const title = $derived(schema?.title || kind)
+  const shape = $derived(rootShape(schema))
+  const value = $derived((entry?.value ?? {}) as Record<string, unknown>)
+  const tableRows = $derived(
     shape.kind === 'table' ? ((value[shape.arrayProp] as unknown[]) || []) : []
-  $: cardProps = shape.kind === 'card' ? shape.properties : []
-  $: primary = shape.kind === 'card' ? primaryProperty(cardProps) : null
+  )
+  const cardProps = $derived(shape.kind === 'card' ? shape.properties : [])
+  const primary = $derived(shape.kind === 'card' ? primaryProperty(cardProps) : null)
 </script>
 
 {#if entry && schema}

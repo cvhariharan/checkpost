@@ -24,87 +24,97 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import TextListInput from '$lib/components/TextListInput.svelte'
   import { formatTimestamp } from '$lib/util'
+  import { canFrom, me } from '$lib/auth'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
 
   const scanCountPerPage = 10
   const matchCountPerPage = 100
 
-  let groups: Group[] = []
-  let sources: YaraSignatureSource[] = []
-  let scans: YaraScan[] = []
-  let matches: YaraScanMatch[] = []
-  let targets: YaraScanTarget[] = []
-  let selectedScan: YaraScan | null = null
+  let groups = $state<Group[]>([])
+  let sources = $state<YaraSignatureSource[]>([])
+  let scans = $state<YaraScan[]>([])
+  let matches = $state<YaraScanMatch[]>([])
+  let targets = $state<YaraScanTarget[]>([])
+  let selectedScan = $state<YaraScan | null>(null)
 
-  let scanPage = 1
-  let scanPageCount = 1
-  let scanTotal = 0
-  let matchPage = 1
-  let matchPageCount = 1
-  let matchTotal = 0
-  let targetTotal = 0
+  let scanPage = $state(1)
+  let scanPageCount = $state(1)
+  let scanTotal = $state(0)
+  let matchPage = $state(1)
+  let matchPageCount = $state(1)
+  let matchTotal = $state(0)
+  let targetTotal = $state(0)
 
-  let paths = ['']
-  let ruleURLs = ['']
-  let scanGroupID = ''
-  let sourceGroupID = ''
-  let sourceURL = ''
-  let sourceLabel = ''
-  let sourceEnabled = true
-  let editingSource: YaraSignatureSource | null = null
-  let scanDialogOpen = false
-  let sourceDialogOpen = false
-  let deleteOpen = false
-  let selectedSource: YaraSignatureSource | null = null
+  let paths = $state([''])
+  let ruleURLs = $state([''])
+  let scanGroupID = $state('')
+  let sourceGroupID = $state('')
+  let sourceURL = $state('')
+  let sourceLabel = $state('')
+  let sourceEnabled = $state(true)
+  let editingSource = $state<YaraSignatureSource | null>(null)
+  let scanDialogOpen = $state(false)
+  let sourceDialogOpen = $state(false)
+  let deleteOpen = $state(false)
+  let selectedSource = $state<YaraSignatureSource | null>(null)
 
-  let loading = true
-  let scansLoading = false
-  let matchesLoading = false
-  let targetsLoading = false
-  let savingSource = false
-  let deletingSource = false
-  let startingScan = false
-  let error = ''
-  let scanError = ''
-  let sourceError = ''
-  let activeTabIndex = 0
-  let tabs: OatTabsElement
-  let scanDialog: HTMLDialogElement
-  let sourceDialog: HTMLDialogElement
+  let loading = $state(true)
+  let scansLoading = $state(false)
+  let matchesLoading = $state(false)
+  let targetsLoading = $state(false)
+  let savingSource = $state(false)
+  let deletingSource = $state(false)
+  let startingScan = $state(false)
+  let error = $state('')
+  let scanError = $state('')
+  let sourceError = $state('')
+  let activeTabIndex = $state(0)
+  let tabs = $state<OatTabsElement>()
+  let scanDialog = $state<HTMLDialogElement>()
+  let sourceDialog = $state<HTMLDialogElement>()
 
-  $: groupOptions = [
+  const groupOptions = $derived([
     { value: '', label: 'All machines' },
     ...groups.map((group) => ({ value: group.uuid, label: group.name || 'Untitled' }))
-  ]
-  $: scanStart = scanTotal === 0 ? 0 : (scanPage - 1) * scanCountPerPage + 1
-  $: scanEnd = Math.min(scanPage * scanCountPerPage, scanTotal)
-  $: matchStart = matchTotal === 0 ? 0 : (matchPage - 1) * matchCountPerPage + 1
-  $: matchEnd = Math.min(matchPage * matchCountPerPage, matchTotal)
-  $: hasPath = paths.some((path) => path.trim())
-  $: hasRuleURL = ruleURLs.some((url) => url.trim())
+  ])
+  const scanStart = $derived(scanTotal === 0 ? 0 : (scanPage - 1) * scanCountPerPage + 1)
+  const scanEnd = $derived(Math.min(scanPage * scanCountPerPage, scanTotal))
+  const matchStart = $derived(matchTotal === 0 ? 0 : (matchPage - 1) * matchCountPerPage + 1)
+  const matchEnd = $derived(Math.min(matchPage * matchCountPerPage, matchTotal))
+  const hasPath = $derived(paths.some((path) => path.trim()))
+  const hasRuleURL = $derived(ruleURLs.some((url) => url.trim()))
+  const canCreateScan = $derived(canFrom($me, 'yara_scan', 'create'))
+  const canCreateSource = $derived(canFrom($me, 'yara_source', 'create'))
+  const canUpdateSource = $derived(canFrom($me, 'yara_source', 'update'))
+  const canDeleteSource = $derived(canFrom($me, 'yara_source', 'delete'))
 
   onMount(loadAll)
 
-  $: if (tabs && tabs.activeIndex !== activeTabIndex) {
+  $effect(() => {
+    if (!tabs || tabs.activeIndex === activeTabIndex) return
     tabs.activeIndex = activeTabIndex
-  }
+  })
 
-  $: if (scanDialogOpen && scanDialog && !scanDialog.open) {
+  $effect(() => {
+    if (!scanDialogOpen || !scanDialog || scanDialog.open) return
     scanDialog.showModal()
-  }
+  })
 
-  $: if (!scanDialogOpen && scanDialog?.open) {
+  $effect(() => {
+    if (scanDialogOpen || !scanDialog?.open) return
     scanDialog.close()
-  }
+  })
 
-  $: if (sourceDialogOpen && sourceDialog && !sourceDialog.open) {
+  $effect(() => {
+    if (!sourceDialogOpen || !sourceDialog || sourceDialog.open) return
     sourceDialog.showModal()
-  }
+  })
 
-  $: if (!sourceDialogOpen && sourceDialog?.open) {
+  $effect(() => {
+    if (sourceDialogOpen || !sourceDialog?.open) return
     sourceDialog.close()
-  }
+  })
 
   function handleTabChange(event: CustomEvent<{ index: number }>) {
     activeTabIndex = event.detail.index
@@ -195,6 +205,7 @@
   }
 
   async function startScan() {
+    if (!canCreateScan) return
     const scanPaths = paths.map((path) => path.trim()).filter(Boolean)
     if (scanPaths.length === 0) {
       scanError = 'At least one path is required'
@@ -224,6 +235,7 @@
   }
 
   function openStartScan() {
+    if (!canCreateScan) return
     resetScanForm()
     scanDialogOpen = true
   }
@@ -243,11 +255,13 @@
   }
 
   function openCreateSource() {
+    if (!canCreateSource) return
     resetSourceForm()
     sourceDialogOpen = true
   }
 
   function openEditSource(source: YaraSignatureSource) {
+    if (!canUpdateSource) return
     editingSource = source
     sourceGroupID = source.group_id || ''
     sourceURL = source.url || ''
@@ -266,6 +280,7 @@
   }
 
   async function saveSource() {
+    if (editingSource ? !canUpdateSource : !canCreateSource) return
     if (!sourceURL.trim()) {
       sourceError = 'URL is required'
       return
@@ -302,6 +317,7 @@
   }
 
   function confirmDelete(source: YaraSignatureSource) {
+    if (!canDeleteSource) return
     selectedSource = source
     deleteOpen = true
   }
@@ -356,7 +372,9 @@
       <h1 class="mb-2">YARA</h1>
       <p class="text-light">Run on-demand signature scans across machines</p>
     </div>
-    <button type="button" onclick={openStartScan}>Start Scan</button>
+    {#if canCreateScan}
+      <button type="button" onclick={openStartScan}>Start Scan</button>
+    {/if}
   </header>
 
   <ErrorMessage message={error} onClose={() => (error = '')} />
@@ -538,7 +556,9 @@
         <section class="vstack gap-3">
           <div class="hstack justify-between">
             <p class="text-light">{sources.length} source configs</p>
-            <button type="button" onclick={openCreateSource}>Add Source Config</button>
+            {#if canCreateSource}
+              <button type="button" onclick={openCreateSource}>Add Source Config</button>
+            {/if}
           </div>
 
           <div class="table">
@@ -558,17 +578,27 @@
                     <td>{scopeLabel(source)}</td>
                     <td>{source.label || ''}</td>
                     <td title={source.url}>
-                      <button type="button" class="cell-link" onclick={() => openEditSource(source)}>
-                        {source.url}
-                      </button>
+                      {#if canUpdateSource}
+                        <button type="button" class="cell-link" onclick={() => openEditSource(source)}>
+                          {source.url}
+                        </button>
+                      {:else}
+                        <strong>{source.url}</strong>
+                      {/if}
                     </td>
                     <td>{source.enabled === false ? 'No' : 'Yes'}</td>
                     <td class="align-right">
-                      <ActionsMenu label={`Actions for ${source.label || source.url}`}>
-                        <button role="menuitem" type="button" onclick={() => openEditSource(source)}>Edit</button>
-                        <hr />
-                        <button role="menuitem" type="button" onclick={() => confirmDelete(source)}>Delete</button>
-                      </ActionsMenu>
+                      {#if canUpdateSource || canDeleteSource}
+                        <ActionsMenu label={`Actions for ${source.label || source.url}`}>
+                          {#if canUpdateSource}
+                            <button role="menuitem" type="button" onclick={() => openEditSource(source)}>Edit</button>
+                          {/if}
+                          {#if canUpdateSource && canDeleteSource}<hr />{/if}
+                          {#if canDeleteSource}
+                            <button role="menuitem" type="button" onclick={() => confirmDelete(source)}>Delete</button>
+                          {/if}
+                        </ActionsMenu>
+                      {/if}
                     </td>
                   </tr>
                 {:else}
@@ -612,7 +642,7 @@
     </div>
 
     <footer>
-      <button type="button" class="outline" onclick={() => scanDialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => scanDialog?.close()}>Cancel</button>
       <button
         type="submit"
         disabled={startingScan || !hasPath || !hasRuleURL}
@@ -652,7 +682,7 @@
     </div>
 
     <footer>
-      <button type="button" class="outline" onclick={() => sourceDialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => sourceDialog?.close()}>Cancel</button>
       <button type="submit" disabled={savingSource} aria-busy={savingSource ? 'true' : undefined}>
         {savingSource ? 'Saving...' : editingSource ? 'Update' : 'Add'}
       </button>

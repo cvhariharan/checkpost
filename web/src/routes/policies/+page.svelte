@@ -10,24 +10,25 @@
   import PolicyMachinesDialog from '$lib/components/PolicyMachinesDialog.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
+  import { canFrom, me } from '$lib/auth'
 
-  let loadedPolicies: Policy[] = []
-  let currentPage = 1
-  let pageCount = 1
-  let totalCount = 0
+  let loadedPolicies = $state<Policy[]>([])
+  let currentPage = $state(1)
+  let pageCount = $state(1)
+  let totalCount = $state(0)
   const countPerPage = 10
-  let searchTerm = ''
-  let error = ''
-  let loading = true
-  let formOpen = false
-  let editingPolicy: Policy | null = null
-  let deleteOpen = false
-  let selectedPolicy: Policy | null = null
-  let isDeleting = false
-  let machinesPolicy: Policy | null = null
-  let machinesOpen = false
+  let searchTerm = $state('')
+  let error = $state('')
+  let loading = $state(true)
+  let formOpen = $state(false)
+  let editingPolicy = $state<Policy | null>(null)
+  let deleteOpen = $state(false)
+  let selectedPolicy = $state<Policy | null>(null)
+  let isDeleting = $state(false)
+  let machinesPolicy = $state<Policy | null>(null)
+  let machinesOpen = $state(false)
 
-  $: policies = loadedPolicies.filter((p) => {
+  const policies = $derived(loadedPolicies.filter((p) => {
     const search = searchTerm.trim().toLowerCase()
     return (
       !search ||
@@ -35,9 +36,12 @@
       (p.description || '').toLowerCase().includes(search) ||
       (p.query || '').toLowerCase().includes(search)
     )
-  })
-  $: startResult = loadedPolicies.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1
-  $: endResult = Math.min(currentPage * countPerPage, totalCount)
+  }))
+  const startResult = $derived(loadedPolicies.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
+  const endResult = $derived(Math.min(currentPage * countPerPage, totalCount))
+  const canCreatePolicy = $derived(canFrom($me, 'policy', 'create'))
+  const canUpdatePolicy = $derived(canFrom($me, 'policy', 'update'))
+  const canDeletePolicy = $derived(canFrom($me, 'policy', 'delete'))
 
   onMount(loadPolicies)
 
@@ -64,11 +68,13 @@
   }
 
   function openCreate() {
+    if (!canCreatePolicy) return
     editingPolicy = null
     formOpen = true
   }
 
   function openEdit(policy: Policy) {
+    if (!canUpdatePolicy) return
     editingPolicy = policy
     formOpen = true
   }
@@ -79,6 +85,7 @@
   }
 
   function confirmDelete(policy: Policy) {
+    if (!canDeletePolicy) return
     selectedPolicy = policy
     deleteOpen = true
   }
@@ -116,7 +123,9 @@
       <h1 class="mb-2">Policies</h1>
       <p class="text-light">Evaluate osquery-backed posture checks across enrolled machines</p>
     </div>
-    <button type="button" onclick={openCreate}>Create Policy</button>
+    {#if canCreatePolicy}
+      <button type="button" onclick={openCreate}>Create Policy</button>
+    {/if}
   </header>
 
   <div class="row">
@@ -166,11 +175,17 @@
               <td class="align-right">{policy.unknown_count || 0}</td>
               <td>{formatTimestamp(policy.last_count_updated_at)}</td>
               <td class="align-right">
-                <ActionsMenu label={`Actions for ${policy.name || policy.title || 'policy'}`}>
-                  <button role="menuitem" type="button" onclick={() => openEdit(policy)}>Edit</button>
-                  <hr />
-                  <button role="menuitem" type="button" onclick={() => confirmDelete(policy)}>Delete</button>
-                </ActionsMenu>
+                {#if canUpdatePolicy || canDeletePolicy}
+                  <ActionsMenu label={`Actions for ${policy.name || policy.title || 'policy'}`}>
+                    {#if canUpdatePolicy}
+                      <button role="menuitem" type="button" onclick={() => openEdit(policy)}>Edit</button>
+                    {/if}
+                    {#if canUpdatePolicy && canDeletePolicy}<hr />{/if}
+                    {#if canDeletePolicy}
+                      <button role="menuitem" type="button" onclick={() => confirmDelete(policy)}>Delete</button>
+                    {/if}
+                  </ActionsMenu>
+                {/if}
               </td>
             </tr>
           {:else}

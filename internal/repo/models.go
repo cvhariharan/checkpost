@@ -13,6 +13,17 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type CasbinRule struct {
+	ID    int64  `db:"id" json:"id"`
+	Ptype string `db:"ptype" json:"ptype"`
+	V0    string `db:"v0" json:"v0"`
+	V1    string `db:"v1" json:"v1"`
+	V2    string `db:"v2" json:"v2"`
+	V3    string `db:"v3" json:"v3"`
+	V4    string `db:"v4" json:"v4"`
+	V5    string `db:"v5" json:"v5"`
+}
+
 type DeviceOwner struct {
 	ID          int64     `db:"id" json:"id"`
 	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
@@ -143,6 +154,16 @@ type QuerySchema struct {
 	RowCountEstimate int64           `db:"row_count_estimate" json:"row_count_estimate"`
 }
 
+type RoleBinding struct {
+	ID           int64         `db:"id" json:"id"`
+	Uuid         uuid.UUID     `db:"uuid" json:"uuid"`
+	UserID       sql.NullInt64 `db:"user_id" json:"user_id"`
+	UserGroupID  sql.NullInt64 `db:"user_group_id" json:"user_group_id"`
+	Role         string        `db:"role" json:"role"`
+	ScopeGroupID sql.NullInt64 `db:"scope_group_id" json:"scope_group_id"`
+	CreatedAt    time.Time     `db:"created_at" json:"created_at"`
+}
+
 type Schedule struct {
 	ID              int64     `db:"id" json:"id"`
 	Uuid            uuid.UUID `db:"uuid" json:"uuid"`
@@ -168,6 +189,43 @@ type ScheduleGroup struct {
 	ScheduleID int64     `db:"schedule_id" json:"schedule_id"`
 	GroupID    int64     `db:"group_id" json:"group_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+}
+
+type Session struct {
+	ID        string          `db:"id" json:"id"`
+	Data      json.RawMessage `db:"data" json:"data"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+type User struct {
+	ID           int64          `db:"id" json:"id"`
+	Uuid         uuid.UUID      `db:"uuid" json:"uuid"`
+	Username     string         `db:"username" json:"username"`
+	Name         string         `db:"name" json:"name"`
+	Email        string         `db:"email" json:"email"`
+	PasswordHash sql.NullString `db:"password_hash" json:"password_hash"`
+	LoginType    string         `db:"login_type" json:"login_type"`
+	Disabled     bool           `db:"disabled" json:"disabled"`
+	LastLoginAt  sql.NullTime   `db:"last_login_at" json:"last_login_at"`
+	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+type UserGroup struct {
+	ID             int64     `db:"id" json:"id"`
+	Uuid           uuid.UUID `db:"uuid" json:"uuid"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	OidcClaimValue string    `db:"oidc_claim_value" json:"oidc_claim_value"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type UserGroupMember struct {
+	UserGroupID int64     `db:"user_group_id" json:"user_group_id"`
+	UserID      int64     `db:"user_id" json:"user_id"`
+	Source      string    `db:"source" json:"source"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 }
 
 type YaraScan struct {

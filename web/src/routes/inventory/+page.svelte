@@ -19,6 +19,7 @@
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import OsqueryBootstrapDialog from '$lib/components/OsqueryBootstrapDialog.svelte'
+  import { canFrom, me } from '$lib/auth'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
   type FilterOption = { value: string; label: string }
@@ -26,67 +27,71 @@
   const machineCountPerPage = 10
   const ownerCountPerPage = 10
 
-  let machines: Machine[] = []
-  let owners: DeviceOwner[] = []
-  let ownerOptions: DeviceOwner[] = []
-  let searchTerm = ''
-  let selectedPlatform = ''
-  let selectedOwner = ''
-  let assignmentFilter = ''
-  let ownerSearchTerm = ''
-  let activeTabIndex = 0
-  let error = ''
-  let ready = false
-  let loadingMachines = true
-  let loadingOwners = true
-  let loadingOwnerOptions = true
-  let currentMachinePage = 1
-  let machinePageCount = 1
-  let machineTotalCount = 0
-  let currentOwnerPage = 1
-  let ownerPageCount = 1
-  let ownerTotalCount = 0
-  let initialized = false
-  let previousMachineFilterKey = ''
-  let previousMachineSearch = ''
-  let previousOwnerSearch = ''
+  let machines = $state<Machine[]>([])
+  let owners = $state<DeviceOwner[]>([])
+  let ownerOptions = $state<DeviceOwner[]>([])
+  let searchTerm = $state('')
+  let selectedPlatform = $state('')
+  let selectedOwner = $state('')
+  let assignmentFilter = $state('')
+  let ownerSearchTerm = $state('')
+  let activeTabIndex = $state(0)
+  let error = $state('')
+  let ready = $state(false)
+  let loadingMachines = $state(true)
+  let loadingOwners = $state(true)
+  let loadingOwnerOptions = $state(true)
+  let currentMachinePage = $state(1)
+  let machinePageCount = $state(1)
+  let machineTotalCount = $state(0)
+  let currentOwnerPage = $state(1)
+  let ownerPageCount = $state(1)
+  let ownerTotalCount = $state(0)
+  let initialized = $state(false)
+  let previousMachineFilterKey = $state('')
+  let previousMachineSearch = $state('')
+  let previousOwnerSearch = $state('')
   let machineSearchTimer: ReturnType<typeof setTimeout> | undefined
   let ownerSearchTimer: ReturnType<typeof setTimeout> | undefined
 
-  let tabs: OatTabsElement
-  let inventoryDialog: HTMLDialogElement
-  let ownerDialog: HTMLDialogElement
-  let bootstrapDialogOpen = false
-  let editingMachine: Machine | null = null
-  let editingOwner: DeviceOwner | null = null
-  let ownerToDelete: DeviceOwner | null = null
-  let savingInventory = false
-  let savingOwner = false
-  let deletingOwner = false
+  let tabs = $state<OatTabsElement>()
+  let inventoryDialog = $state<HTMLDialogElement>()
+  let ownerDialog = $state<HTMLDialogElement>()
+  let bootstrapDialogOpen = $state(false)
+  let editingMachine = $state<Machine | null>(null)
+  let editingOwner = $state<DeviceOwner | null>(null)
+  let ownerToDelete = $state<DeviceOwner | null>(null)
+  let savingInventory = $state(false)
+  let savingOwner = $state(false)
+  let deletingOwner = $state(false)
 
-  let inventoryOwnerID = ''
-  let internalTrackingID = ''
-  let inventoryNotes = ''
+  let inventoryOwnerID = $state('')
+  let internalTrackingID = $state('')
+  let inventoryNotes = $state('')
 
-  let ownerDisplayName = ''
-  let ownerEmail = ''
-  let ownerExternalID = ''
-  let ownerDepartment = ''
-  let ownerTitle = ''
-  let ownerPhone = ''
-  let ownerNotes = ''
+  let ownerDisplayName = $state('')
+  let ownerEmail = $state('')
+  let ownerExternalID = $state('')
+  let ownerDepartment = $state('')
+  let ownerTitle = $state('')
+  let ownerPhone = $state('')
+  let ownerNotes = $state('')
 
-  $: allPlatforms = Array.from(
+  const allPlatforms = $derived(Array.from(
     new Set(machines.map((m) => m.platform).filter((p): p is string => Boolean(p)))
-  ).sort()
-  $: ownerFilterOptions = ownerOptions.map<FilterOption>((owner) => ({
+  ).sort())
+  const ownerFilterOptions = $derived(ownerOptions.map<FilterOption>((owner) => ({
     value: owner.uuid,
     label: owner.display_name || owner.email || owner.uuid
-  }))
-  $: machineStartResult = machines.length === 0 ? 0 : (currentMachinePage - 1) * machineCountPerPage + 1
-  $: machineEndResult = Math.min(currentMachinePage * machineCountPerPage, machineTotalCount)
-  $: ownerStartResult = owners.length === 0 ? 0 : (currentOwnerPage - 1) * ownerCountPerPage + 1
-  $: ownerEndResult = Math.min(currentOwnerPage * ownerCountPerPage, ownerTotalCount)
+  })))
+  const machineStartResult = $derived(machines.length === 0 ? 0 : (currentMachinePage - 1) * machineCountPerPage + 1)
+  const machineEndResult = $derived(Math.min(currentMachinePage * machineCountPerPage, machineTotalCount))
+  const ownerStartResult = $derived(owners.length === 0 ? 0 : (currentOwnerPage - 1) * ownerCountPerPage + 1)
+  const ownerEndResult = $derived(Math.min(currentOwnerPage * ownerCountPerPage, ownerTotalCount))
+  const canCreateInventory = $derived(canFrom($me, 'inventory', 'create'))
+  const canUpdateInventory = $derived(canFrom($me, 'inventory', 'update'))
+  const canDeleteInventory = $derived(canFrom($me, 'inventory', 'delete'))
+  const canViewSettings = $derived(canFrom($me, 'setting', 'view'))
 
   onMount(() => {
     void initialize()
@@ -97,36 +102,40 @@
     }
   })
 
-  $: if (tabs && tabs.activeIndex !== activeTabIndex) {
+  $effect(() => {
+    if (!tabs || tabs.activeIndex === activeTabIndex) return
     tabs.activeIndex = activeTabIndex
-  }
+  })
 
-  $: if (initialized) {
+  $effect(() => {
+    if (!initialized) return
     const nextFilterKey = JSON.stringify([selectedPlatform, selectedOwner, assignmentFilter])
     if (nextFilterKey !== previousMachineFilterKey) {
       previousMachineFilterKey = nextFilterKey
       currentMachinePage = 1
       void loadMachines()
     }
-  }
+  })
 
-  $: if (initialized && searchTerm !== previousMachineSearch) {
+  $effect(() => {
+    if (!initialized || searchTerm === previousMachineSearch) return
     previousMachineSearch = searchTerm
     currentMachinePage = 1
     clearTimeout(machineSearchTimer)
     machineSearchTimer = setTimeout(() => {
       void loadMachines()
     }, 250)
-  }
+  })
 
-  $: if (initialized && ownerSearchTerm !== previousOwnerSearch) {
+  $effect(() => {
+    if (!initialized || ownerSearchTerm === previousOwnerSearch) return
     previousOwnerSearch = ownerSearchTerm
     currentOwnerPage = 1
     clearTimeout(ownerSearchTimer)
     ownerSearchTimer = setTimeout(() => {
       void loadOwners()
     }, 250)
-  }
+  })
 
   function handleTabChange(event: CustomEvent<{ index: number }>) {
     activeTabIndex = event.detail.index
@@ -230,11 +239,12 @@
   }
 
   function openInventoryDialog(machine: Machine) {
+    if (!canUpdateInventory) return
     editingMachine = machine
     inventoryOwnerID = machine.inventory?.owner?.uuid || ''
     internalTrackingID = machine.inventory?.internal_tracking_id || ''
     inventoryNotes = machine.inventory?.notes || ''
-    inventoryDialog.showModal()
+    inventoryDialog?.showModal()
   }
 
   async function saveInventory(event: SubmitEvent) {
@@ -248,7 +258,7 @@
         internal_tracking_id: internalTrackingID,
         notes: inventoryNotes
       })
-      inventoryDialog.close()
+      inventoryDialog?.close()
       await Promise.all([loadMachines(), loadOwners()])
     } catch (err) {
       error = (err as Error).message || 'Failed to save machine inventory'
@@ -258,6 +268,7 @@
   }
 
   function openCreateOwner() {
+    if (!canCreateInventory) return
     editingOwner = null
     ownerDisplayName = ''
     ownerEmail = ''
@@ -266,10 +277,11 @@
     ownerTitle = ''
     ownerPhone = ''
     ownerNotes = ''
-    ownerDialog.showModal()
+    ownerDialog?.showModal()
   }
 
   function openEditOwner(owner: DeviceOwner) {
+    if (!canUpdateInventory) return
     editingOwner = owner
     ownerDisplayName = owner.display_name || ''
     ownerEmail = owner.email || ''
@@ -278,7 +290,7 @@
     ownerTitle = owner.title || ''
     ownerPhone = owner.phone || ''
     ownerNotes = owner.notes || ''
-    ownerDialog.showModal()
+    ownerDialog?.showModal()
   }
 
   async function saveOwner(event: SubmitEvent) {
@@ -297,7 +309,7 @@
     try {
       if (editingOwner?.uuid) await updateOwner(editingOwner.uuid, payload)
       else await createOwner(payload)
-      ownerDialog.close()
+      ownerDialog?.close()
       await Promise.all([loadOwnerOptions(), loadOwners(), loadMachines()])
     } catch (err) {
       error = (err as Error).message || 'Failed to save owner'
@@ -307,7 +319,7 @@
   }
 
   async function confirmDeleteOwner() {
-    if (!ownerToDelete?.uuid) return
+    if (!ownerToDelete?.uuid || !canDeleteInventory) return
     deletingOwner = true
     error = ''
     try {
@@ -340,7 +352,9 @@
       <h1 class="mb-2">Inventory</h1>
       <p class="text-light">Track device owners and internal asset IDs</p>
     </div>
-    <button type="button" onclick={() => (bootstrapDialogOpen = true)}>Install osquery</button>
+    {#if canViewSettings}
+      <button type="button" onclick={() => (bootstrapDialogOpen = true)}>Install osquery</button>
+    {/if}
   </header>
 
   <ErrorMessage message={error} onClose={() => (error = '')} />
@@ -441,11 +455,13 @@
                       <td>{machine.hardware_serial || ''}</td>
                       <td>{machine.platform || ''}</td>
                       <td>{formatTimestamp(machine.last_seen_at || machine.enrolled_at)}</td>
-                      <td class="align-right">
+                    <td class="align-right">
+                      {#if canUpdateInventory}
                         <ActionsMenu label={`Actions for ${machineHostname(machine)}`}>
                           <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit inventory</button>
                         </ActionsMenu>
-                      </td>
+                      {/if}
+                    </td>
                     </tr>
                   {:else}
                     <tr>
@@ -480,7 +496,9 @@
               <h2 class="mb-2">Owners</h2>
               <p class="text-light">{ownerTotalCount} owners</p>
             </div>
-            <button type="button" onclick={openCreateOwner}>Create Owner</button>
+            {#if canCreateInventory}
+              <button type="button" onclick={openCreateOwner}>Create Owner</button>
+            {/if}
           </div>
 
           <div class="row filter-row">
@@ -510,13 +528,19 @@
                       <td>{owner.email || ''}</td>
                       <td>{owner.department || ''}</td>
                       <td class="align-right">{owner.machine_count || 0}</td>
-                      <td class="align-right">
+                    <td class="align-right">
+                      {#if canUpdateInventory || canDeleteInventory}
                         <ActionsMenu label={`Actions for ${owner.display_name || 'owner'}`}>
-                          <button role="menuitem" type="button" onclick={() => openEditOwner(owner)}>Edit</button>
-                          <hr />
-                          <button role="menuitem" type="button" onclick={() => (ownerToDelete = owner)}>Delete</button>
+                          {#if canUpdateInventory}
+                            <button role="menuitem" type="button" onclick={() => openEditOwner(owner)}>Edit</button>
+                          {/if}
+                          {#if canUpdateInventory && canDeleteInventory}<hr />{/if}
+                          {#if canDeleteInventory}
+                            <button role="menuitem" type="button" onclick={() => (ownerToDelete = owner)}>Delete</button>
+                          {/if}
                         </ActionsMenu>
-                      </td>
+                      {/if}
+                    </td>
                     </tr>
                   {:else}
                     <tr>
@@ -579,7 +603,7 @@
     </div>
 
     <footer class="hstack justify-end">
-      <button type="button" class="outline" onclick={() => inventoryDialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => inventoryDialog?.close()}>Cancel</button>
       <button
         type="submit"
         disabled={savingInventory || loadingOwnerOptions}
@@ -635,7 +659,7 @@
     </div>
 
     <footer class="hstack justify-end">
-      <button type="button" class="outline" onclick={() => ownerDialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => ownerDialog?.close()}>Cancel</button>
       <button type="submit" disabled={savingOwner} aria-busy={savingOwner ? 'true' : undefined}>
         {savingOwner ? 'Saving...' : 'Save'}
       </button>

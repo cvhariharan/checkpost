@@ -255,6 +255,14 @@ async function handleResponse<T>(response: Response): Promise<T> {
     data = {}
   }
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login'
+    ) {
+      const target = window.location.pathname + window.location.search
+      window.location.assign(`/login?redirect_url=${encodeURIComponent(target)}`)
+    }
     throw new Error(data?.error || response.statusText || 'API Error')
   }
   return data as T
@@ -548,4 +556,204 @@ export function fetchMachineMetrics(id: string) {
 
 export function fetchMetricSchemas() {
   return fetch(`${BASE_URL}/metrics/schemas`).then((r) => handleResponse<MetricSchemas>(r))
+}
+
+// Authentication & authorization ------------------------------------------
+
+export type SessionUser = {
+  uuid: string
+  username?: string
+  name?: string
+  email?: string
+  login_type?: string
+}
+
+export type Me = {
+  user: SessionUser
+  roles: string[]
+  permissions: Record<string, string[]>
+}
+
+export type Providers = {
+  password: boolean
+  sso: { enabled: boolean; label: string }
+}
+
+export type User = {
+  uuid: string
+  username: string
+  name?: string
+  email?: string
+  login_type?: string
+  disabled?: boolean
+  last_login_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type UserGroup = {
+  uuid: string
+  name: string
+  description?: string
+  oidc_claim_value?: string
+  member_count?: number
+  created_at?: string
+  updated_at?: string
+}
+
+export type UserGroupMember = {
+  user_uuid: string
+  username?: string
+  name?: string
+  email?: string
+  login_type?: string
+  disabled?: boolean
+  source?: string
+}
+
+export type RoleBinding = {
+  uuid: string
+  role: string
+  scope_group_uuid?: string
+  scope_group_name?: string
+  created_at?: string
+}
+
+export type RoleDefinition = {
+  name: string
+  description?: string
+  permissions: Record<string, string[]>
+}
+
+export type PermissionCatalogEntry = {
+  resource: string
+  actions: string[]
+  scopable: boolean
+}
+
+export type RolesResponse = {
+  roles: RoleDefinition[]
+  catalog: { resources: PermissionCatalogEntry[] }
+}
+
+export function fetchMe() {
+  return fetch(`${BASE_URL}/me`).then((r) => handleResponse<Me>(r))
+}
+
+export function fetchProviders() {
+  return fetch('/auth/providers').then((r) => handleResponse<Providers>(r))
+}
+
+export function login(username: string, password: string) {
+  return fetch('/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  }).then((r) => handleResponse<unknown>(r))
+}
+
+export function logout() {
+  return fetch('/logout', { method: 'POST' }).then((r) => handleResponse<unknown>(r))
+}
+
+// Users
+export function fetchUsers(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 50 } = opts
+  return fetch(apiUrl('/users', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<User, 'users'>>(r)
+  )
+}
+
+export function createUser(payload: {
+  name?: string
+  email: string
+}) {
+  return jsonRequest<User>('/users', 'POST', payload)
+}
+
+export function updateUser(
+  uuid: string,
+  payload: { name?: string; email?: string; disabled?: boolean }
+) {
+  return jsonRequest<User>(`/users/${encodeURIComponent(uuid)}`, 'PUT', payload)
+}
+
+export function deleteUser(uuid: string) {
+  return fetch(`${BASE_URL}/users/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
+// User groups
+export function fetchUserGroups(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 50 } = opts
+  return fetch(apiUrl('/user-groups', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<UserGroup, 'user_groups'>>(r)
+  )
+}
+
+export function createUserGroup(payload: {
+  name: string
+  description?: string
+  oidc_claim_value?: string
+}) {
+  return jsonRequest<UserGroup>('/user-groups', 'POST', payload)
+}
+
+export function updateUserGroup(
+  uuid: string,
+  payload: { name: string; description?: string; oidc_claim_value?: string }
+) {
+  return jsonRequest<UserGroup>(`/user-groups/${encodeURIComponent(uuid)}`, 'PUT', payload)
+}
+
+export function deleteUserGroup(uuid: string) {
+  return fetch(`${BASE_URL}/user-groups/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then(
+    (r) => handleResponse<unknown>(r)
+  )
+}
+
+export function fetchUserGroupMembers(uuid: string) {
+  return fetch(`${BASE_URL}/user-groups/${encodeURIComponent(uuid)}/members`).then((r) =>
+    handleResponse<{ members: UserGroupMember[] }>(r)
+  )
+}
+
+export function addUserGroupMember(uuid: string, userId: string) {
+  return jsonRequest<unknown>(`/user-groups/${encodeURIComponent(uuid)}/members`, 'POST', {
+    user_id: userId
+  })
+}
+
+export function removeUserGroupMember(uuid: string, userId: string) {
+  return fetch(
+    `${BASE_URL}/user-groups/${encodeURIComponent(uuid)}/members/${encodeURIComponent(userId)}`,
+    { method: 'DELETE' }
+  ).then((r) => handleResponse<unknown>(r))
+}
+
+// Roles & bindings
+export function fetchRoles() {
+  return fetch(`${BASE_URL}/roles`).then((r) => handleResponse<RolesResponse>(r))
+}
+
+export function fetchRoleBindings(subjectType: 'user' | 'usergroup', subjectId: string) {
+  return fetch(apiUrl('/role-bindings', { subject_type: subjectType, subject_id: subjectId })).then(
+    (r) => handleResponse<{ bindings: RoleBinding[] }>(r)
+  )
+}
+
+export function createRoleBinding(payload: {
+  subject_type: 'user' | 'usergroup'
+  subject_id: string
+  role: string
+  scope_group_uuid?: string | null
+}) {
+  return jsonRequest<RoleBinding>('/role-bindings', 'POST', payload)
+}
+
+export function deleteRoleBinding(uuid: string) {
+  return fetch(`${BASE_URL}/role-bindings/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then(
+    (r) => handleResponse<unknown>(r)
+  )
 }

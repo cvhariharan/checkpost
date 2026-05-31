@@ -30,12 +30,25 @@ services:
       - WATCHER_DB__USER=watcher
       - WATCHER_DB__PASSWORD=watcher
       - WATCHER_DB__DBNAME=watcher
+      # SSO via dex (local dev). The canonical issuer/token host (dex:5556) is
+      # reachable from the watcher container; the browser-facing auth host is
+      # localhost:5556 (dex issuerRotation accepts both).
+      - WATCHER_APP__OIDC__ISSUER=http://dex:5556/dex
+      - WATCHER_APP__OIDC__CLIENT_ID=watcher
+      - WATCHER_APP__OIDC__CLIENT_SECRET=secret
+      - WATCHER_APP__OIDC__LABEL=Dex SSO
+      - WATCHER_APP__OIDC__AUTH_URL=http://localhost:5556/dex/auth
+      - WATCHER_APP__OIDC__TOKEN_URL=http://dex:5556/dex/token
+      - WATCHER_APP__OIDC__REDIRECT_URL=https://localhost:1323/auth/callback
+      - WATCHER_APP__OIDC__DEFAULT_ROLE=viewer
     volumes:
       - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,z"
       - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,Z"
       - "./data:/app/data:Z"
     depends_on:
       postgres:
+        condition: service_healthy
+      dex:
         condition: service_healthy
     networks:
       default:
@@ -60,6 +73,21 @@ services:
       - type: volume
         source: watcher-db-data
         target: /var/lib/postgresql
+
+  dex:
+    image: dexidp/dex:v2.44.0-alpine
+    restart: unless-stopped
+    ports:
+      - "5556:5556"
+    configs:
+      - source: dex-config
+        target: /etc/dex/config.yml
+    command: ["dex", "serve", "/etc/dex/config.yml"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5556/dex/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   osquery-fedora:
     build:
@@ -111,3 +139,37 @@ volumes:
   watcher-db-data:
   osquery-fedora-db:
   osquery-debian-db:
+
+configs:
+  dex-config:
+    content: |
+      issuer: http://dex:5556/dex
+      issuerRotation:
+        - issuer: http://localhost:5556/dex
+
+      storage:
+        type: sqlite3
+        config:
+          file: /var/dex/dex.db
+
+      web:
+        http: 0.0.0.0:5556
+
+      staticClients:
+        - id: watcher
+          redirectURIs:
+            - "https://localhost:1323/auth/callback"
+          name: watcher
+          secret: secret
+
+      oauth2:
+        skipApprovalScreen: true
+
+      enablePasswordDB: true
+
+      staticPasswords:
+        - email: "user@watcher.internal"
+          # Password - watcher ($$ escapes the literal $ from compose interpolation)
+          hash: "$$2a$$10$$OsKBctWYwSczSpMx4vvEsOcOomBuJImEV8fqwjt5fWDMyXDj5PKjS"
+          username: "user"
+          userID: "5f8d3c2a-1b4e-4d7a-9c6f-2e3a4b5c6d7e"

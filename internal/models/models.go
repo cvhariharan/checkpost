@@ -409,6 +409,127 @@ type YaraScanRequest struct {
 	RuleURLs []string
 }
 
+// AUTHENTICATION & AUTHORIZATION ------------------------------------------
+
+const (
+	LoginTypeStandard = "standard"
+	LoginTypeOIDC     = "oidc"
+
+	UserGroupSourceManual = "manual"
+	UserGroupSourceOIDC   = "oidc"
+)
+
+// User is a human account. SSO users have LoginType "oidc" and no password.
+type User struct {
+	ID          int64      `json:"-"`
+	UUID        string     `json:"uuid"`
+	Username    string     `json:"username"`
+	Name        string     `json:"name"`
+	Email       string     `json:"email"`
+	LoginType   string     `json:"login_type"`
+	Disabled    bool       `json:"disabled"`
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// SessionUser is the minimal user identity stored in the session cookie store.
+type SessionUser struct {
+	UUID      string `json:"uuid"`
+	Username  string `json:"username"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	LoginType string `json:"login_type"`
+}
+
+type CreateUser struct {
+	Name  string
+	Email string
+}
+
+type UpdateUser struct {
+	UUID     string
+	Name     string
+	Email    string
+	Disabled bool
+}
+
+// OIDCClaims are the ID-token claims watcher reads on SSO login.
+type OIDCClaims struct {
+	Email  string
+	Name   string
+	Groups []string
+}
+
+type UserGroup struct {
+	ID             int64     `json:"-"`
+	UUID           string    `json:"uuid"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	OIDCClaimValue string    `json:"oidc_claim_value"`
+	MemberCount    int       `json:"member_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type CreateUserGroup struct {
+	Name           string
+	Description    string
+	OIDCClaimValue string
+}
+
+type UpdateUserGroup struct {
+	UUID           string
+	Name           string
+	Description    string
+	OIDCClaimValue string
+}
+
+type UserGroupMember struct {
+	UserUUID  string `json:"user_uuid"`
+	Username  string `json:"username"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	LoginType string `json:"login_type"`
+	Disabled  bool   `json:"disabled"`
+	Source    string `json:"source"`
+}
+
+// RoleBinding ties a subject (user or user group) to a built-in role, optionally
+// scoped to a single machine group (nil ScopeGroup = global).
+type RoleBinding struct {
+	UUID           string    `json:"uuid"`
+	Role           string    `json:"role"`
+	ScopeGroupUUID string    `json:"scope_group_uuid,omitempty"`
+	ScopeGroupName string    `json:"scope_group_name,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+// RoleDefinition is a built-in role and its permission matrix (resource -> actions).
+type RoleDefinition struct {
+	Name        string              `json:"name"`
+	Description string              `json:"description"`
+	Permissions map[string][]string `json:"permissions"`
+}
+
+// PermissionCatalogEntry describes one resource and the actions it supports.
+type PermissionCatalogEntry struct {
+	Resource string   `json:"resource"`
+	Actions  []string `json:"actions"`
+	Scopable bool     `json:"scopable"`
+}
+
+type Catalog struct {
+	Resources []PermissionCatalogEntry `json:"resources"`
+}
+
+// EffectivePermissions is returned to the frontend for UI gating.
+type EffectivePermissions struct {
+	User        SessionUser         `json:"user"`
+	Roles       []string            `json:"roles"`
+	Permissions map[string][]string `json:"permissions"`
+}
+
 type YaraScan struct {
 	ID             string     `json:"id"`
 	UUID           string     `json:"uuid"`

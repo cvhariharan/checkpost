@@ -1,21 +1,35 @@
 <script lang="ts">
-  export let open = false
-  export let title = ''
-  export let message = ''
-  export let confirmLabel = 'Delete'
-  export let confirmingLabel = 'Working...'
-  export let cancelLabel = 'Cancel'
-  export let confirmVariant: 'primary' | 'secondary' | 'danger' = 'danger'
-  export let confirming = false
-  export let onConfirm: () => void = () => {}
-  export let onCancel: () => void = () => {}
+  let {
+    open = $bindable(false),
+    title = '',
+    message = '',
+    confirmLabel = 'Delete',
+    confirmingLabel = 'Working...',
+    cancelLabel = 'Cancel',
+    confirmVariant = 'danger',
+    confirming = false,
+    onConfirm = () => {},
+    onCancel = () => {}
+  }: {
+    open?: boolean
+    title?: string
+    message?: string
+    confirmLabel?: string
+    confirmingLabel?: string
+    cancelLabel?: string
+    confirmVariant?: 'primary' | 'secondary' | 'danger'
+    confirming?: boolean
+    onConfirm?: () => void
+    onCancel?: () => void
+  } = $props()
 
-  let dialog: HTMLDialogElement
+  let dialog = $state<HTMLDialogElement>()
 
-  $: if (dialog) {
+  $effect(() => {
+    if (!dialog) return
     if (open && !dialog.open) dialog.showModal()
     else if (!open && dialog.open) dialog.close()
-  }
+  })
 
   function handleCancel() {
     open = false

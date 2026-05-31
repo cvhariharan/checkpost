@@ -3,43 +3,63 @@
   import { formatTimestamp } from '$lib/util'
   import type { Schedule, ScheduleResultRow } from '$lib/api'
 
-  export let schedule: Schedule | null = null
-  export let columns: string[] = []
-  export let rows: ScheduleResultRow[] = []
-  export let total = 0
-  export let page = 1
-  export let pageCount = 1
-  export let countPerPage = 500
-  export let loading = false
-  export let query = ''
-  export let lastRefreshed = ''
-  export let onClose: () => void = () => {}
-  export let onRefresh: () => void = () => {}
-  export let onApplyQuery: (query: string) => void = () => {}
-  export let onPageChange: (page: number) => void = () => {}
+  let {
+    schedule = null,
+    columns = [],
+    rows = [],
+    total = 0,
+    page = 1,
+    pageCount = 1,
+    countPerPage = 500,
+    loading = false,
+    query = '',
+    lastRefreshed = '',
+    onClose = () => {},
+    onRefresh = () => {},
+    onApplyQuery = () => {},
+    onPageChange = () => {}
+  }: {
+    schedule?: Schedule | null
+    columns?: string[]
+    rows?: ScheduleResultRow[]
+    total?: number
+    page?: number
+    pageCount?: number
+    countPerPage?: number
+    loading?: boolean
+    query?: string
+    lastRefreshed?: string
+    onClose?: () => void
+    onRefresh?: () => void
+    onApplyQuery?: (query: string) => void
+    onPageChange?: (page: number) => void
+  } = $props()
 
   const rowHeight = 36
   const headerHeight = 40
   const overscan = 12
 
-  let draftQuery = query
-  let lastSyncedQuery = query
-  let scrollTop = 0
-  let viewportHeight = 520
+  let draftQuery = $state('')
+  let lastSyncedQuery = $state('')
+  let scrollTop = $state(0)
+  let viewportHeight = $state(520)
 
-  $: if (query !== lastSyncedQuery) {
+  $effect(() => {
+    if (query === lastSyncedQuery) return
     draftQuery = query
     lastSyncedQuery = query
-  }
-  $: templateColumns = `220px 180px repeat(${columns.length}, 220px)`
-  $: startIndex = Math.max(0, Math.floor(Math.max(0, scrollTop - headerHeight) / rowHeight) - overscan)
-  $: visibleCount = Math.ceil(viewportHeight / rowHeight) + overscan * 2
-  $: endIndex = Math.min(rows.length, startIndex + visibleCount)
-  $: visibleRows = rows.slice(startIndex, endIndex)
-  $: bodyHeight = headerHeight + rows.length * rowHeight
-  $: rangeStart = total === 0 ? 0 : (page - 1) * countPerPage + 1
-  $: rangeEnd = Math.min(page * countPerPage, total)
-  $: queryError = validateQuery(draftQuery)
+  })
+  const templateColumns = $derived(`220px 180px repeat(${columns.length}, 220px)`)
+  const startIndex = $derived(
+    Math.max(0, Math.floor(Math.max(0, scrollTop - headerHeight) / rowHeight) - overscan)
+  )
+  const visibleCount = $derived(Math.ceil(viewportHeight / rowHeight) + overscan * 2)
+  const endIndex = $derived(Math.min(rows.length, startIndex + visibleCount))
+  const visibleRows = $derived(rows.slice(startIndex, endIndex))
+  const bodyHeight = $derived(headerHeight + rows.length * rowHeight)
+  const rangeStart = $derived(total === 0 ? 0 : (page - 1) * countPerPage + 1)
+  const rangeEnd = $derived(Math.min(page * countPerPage, total))
+  const queryError = $derived(validateQuery(draftQuery))
 
   function handleScroll(event: UIEvent) {
     scrollTop = (event.currentTarget as HTMLElement).scrollTop

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
-  import { page } from '$app/stores'
+  import { page } from '$app/state'
   import {
     fetchSchedule,
     fetchScheduleResults,
@@ -12,20 +12,20 @@
   import ScheduleResultsTable from '$lib/components/ScheduleResultsTable.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
 
-  let schedule: Schedule | null = null
-  let columns: string[] = []
-  let rows: ScheduleResultRow[] = []
-  let total = 0
-  let currentPage = 1
-  let pageCount = 1
-  let query = ''
-  let lastRefreshed = ''
-  let loading = true
-  let resultsLoading = false
-  let error = ''
+  let schedule = $state<Schedule | null>(null)
+  let columns = $state<string[]>([])
+  let rows = $state<ScheduleResultRow[]>([])
+  let total = $state(0)
+  let currentPage = $state(1)
+  let pageCount = $state(1)
+  let query = $state('')
+  let lastRefreshed = $state('')
+  let loading = $state(true)
+  let resultsLoading = $state(false)
+  let error = $state('')
   const countPerPage = 500
 
-  $: scheduleId = $page.params.id as string
+  const scheduleId = $derived(page.params.id as string)
 
   onMount(loadAll)
 

@@ -1,13 +1,22 @@
 <script lang="ts">
-  export let label = ''
-  export let value: string[] = ['']
-  export let placeholder = ''
-  export let addLabel = 'Add'
-  export let disabled = false
+  let {
+    label = '',
+    value = $bindable<string[]>(['']),
+    placeholder = '',
+    addLabel = 'Add',
+    disabled = false
+  }: {
+    label?: string
+    value?: string[]
+    placeholder?: string
+    addLabel?: string
+    disabled?: boolean
+  } = $props()
 
-  $: if (!value || value.length === 0) {
+  $effect(() => {
+    if (value && value.length > 0) return
     value = ['']
-  }
+  })
 
   function addItem() {
     value = [...value, '']

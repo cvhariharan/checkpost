@@ -488,6 +488,33 @@ func toModelNodeFromOwnerRow(row repo.ListNodesByOwnerRow) models.Node {
 	}
 }
 
+func toModelUser(u repo.User) models.User {
+	return models.User{
+		ID:          u.ID,
+		UUID:        u.Uuid.String(),
+		Username:    u.Username,
+		Name:        u.Name,
+		Email:       u.Email,
+		LoginType:   u.LoginType,
+		Disabled:    u.Disabled,
+		LastLoginAt: timePtrFromNull(u.LastLoginAt),
+		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
+	}
+}
+
+func toModelUserGroup(g repo.UserGroup) models.UserGroup {
+	return models.UserGroup{
+		ID:             g.ID,
+		UUID:           g.Uuid.String(),
+		Name:           g.Name,
+		Description:    g.Description,
+		OIDCClaimValue: g.OidcClaimValue,
+		CreatedAt:      g.CreatedAt,
+		UpdatedAt:      g.UpdatedAt,
+	}
+}
+
 func timePtrFromNull(value sql.NullTime) *time.Time {
 	if value.Valid {
 		return &value.Time

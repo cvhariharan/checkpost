@@ -12,6 +12,7 @@ import (
 )
 
 type Querier interface {
+	AddUserGroupMemberManual(ctx context.Context, arg AddUserGroupMemberManualParams) error
 	BumpScheduleVersion(ctx context.Context, id int64) (BumpScheduleVersionRow, error)
 	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
 	CompleteYaraScanTarget(ctx context.Context, arg CompleteYaraScanTargetParams) error
@@ -22,12 +23,16 @@ type Querier interface {
 	CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error)
 	CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error)
 	CreatePolicyGroup(ctx context.Context, arg CreatePolicyGroupParams) error
+	CreateRoleBinding(ctx context.Context, arg CreateRoleBindingParams) (RoleBinding, error)
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	CreateUserGroup(ctx context.Context, arg CreateUserGroupParams) (UserGroup, error)
 	CreateYaraScan(ctx context.Context, arg CreateYaraScanParams) (YaraScan, error)
 	CreateYaraScanTarget(ctx context.Context, arg CreateYaraScanTargetParams) error
 	CreateYaraSignatureSource(ctx context.Context, arg CreateYaraSignatureSourceParams) (YaraSignatureSource, error)
+	DeleteAllOIDCMembersForUser(ctx context.Context, userID int64) error
 	DeleteDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupMembershipForNode(ctx context.Context, arg DeleteGroupMembershipForNodeParams) error
@@ -38,12 +43,18 @@ type Querier interface {
 	DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error
 	DeleteQuerySchema(ctx context.Context, arg DeleteQuerySchemaParams) error
 	DeleteQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
+	DeleteRoleBindingByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
+	DeleteStaleOIDCMembers(ctx context.Context, arg DeleteStaleOIDCMembersParams) error
+	DeleteUserByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeleteUserGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteYaraSignatureSourceByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	ErrorYaraScanTarget(ctx context.Context, arg ErrorYaraScanTargetParams) error
+	FindRoleBinding(ctx context.Context, arg FindRoleBindingParams) (RoleBinding, error)
 	GetDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (DeviceOwner, error)
 	GetDeviceOwnerWithCountsByUUID(ctx context.Context, ownerUuid uuid.UUID) (GetDeviceOwnerWithCountsByUUIDRow, error)
+	GetGroupByID(ctx context.Context, id int64) (Group, error)
 	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
 	GetGroupWithCountsByUUID(ctx context.Context, groupUuid uuid.UUID) (GetGroupWithCountsByUUIDRow, error)
 	GetNodeByID(ctx context.Context, id int64) (Node, error)
@@ -53,19 +64,28 @@ type Querier interface {
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
 	GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error)
 	GetQuerySchema(ctx context.Context, arg GetQuerySchemaParams) (QuerySchema, error)
+	GetRoleBindingByUUID(ctx context.Context, argUuid uuid.UUID) (RoleBinding, error)
 	GetScheduleByName(ctx context.Context, name string) (Schedule, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
+	GetUserByID(ctx context.Context, id int64) (User, error)
+	GetUserByUUID(ctx context.Context, argUuid uuid.UUID) (User, error)
+	GetUserByUsername(ctx context.Context, username string) (User, error)
+	GetUserGroupByID(ctx context.Context, id int64) (UserGroup, error)
+	GetUserGroupByUUID(ctx context.Context, argUuid uuid.UUID) (UserGroup, error)
 	GetYaraScanByUUID(ctx context.Context, argUuid uuid.UUID) (GetYaraScanByUUIDRow, error)
 	GetYaraSignatureSourceByUUID(ctx context.Context, argUuid uuid.UUID) (YaraSignatureSource, error)
 	InsertYaraScanMatch(ctx context.Context, arg InsertYaraScanMatchParams) error
 	ListAllNodeIDs(ctx context.Context) ([]int64, error)
 	ListAllQuerySchemas(ctx context.Context) ([]ListAllQuerySchemasRow, error)
+	ListAllRoleBindings(ctx context.Context) ([]ListAllRoleBindingsRow, error)
 	ListDeviceOwnersWithCounts(ctx context.Context, arg ListDeviceOwnersWithCountsParams) ([]ListDeviceOwnersWithCountsRow, error)
 	ListEnabledDefaultYaraSignatureSources(ctx context.Context) ([]YaraSignatureSource, error)
 	ListEnabledPoliciesForNode(ctx context.Context, arg ListEnabledPoliciesForNodeParams) ([]Policy, error)
 	ListEnabledSchedules(ctx context.Context, limit int32) ([]Schedule, error)
 	ListEnabledSchedulesForNode(ctx context.Context, arg ListEnabledSchedulesForNodeParams) ([]Schedule, error)
 	ListEnabledYaraSignatureSourcesByGroupID(ctx context.Context, groupID sql.NullInt64) ([]YaraSignatureSource, error)
+	ListGlobalRolesForUser(ctx context.Context, userID sql.NullInt64) ([]string, error)
+	ListGlobalRolesForUserGroups(ctx context.Context, userID int64) ([]string, error)
 	ListGroupsForNode(ctx context.Context, nodeUuid uuid.UUID) ([]Group, error)
 	ListGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) ([]Group, error)
 	ListGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]Group, error)
@@ -84,9 +104,16 @@ type Querier interface {
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
 	ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error)
 	ListQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]QuerySchema, error)
+	ListRoleBindingsForUser(ctx context.Context, userID sql.NullInt64) ([]ListRoleBindingsForUserRow, error)
+	ListRoleBindingsForUserGroup(ctx context.Context, userGroupID sql.NullInt64) ([]ListRoleBindingsForUserGroupRow, error)
 	ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error)
 	ListSchedules(ctx context.Context, arg ListSchedulesParams) ([]ListSchedulesRow, error)
 	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
+	ListUserGroupMembers(ctx context.Context, userGroupID int64) ([]ListUserGroupMembersRow, error)
+	ListUserGroups(ctx context.Context, arg ListUserGroupsParams) ([]ListUserGroupsRow, error)
+	ListUserGroupsByClaimValues(ctx context.Context, claimValues []string) ([]UserGroup, error)
+	ListUserGroupsForUser(ctx context.Context, userID int64) ([]UserGroup, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	ListYaraScanMatches(ctx context.Context, arg ListYaraScanMatchesParams) ([]ListYaraScanMatchesRow, error)
 	ListYaraScanTargets(ctx context.Context, arg ListYaraScanTargetsParams) ([]ListYaraScanTargetsRow, error)
 	ListYaraScans(ctx context.Context, arg ListYaraScansParams) ([]ListYaraScansRow, error)
@@ -97,6 +124,9 @@ type Querier interface {
 	// @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
 	MatchNodesByIdentityPattern(ctx context.Context, arg MatchNodesByIdentityPatternParams) ([]MatchNodesByIdentityPatternRow, error)
 	RefreshYaraScanStats(ctx context.Context, scanID int64) error
+	RemoveUserGroupMember(ctx context.Context, arg RemoveUserGroupMemberParams) error
+	SetUserLastLoginByID(ctx context.Context, id int64) error
+	SetUserPasswordHashByID(ctx context.Context, arg SetUserPasswordHashByIDParams) error
 	TimeoutStaleYaraScanTargets(ctx context.Context, timeout string) ([]int64, error)
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
 	UpdateDeviceOwnerByUUID(ctx context.Context, arg UpdateDeviceOwnerByUUIDParams) (DeviceOwner, error)
@@ -105,6 +135,8 @@ type Querier interface {
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
+	UpdateUserByUUID(ctx context.Context, arg UpdateUserByUUIDParams) (User, error)
+	UpdateUserGroupByUUID(ctx context.Context, arg UpdateUserGroupByUUIDParams) (UserGroup, error)
 	UpdateYaraSignatureSourceByUUID(ctx context.Context, arg UpdateYaraSignatureSourceByUUIDParams) (YaraSignatureSource, error)
 	UpsertNodeInventory(ctx context.Context, arg UpsertNodeInventoryParams) (NodeInventory, error)
 	UpsertNodeMetric(ctx context.Context, arg UpsertNodeMetricParams) error
@@ -116,6 +148,7 @@ type Querier interface {
 	// statement reads the current row value under the row lock acquired by
 	// ON CONFLICT DO UPDATE.
 	UpsertQuerySchema(ctx context.Context, arg UpsertQuerySchemaParams) (QuerySchema, error)
+	UpsertUserGroupMemberOIDC(ctx context.Context, arg UpsertUserGroupMemberOIDCParams) error
 }
 
 var _ Querier = (*Queries)(nil)

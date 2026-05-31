@@ -443,3 +443,99 @@ type OsqueryBootstrapPackage struct {
 	URL          string `json:"url"`
 	SHA256       string `json:"sha256"`
 }
+
+// AUTHENTICATION & AUTHORIZATION ------------------------------------------
+
+// LoginRequest is the password login body.
+type LoginRequest struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+}
+
+// ProvidersResponse tells the login page which methods to render.
+type ProvidersResponse struct {
+	Password bool `json:"password"`
+	SSO      struct {
+		Enabled bool   `json:"enabled"`
+		Label   string `json:"label"`
+	} `json:"sso"`
+}
+
+// MeResponse is the current user + effective permission set.
+type MeResponse struct {
+	User        models.SessionUser  `json:"user"`
+	Roles       []string            `json:"roles"`
+	Permissions map[string][]string `json:"permissions"`
+}
+
+type CreateUserRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email" validate:"required,email"`
+}
+
+type UpdateUserRequest struct {
+	ID       string `param:"id" validate:"required,uuid"`
+	Name     string `json:"name"`
+	Email    string `json:"email" validate:"omitempty,email"`
+	Disabled bool   `json:"disabled"`
+}
+
+type ListUsersResponse struct {
+	Users      []models.User `json:"users"`
+	TotalCount int           `json:"total_count"`
+	PageCount  int           `json:"page_count"`
+}
+
+type CreateUserGroupRequest struct {
+	Name           string `json:"name" validate:"required"`
+	Description    string `json:"description"`
+	OIDCClaimValue string `json:"oidc_claim_value"`
+}
+
+type UpdateUserGroupRequest struct {
+	ID             string `param:"id" validate:"required,uuid"`
+	Name           string `json:"name" validate:"required"`
+	Description    string `json:"description"`
+	OIDCClaimValue string `json:"oidc_claim_value"`
+}
+
+type ListUserGroupsResponse struct {
+	UserGroups []models.UserGroup `json:"user_groups"`
+	TotalCount int                `json:"total_count"`
+	PageCount  int                `json:"page_count"`
+}
+
+type AddUserGroupMemberRequest struct {
+	ID     string `param:"id" validate:"required,uuid"`
+	UserID string `json:"user_id" validate:"required,uuid"`
+}
+
+type RemoveUserGroupMemberRequest struct {
+	ID     string `param:"id" validate:"required,uuid"`
+	UserID string `param:"user_id" validate:"required,uuid"`
+}
+
+type UserGroupMembersResponse struct {
+	Members []models.UserGroupMember `json:"members"`
+}
+
+type CreateRoleBindingRequest struct {
+	SubjectType    string  `json:"subject_type" validate:"required,oneof=user usergroup"`
+	SubjectID      string  `json:"subject_id" validate:"required,uuid"`
+	Role           string  `json:"role" validate:"required,oneof=admin operator analyst viewer"`
+	ScopeGroupUUID *string `json:"scope_group_uuid" validate:"omitempty,uuid"`
+}
+
+type ListRoleBindingsRequest struct {
+	SubjectType string `query:"subject_type" validate:"required,oneof=user usergroup"`
+	SubjectID   string `query:"subject_id" validate:"required,uuid"`
+}
+
+type RoleBindingsResponse struct {
+	Bindings []models.RoleBinding `json:"bindings"`
+}
+
+type RolesResponse struct {
+	Roles   []models.RoleDefinition `json:"roles"`
+	Catalog models.Catalog          `json:"catalog"`
+}

@@ -1,10 +1,20 @@
 <script lang="ts">
-  export let lines = 1
-  export let text: string | null | undefined = undefined
-  export let tooltip = true
+  import type { Snippet } from 'svelte'
 
-  $: hasText = text !== undefined && text !== null
-  $: displayText = hasText ? String(text) : ''
+  let {
+    lines = 1,
+    text = undefined,
+    tooltip = true,
+    children
+  }: {
+    lines?: number
+    text?: string | null
+    tooltip?: boolean
+    children?: Snippet
+  } = $props()
+
+  const hasText = $derived(text !== undefined && text !== null)
+  const displayText = $derived(hasText ? String(text) : '')
 </script>
 
 <span
@@ -12,7 +22,7 @@
   style:--truncate-lines={lines}
   title={tooltip && hasText ? displayText : undefined}
 >
-  {#if hasText}{displayText}{:else}<slot />{/if}
+  {#if hasText}{displayText}{:else if children}{@render children()}{/if}
 </span>
 
 <style>

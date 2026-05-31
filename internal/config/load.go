@@ -22,12 +22,14 @@ const envPrefix = "WATCHER_"
 var (
 	defaultPolicyUpdateInterval = time.Hour
 	defaultPolicyStaleAfter     = 2 * time.Hour
+	defaultSessionTTL           = 8 * time.Hour
 	configValidator             = validator.New()
 )
 
 type rawConfig struct {
 	AppConfig              rawAppConfig              `koanf:",squash"`
 	OIDCConfig             rawOIDCConfig             `koanf:",squash"`
+	SessionConfig          rawSessionConfig          `koanf:",squash"`
 	DBConfig               rawDBConfig               `koanf:",squash"`
 	DataConfig             rawDataConfig             `koanf:",squash"`
 	OsqueryBootstrapConfig rawOsqueryBootstrapConfig `koanf:",squash"`
@@ -47,9 +49,22 @@ type rawAppConfig struct {
 }
 
 type rawOIDCConfig struct {
-	Issuer       string `koanf:"app.oidc.issuer"`
-	ClientID     string `koanf:"app.oidc.client_id"`
-	ClientSecret string `koanf:"app.oidc.client_secret"`
+	Issuer          string   `koanf:"app.oidc.issuer"`
+	ClientID        string   `koanf:"app.oidc.client_id"`
+	ClientSecret    string   `koanf:"app.oidc.client_secret"`
+	Label           string   `koanf:"app.oidc.label"`
+	RedirectURL     string   `koanf:"app.oidc.redirect_url"`
+	AuthURL         string   `koanf:"app.oidc.auth_url"`
+	TokenURL        string   `koanf:"app.oidc.token_url"`
+	Scopes          []string `koanf:"app.oidc.scopes"`
+	GroupsClaim     string   `koanf:"app.oidc.groups_claim"`
+	AllowedDomains  []string `koanf:"app.oidc.allowed_domains"`
+	AutoCreateUsers bool     `koanf:"app.oidc.auto_create_users"`
+	DefaultRole     string   `koanf:"app.oidc.default_role"`
+}
+
+type rawSessionConfig struct {
+	TTL string `koanf:"app.session.ttl"`
 }
 
 type rawDBConfig struct {
@@ -115,6 +130,10 @@ func (r rawConfig) toConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	sessionTTL, err := parsePositiveDuration("app.session.ttl", r.SessionConfig.TTL, defaultSessionTTL)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		AppConfig: AppConfig{
@@ -145,9 +164,21 @@ func (r rawConfig) toConfig() (Config, error) {
 			},
 		},
 		OIDCConfig: OIDCConfig{
-			Issuer:       r.OIDCConfig.Issuer,
-			ClientID:     r.OIDCConfig.ClientID,
-			ClientSecret: r.OIDCConfig.ClientSecret,
+			Issuer:          strings.TrimSpace(r.OIDCConfig.Issuer),
+			ClientID:        strings.TrimSpace(r.OIDCConfig.ClientID),
+			ClientSecret:    strings.TrimSpace(r.OIDCConfig.ClientSecret),
+			Label:           r.OIDCConfig.Label,
+			RedirectURL:     strings.TrimSpace(r.OIDCConfig.RedirectURL),
+			AuthURL:         strings.TrimSpace(r.OIDCConfig.AuthURL),
+			TokenURL:        strings.TrimSpace(r.OIDCConfig.TokenURL),
+			Scopes:          r.OIDCConfig.Scopes,
+			GroupsClaim:     r.OIDCConfig.GroupsClaim,
+			AllowedDomains:  r.OIDCConfig.AllowedDomains,
+			AutoCreateUsers: r.OIDCConfig.AutoCreateUsers,
+			DefaultRole:     strings.TrimSpace(r.OIDCConfig.DefaultRole),
+		},
+		SessionConfig: SessionConfig{
+			TTL: sessionTTL,
 		},
 		DBConfig: DBConfig{
 			DBName:   r.DBConfig.DBName,
@@ -176,6 +207,7 @@ func (c Config) Validate() error {
 		value interface{}
 	}{
 		{name: "app", value: c.AppConfig},
+		{name: "session", value: c.SessionConfig},
 		{name: "db", value: c.DBConfig},
 		{name: "data", value: c.DataConfig},
 	} {
@@ -183,6 +215,22 @@ func (c Config) Validate() error {
 			problems = append(problems, err.Error())
 		}
 	}
+
+	// OIDC is all-or-nothing: issuer, client_id and client_secret must be set
+	// together so SSO is either fully configured or absent.
+	oidcSet := 0
+	for _, v := range []string{c.OIDCConfig.Issuer, c.OIDCConfig.ClientID, c.OIDCConfig.ClientSecret} {
+		if strings.TrimSpace(v) != "" {
+			oidcSet++
+		}
+	}
+	if oidcSet != 0 && oidcSet != 3 {
+		problems = append(problems, "app.oidc requires issuer, client_id and client_secret to be set together")
+	}
+	if role := strings.TrimSpace(c.OIDCConfig.DefaultRole); role != "" && !isBuiltinRole(role) {
+		problems = append(problems, fmt.Sprintf("app.oidc.default_role must be one of admin|operator|analyst|viewer, got %q", role))
+	}
+
 	if c.AppConfig.UseTLS {
 		if strings.TrimSpace(c.AppConfig.TLSCertPath) == "" {
 			problems = append(problems, "app.http_tls_cert cannot be empty when app.use_tls is true")
@@ -212,6 +260,17 @@ func validateSection(name string, value interface{}) error {
 		return fmt.Errorf("%s", strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// isBuiltinRole reports whether role is one of the fixed built-in role names.
+// Kept local to config to avoid importing core (which imports config).
+func isBuiltinRole(role string) bool {
+	switch role {
+	case "admin", "operator", "analyst", "viewer":
+		return true
+	default:
+		return false
+	}
 }
 
 func parsePositiveDuration(name, raw string, fallback time.Duration) (time.Duration, error) {
@@ -292,6 +351,19 @@ func loadDefaults(k *koanf.Koanf) error {
 		"app.enrollment_key":                           enrollmentKey,
 		"app.policy_update_interval":                   "1h",
 		"app.policy_stale_after":                       "2h",
+		"app.oidc.issuer":                              "",
+		"app.oidc.client_id":                           "",
+		"app.oidc.client_secret":                       "",
+		"app.oidc.label":                               "Company SSO",
+		"app.oidc.redirect_url":                        "",
+		"app.oidc.auth_url":                            "",
+		"app.oidc.token_url":                           "",
+		"app.oidc.scopes":                              []string{"openid", "profile", "email", "groups"},
+		"app.oidc.groups_claim":                        "groups",
+		"app.oidc.allowed_domains":                     []string{},
+		"app.oidc.auto_create_users":                   true,
+		"app.oidc.default_role":                        "",
+		"app.session.ttl":                              "8h",
 		"db.dbname":                                    "watcher",
 		"db.host":                                      "localhost",
 		"db.port":                                      5432,

@@ -10,9 +10,34 @@ policy_update_interval = '1h'
 policy_stale_after = '2h'
 
 [app.oidc]
+# SSO via OpenID Connect. issuer, client_id and client_secret must be set
+# together (all-or-nothing); when empty, only password login is offered.
 issuer = ''
 client_id = ''
 client_secret = ''
+# Button label shown on the login page.
+label = 'Company SSO'
+# Defaults to <root_url>/auth/callback when empty.
+redirect_url = ''
+# Optional endpoint overrides. Endpoints are normally discovered from the
+# issuer; override when the browser-facing host differs from the server-side
+# host (e.g. dex behind docker: issuer/token at dex:5556, auth at localhost:5556).
+auth_url = ''
+token_url = ''
+scopes = ['openid', 'profile', 'email', 'groups']
+# ID-token claim to read user-group memberships from.
+groups_claim = 'groups'
+# Restrict logins to these email domains. Empty = allow any domain.
+allowed_domains = []
+# Provision a user row on first successful SSO login.
+auto_create_users = true
+# Optional global role auto-bound to new SSO users: admin|operator|analyst|viewer.
+# Empty = no access until an admin grants a role binding.
+default_role = ''
+
+[app.session]
+# Cookie + server-side session lifetime.
+ttl = '8h'
 
 [osquery_bootstrap]
 enabled = true

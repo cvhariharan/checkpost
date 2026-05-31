@@ -9,33 +9,41 @@
     import ErrorMessage from "./ErrorMessage.svelte";
     import Spinner from "./Spinner.svelte";
 
-    export let open = false;
-    export let onClose: () => void = () => {};
+    let {
+        open = $bindable(false),
+        onClose = () => {},
+    }: {
+        open?: boolean;
+        onClose?: () => void;
+    } = $props();
 
     type OatTabsElement = HTMLElement & { activeIndex: number };
 
-    let dialog: HTMLDialogElement;
-    let tabs: OatTabsElement;
-    let profile: OsqueryBootstrapProfile | null = null;
-    let loading = false;
-    let error = "";
-    let loaded = false;
-    let activeTabIndex = 0;
+    let dialog = $state<HTMLDialogElement>();
+    let tabs = $state<OatTabsElement>();
+    let profile = $state<OsqueryBootstrapProfile | null>(null);
+    let loading = $state(false);
+    let error = $state("");
+    let loaded = $state(false);
+    let activeTabIndex = $state(0);
 
-    $: platforms = profile?.platforms || [];
+    const platforms = $derived(profile?.platforms || []);
 
-    $: if (tabs && tabs.activeIndex !== activeTabIndex) {
+    $effect(() => {
+        if (!tabs || tabs.activeIndex === activeTabIndex) return;
         tabs.activeIndex = activeTabIndex;
-    }
+    });
 
-    $: if (open && dialog) {
+    $effect(() => {
+        if (!open || !dialog) return;
         if (!dialog.open) dialog.showModal();
         if (!loaded && !loading) void loadProfile();
-    }
+    });
 
-    $: if (!open && dialog) {
+    $effect(() => {
+        if (open || !dialog) return;
         if (dialog.open) dialog.close();
-    }
+    });
 
     async function loadProfile() {
         loading = true;
@@ -409,7 +417,7 @@
     </section>
 
     <footer class="hstack justify-end">
-        <button type="button" class="outline" onclick={() => dialog.close()}
+        <button type="button" class="outline" onclick={() => dialog?.close()}
             >Close</button
         >
     </footer>

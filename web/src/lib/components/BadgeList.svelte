@@ -1,17 +1,24 @@
 <script lang="ts">
   type Item = string | { name?: string; label?: string }
 
-  export let items: Item[] = []
-  export let max = 2
-  export let outline = true
-  export let empty = '—'
+  let {
+    items = [],
+    max = 2,
+    outline = true,
+    empty = '—'
+  }: {
+    items?: Item[]
+    max?: number
+    outline?: boolean
+    empty?: string
+  } = $props()
 
-  $: names = (items || [])
+  const names = $derived((items || [])
     .map((item) => (typeof item === 'string' ? item : item?.name || item?.label || ''))
-    .filter((name) => name.length > 0)
-  $: visible = names.slice(0, max)
-  $: overflow = Math.max(0, names.length - max)
-  $: tooltip = names.join(', ')
+    .filter((name) => name.length > 0))
+  const visible = $derived(names.slice(0, max))
+  const overflow = $derived(Math.max(0, names.length - max))
+  const tooltip = $derived(names.join(', '))
 </script>
 
 {#if names.length === 0}

@@ -1,11 +1,19 @@
 <script lang="ts">
-  export let currentPage = 1
-  export let pageCount = 1
-  export let disabled = false
-  export let label = 'Pagination'
-  export let onPageChange: (page: number) => void = () => {}
+  let {
+    currentPage = 1,
+    pageCount = 1,
+    disabled = false,
+    label = 'Pagination',
+    onPageChange = () => {}
+  }: {
+    currentPage?: number
+    pageCount?: number
+    disabled?: boolean
+    label?: string
+    onPageChange?: (page: number) => void
+  } = $props()
 
-  $: pages = Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1)
+  const pages = $derived(Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1))
 
   function goToPage(event: MouseEvent, page: number) {
     event.preventDefault()

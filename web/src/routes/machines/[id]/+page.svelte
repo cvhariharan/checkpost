@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte'
-  import { page } from '$app/stores'
+  import { onDestroy, onMount, untrack } from 'svelte'
+  import { page } from '$app/state'
   import {
     deleteMachineQuery,
     executeMachineQuery,
@@ -30,6 +30,7 @@
   import Pagination from '$lib/components/Pagination.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
   import BadgeList from '$lib/components/BadgeList.svelte'
+  import { canFrom, me } from '$lib/auth'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
 
@@ -39,51 +40,58 @@
     | { type: 'table'; rows: Record<string, unknown>[]; columns: string[] }
     | { type: 'fallback'; text: string }
 
-  let machine: Machine | null = null
-  let metrics: NodeMetrics = {}
-  let metricSchemas: MetricSchemas = { schemas: {}, kinds: [] }
-  let queryText = ''
-  let queryHistory: MachineQueryRecord[] = []
-  let policyPosture: MachinePolicyPosture[] = []
-  let loading = true
-  let historyLoading = false
-  let executing = false
-  let error = ''
-  let expandedResultRowKey = ''
-  let currentQueryPage = 1
-  let queryPageCount = 1
-  let queryTotalCount = 0
+  let machine = $state<Machine | null>(null)
+  let metrics = $state<NodeMetrics>({})
+  let metricSchemas = $state<MetricSchemas>({ schemas: {}, kinds: [] })
+  let queryText = $state('')
+  let queryHistory = $state<MachineQueryRecord[]>([])
+  let policyPosture = $state<MachinePolicyPosture[]>([])
+  let loading = $state(true)
+  let historyLoading = $state(false)
+  let executing = $state(false)
+  let error = $state('')
+  let expandedResultRowKey = $state('')
+  let currentQueryPage = $state(1)
+  let queryPageCount = $state(1)
+  let queryTotalCount = $state(0)
   const queryCountPerPage = 10
   const queryPollIntervalMs = 3000
   const maxQueryPollAttempts = 20
   let pollTimer: ReturnType<typeof setTimeout> | null = null
-  let pollAttempts = 0
-  let pollEpoch = 0
-  let deleteDialogOpen = false
-  let queryToDelete: MachineQueryRecord | null = null
-  let deletingQuery = false
-  let availableGroups: Group[] = []
-  let selectedGroupIds: string[] = []
-  let availableOwners: DeviceOwner[] = []
-  let selectedOwnerId = ''
-  let internalTrackingId = ''
-  let inventoryNotes = ''
-  let editing = false
-  let saving = false
-  let tabs: OatTabsElement
-  let activeTabIndex = 0
-  let mounted = false
-  let loadedMachineId = ''
+  let pollAttempts = $state(0)
+  let pollEpoch = $state(0)
+  let deleteDialogOpen = $state(false)
+  let queryToDelete = $state<MachineQueryRecord | null>(null)
+  let deletingQuery = $state(false)
+  let availableGroups = $state<Group[]>([])
+  let selectedGroupIds = $state<string[]>([])
+  let availableOwners = $state<DeviceOwner[]>([])
+  let selectedOwnerId = $state('')
+  let internalTrackingId = $state('')
+  let inventoryNotes = $state('')
+  let editing = $state(false)
+  let saving = $state(false)
+  let tabs = $state<OatTabsElement>()
+  let activeTabIndex = $state(0)
+  let mounted = $state(false)
+  let loadedMachineId = $state('')
 
-  $: machineId = $page.params.id as string
-  $: if (tabs && tabs.activeIndex !== activeTabIndex) tabs.activeIndex = activeTabIndex
-  $: if (activeTabIndex === 2) ensurePolling()
+  const machineId = $derived(page.params.id as string)
+  $effect(() => {
+    if (!tabs || tabs.activeIndex === activeTabIndex) return
+    tabs.activeIndex = activeTabIndex
+  })
+  $effect(() => {
+    if (activeTabIndex === 2) untrack(ensurePolling)
+  })
   // onMount only fires once; when the router reuses this component for a
   // different :id, reload and reset poll/edit state so we don't show stale
   // data or leak a poll timer onto the new machine.
-  $: if (mounted && machineId !== loadedMachineId) switchMachine(machineId)
-  $: queryStartResult = queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1
-  $: queryEndResult = Math.min(currentQueryPage * queryCountPerPage, queryTotalCount)
+  $effect(() => {
+    if (mounted && machineId !== loadedMachineId) untrack(() => switchMachine(machineId))
+  })
+  const queryStartResult = $derived(queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1)
+  const queryEndResult = $derived(Math.min(currentQueryPage * queryCountPerPage, queryTotalCount))
 
   onMount(() => {
     loadedMachineId = machineId
@@ -203,7 +211,7 @@
   }
 
   async function runQuery() {
-    if (!queryText.trim()) return
+    if (!canExecuteMachine || !queryText.trim()) return
     executing = true
     error = ''
     try {
@@ -227,7 +235,7 @@
   }
 
   function confirmDeleteQuery(query: MachineQueryRecord) {
-    if (!query?.id) return
+    if (!canDeleteQueryResult || !query?.id) return
     queryToDelete = query
     deleteDialogOpen = true
   }
@@ -357,6 +365,7 @@
   }
 
   function startEdit() {
+    if (!canEditOverview) return
     seedEditFields()
     activeTabIndex = 0
     editing = true
@@ -368,6 +377,7 @@
   }
 
   async function saveOverview() {
+    if (!canEditOverview) return
     saving = true
     error = ''
     try {
@@ -375,12 +385,14 @@
       // generic message that hides which write already landed. Both endpoints are
       // idempotent, so staying in edit mode lets the user simply retry.
       const [inventoryResult, groupsResult] = await Promise.allSettled([
-        updateMachineInventory(machineId, {
-          owner_id: selectedOwnerId || null,
-          internal_tracking_id: internalTrackingId,
-          notes: inventoryNotes
-        }),
-        updateMachineGroups(machineId, selectedGroupIds)
+        canUpdateInventory
+          ? updateMachineInventory(machineId, {
+              owner_id: selectedOwnerId || null,
+              internal_tracking_id: internalTrackingId,
+              notes: inventoryNotes
+            })
+          : Promise.resolve(),
+        canUpdateMachine ? updateMachineGroups(machineId, selectedGroupIds) : Promise.resolve()
       ])
       const failed: string[] = []
       if (inventoryResult.status === 'rejected') failed.push('inventory')
@@ -416,13 +428,18 @@
     return 'warning'
   }
 
-  $: visibleMetricKinds = (metricSchemas.kinds || []).filter((k) => metrics[k])
-  $: summaryMetricKinds = visibleMetricKinds.filter(
+  const visibleMetricKinds = $derived((metricSchemas.kinds || []).filter((k) => metrics[k]))
+  const summaryMetricKinds = $derived(visibleMetricKinds.filter(
     (k) => rootShape(metricSchemas.schemas[k] as JSONSchema).kind === 'card'
-  )
-  $: tableMetricKinds = visibleMetricKinds.filter(
+  ))
+  const tableMetricKinds = $derived(visibleMetricKinds.filter(
     (k) => rootShape(metricSchemas.schemas[k] as JSONSchema).kind === 'table'
-  )
+  ))
+  const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
+  const canUpdateInventory = $derived(canFrom($me, 'inventory', 'update'))
+  const canEditOverview = $derived(canUpdateMachine || canUpdateInventory)
+  const canExecuteMachine = $derived(canFrom($me, 'machine', 'execute'))
+  const canDeleteQueryResult = $derived(canFrom($me, 'query_result', 'delete'))
 </script>
 
 <section class="vstack gap-4">
@@ -447,7 +464,9 @@
             {saving ? 'Saving...' : 'Save'}
           </button>
         {:else}
-          <button type="button" onclick={startEdit}>Update</button>
+          {#if canEditOverview}
+            <button type="button" onclick={startEdit}>Update</button>
+          {/if}
         {/if}
       </div>
     </header>
@@ -471,37 +490,43 @@
         <div class="vstack gap-4">
           {#if editing}
             <div class="vstack gap-3">
-              <div class="row">
-                <div class="col-6">
-                  <label data-field>
-                    Owner
-                    <select bind:value={selectedOwnerId}>
-                      <option value="">Unassigned</option>
-                      {#each availableOwners as owner}
-                        <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
-                      {/each}
-                    </select>
-                  </label>
+              {#if canUpdateInventory}
+                <div class="row">
+                  <div class="col-6">
+                    <label data-field>
+                      Owner
+                      <select bind:value={selectedOwnerId}>
+                        <option value="">Unassigned</option>
+                        {#each availableOwners as owner}
+                          <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
+                        {/each}
+                      </select>
+                    </label>
+                  </div>
+                  <div class="col-6">
+                    <label data-field>
+                      Internal tracking ID
+                      <input bind:value={internalTrackingId} placeholder="ASSET-10042" />
+                    </label>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <label data-field>
-                    Internal tracking ID
-                    <input bind:value={internalTrackingId} placeholder="ASSET-10042" />
-                  </label>
-                </div>
-              </div>
-              <MultiSelectDropdown
-                label="Assigned Groups"
-                options={availableGroups}
-                bind:value={selectedGroupIds}
-                placeholder="No groups assigned"
-                searchPlaceholder="Search groups..."
-                emptyLabel="No groups available yet"
-              />
-              <label data-field>
-                Notes
-                <textarea bind:value={inventoryNotes} rows="3"></textarea>
-              </label>
+              {/if}
+              {#if canUpdateMachine}
+                <MultiSelectDropdown
+                  label="Assigned Groups"
+                  options={availableGroups}
+                  bind:value={selectedGroupIds}
+                  placeholder="No groups assigned"
+                  searchPlaceholder="Search groups..."
+                  emptyLabel="No groups available yet"
+                />
+              {/if}
+              {#if canUpdateInventory}
+                <label data-field>
+                  Notes
+                  <textarea bind:value={inventoryNotes} rows="3"></textarea>
+                </label>
+              {/if}
             </div>
           {:else}
             <dl class="facts">
@@ -592,21 +617,23 @@
 
       <div role="tabpanel">
         <div class="vstack gap-4">
-          <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
-            <label data-field>
-              SQL Query
-              <textarea bind:value={queryText} rows="6" placeholder="SELECT * FROM processes LIMIT 10;"></textarea>
-            </label>
-            <footer class="hstack justify-end mt-4">
-              <button
-                type="submit"
-                disabled={executing || !queryText.trim()}
-                aria-busy={executing ? 'true' : undefined}
-              >
-                {executing ? 'Executing...' : 'Run Query'}
-              </button>
-            </footer>
-          </form>
+          {#if canExecuteMachine}
+            <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
+              <label data-field>
+                SQL Query
+                <textarea bind:value={queryText} rows="6" placeholder="SELECT * FROM processes LIMIT 10;"></textarea>
+              </label>
+              <footer class="hstack justify-end mt-4">
+                <button
+                  type="submit"
+                  disabled={executing || !queryText.trim()}
+                  aria-busy={executing ? 'true' : undefined}
+                >
+                  {executing ? 'Executing...' : 'Run Query'}
+                </button>
+              </footer>
+            </form>
+          {/if}
 
           <div class="hstack justify-between">
             <h2>Query History</h2>
@@ -627,15 +654,17 @@
                       <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
                     {/if}
                     <small class="text-light">{formatTimestamp(query.timestamp)}</small>
-                    <button
-                      type="button"
-                      class="small outline"
-                      data-variant="danger"
-                      onclick={() => confirmDeleteQuery(query)}
-                      aria-label="Delete query result"
-                    >
-                      Delete
-                    </button>
+                    {#if canDeleteQueryResult}
+                      <button
+                        type="button"
+                        class="small outline"
+                        data-variant="danger"
+                        onclick={() => confirmDeleteQuery(query)}
+                        aria-label="Delete query result"
+                      >
+                        Delete
+                      </button>
+                    {/if}
                   </div>
                 </div>
                 {#if query.error}

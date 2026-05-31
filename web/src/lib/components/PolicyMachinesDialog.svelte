@@ -4,9 +4,15 @@
   import Pagination from './Pagination.svelte'
   import ErrorMessage from './ErrorMessage.svelte'
 
-  export let open = false
-  export let policy: Policy | null = null
-  export let onClose: () => void = () => {}
+  let {
+    open = $bindable(false),
+    policy = null,
+    onClose = () => {}
+  }: {
+    open?: boolean
+    policy?: Policy | null
+    onClose?: () => void
+  } = $props()
 
   const countPerPage = 100
   const tabs: { value: string; label: string }[] = [
@@ -16,29 +22,31 @@
     { value: 'unknown', label: 'Unknown' }
   ]
 
-  let dialog: HTMLDialogElement
-  let preparedFor: string | null = null
-  let response = ''
-  let machines: PolicyMachineRow[] = []
-  let page = 1
-  let pageCount = 1
-  let totalCount = 0
-  let loading = false
-  let error = ''
+  let dialog = $state<HTMLDialogElement>()
+  let preparedFor = $state<string | null>(null)
+  let response = $state('')
+  let machines = $state<PolicyMachineRow[]>([])
+  let page = $state(1)
+  let pageCount = $state(1)
+  let totalCount = $state(0)
+  let loading = $state(false)
+  let error = $state('')
 
-  $: if (open && dialog) {
+  $effect(() => {
+    if (!open || !dialog) return
     const key = policy?.uuid || ''
     if (preparedFor !== key) {
       preparedFor = key
       load(1, '')
     }
     if (!dialog.open) dialog.showModal()
-  }
+  })
 
-  $: if (!open && dialog) {
+  $effect(() => {
+    if (open || !dialog) return
     preparedFor = null
     if (dialog.open) dialog.close()
-  }
+  })
 
   async function load(targetPage = page, targetResponse = response) {
     if (!policy) return
@@ -154,7 +162,7 @@
       label="Policy hosts pagination"
       onPageChange={changePage}
     />
-    <button type="button" class="outline" onclick={() => dialog.close()}>Close</button>
+    <button type="button" class="outline" onclick={() => dialog?.close()}>Close</button>
   </footer>
 </dialog>
 

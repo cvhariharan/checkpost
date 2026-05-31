@@ -4,32 +4,42 @@
   type Option = { value: string; label: string }
   type RawOption = { value?: string; uuid?: string; label?: string; name?: string }
 
-  export let label = ''
-  export let options: RawOption[] = []
-  export let value: string[] = []
-  export let placeholder = 'Select options'
-  export let searchPlaceholder = 'Search...'
-  export let emptyLabel = 'No options available'
-  export let disabled = false
+  let {
+    label = '',
+    options = [],
+    value = $bindable<string[]>([]),
+    placeholder = 'Select options',
+    searchPlaceholder = 'Search...',
+    emptyLabel = 'No options available',
+    disabled = false
+  }: {
+    label?: string
+    options?: RawOption[]
+    value?: string[]
+    placeholder?: string
+    searchPlaceholder?: string
+    emptyLabel?: string
+    disabled?: boolean
+  } = $props()
 
   const menuId = `multi-select-${Math.random().toString(36).slice(2, 10)}`
 
-  let trigger: HTMLButtonElement
-  let popover: HTMLDivElement
-  let searchInput: HTMLInputElement
-  let searchTerm = ''
+  let trigger = $state<HTMLButtonElement>()
+  let popover = $state<HTMLDivElement>()
+  let searchInput = $state<HTMLInputElement>()
+  let searchTerm = $state('')
 
-  $: normalizedOptions = (options || [])
+  const normalizedOptions = $derived((options || [])
     .map<Option>((option) => ({
       value: option?.value ?? option?.uuid ?? '',
       label: option?.label ?? option?.name ?? option?.value ?? option?.uuid ?? ''
     }))
-    .filter((option) => option.value && option.label)
-  $: selectedOptions = normalizedOptions.filter((option) => value.includes(option.value))
-  $: filteredOptions = normalizedOptions.filter((option) =>
+    .filter((option) => option.value && option.label))
+  const selectedOptions = $derived(normalizedOptions.filter((option) => value.includes(option.value)))
+  const filteredOptions = $derived(normalizedOptions.filter((option) =>
     option.label.toLowerCase().includes(searchTerm.trim().toLowerCase())
-  )
-  $: selectionSummary = selectedOptions.length === 0 ? placeholder : `${selectedOptions.length} selected`
+  ))
+  const selectionSummary = $derived(selectedOptions.length === 0 ? placeholder : `${selectedOptions.length} selected`)
 
   function toggleOption(optionValue: string) {
     if (value.includes(optionValue)) {

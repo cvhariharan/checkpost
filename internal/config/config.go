@@ -3,10 +3,11 @@ package config
 import "time"
 
 type Config struct {
-	AppConfig  AppConfig
-	OIDCConfig OIDCConfig
-	DBConfig   DBConfig
-	DataConfig DataConfig
+	AppConfig     AppConfig
+	OIDCConfig    OIDCConfig
+	SessionConfig SessionConfig
+	DBConfig      DBConfig
+	DataConfig    DataConfig
 }
 
 type AppConfig struct {
@@ -27,6 +28,25 @@ type OIDCConfig struct {
 	Issuer       string
 	ClientID     string
 	ClientSecret string
+
+	Label           string
+	RedirectURL     string
+	AuthURL         string
+	TokenURL        string
+	Scopes          []string
+	GroupsClaim     string
+	AllowedDomains  []string
+	AutoCreateUsers bool
+	DefaultRole     string
+}
+
+// Enabled reports whether SSO is fully configured (all-or-nothing).
+func (o OIDCConfig) Enabled() bool {
+	return o.Issuer != "" && o.ClientID != "" && o.ClientSecret != ""
+}
+
+type SessionConfig struct {
+	TTL time.Duration `validate:"required"`
 }
 
 type DBConfig struct {

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/casbin/casbin/v2"
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/repo"
 	"github.com/cvhariharan/watcher/internal/results"
@@ -17,9 +18,11 @@ var (
 )
 
 type Core struct {
-	store   repo.Store
-	logger  *slog.Logger
-	rootURL string
+	store         repo.Store
+	logger        *slog.Logger
+	rootURL       string
+	adminUsername string
+	enforcer      *casbin.Enforcer
 
 	results       *results.Writer
 	resultsReader *results.Reader
@@ -30,11 +33,13 @@ type Core struct {
 	policyStaleAfter     time.Duration
 }
 
-func NewCore(logger *slog.Logger, store repo.Store, writer *results.Writer, reader *results.Reader, cfg config.AppConfig) (*Core, error) {
+func NewCore(logger *slog.Logger, store repo.Store, writer *results.Writer, reader *results.Reader, enforcer *casbin.Enforcer, cfg config.AppConfig) (*Core, error) {
 	return &Core{
 		store:                store,
 		logger:               logger.WithGroup("core"),
 		rootURL:              cfg.RootURL,
+		adminUsername:        cfg.AdminUsername,
+		enforcer:             enforcer,
 		results:              writer,
 		resultsReader:        reader,
 		systemMetrics:        DefaultSystemMetrics(),

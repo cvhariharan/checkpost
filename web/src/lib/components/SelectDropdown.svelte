@@ -2,26 +2,34 @@
   type Option = { value: string; label: string }
   type RawOption = string | { value?: string; label?: string; name?: string; uuid?: string }
 
-  export let label = ''
-  export let options: RawOption[] = []
-  export let value = ''
-  export let placeholder = 'Select an option'
-  export let disabled = false
+  let {
+    label = '',
+    options = [],
+    value = $bindable(''),
+    placeholder = 'Select an option',
+    disabled = false
+  }: {
+    label?: string
+    options?: RawOption[]
+    value?: string
+    placeholder?: string
+    disabled?: boolean
+  } = $props()
 
   const menuId = `select-${Math.random().toString(36).slice(2, 10)}`
 
-  let trigger: HTMLButtonElement
-  let popover: HTMLDivElement
+  let trigger = $state<HTMLButtonElement>()
+  let popover = $state<HTMLDivElement>()
 
-  $: normalizedOptions = (options || []).map<Option>((option) =>
+  const normalizedOptions = $derived((options || []).map<Option>((option) =>
     typeof option === 'string'
       ? { value: option, label: option }
       : {
           value: option?.value ?? option?.uuid ?? '',
           label: option?.label ?? option?.name ?? option?.value ?? option?.uuid ?? ''
         }
-  )
-  $: selected = normalizedOptions.find((option) => option.value === value) ?? null
+  ))
+  const selected = $derived(normalizedOptions.find((option) => option.value === value) ?? null)
 
   function syncMenuWidth() {
     if (!trigger || !popover) return

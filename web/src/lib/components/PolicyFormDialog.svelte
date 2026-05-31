@@ -4,10 +4,17 @@
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
   import SelectDropdown from './SelectDropdown.svelte'
 
-  export let open = false
-  export let policy: Policy | null = null
-  export let onClose: () => void = () => {}
-  export let onSaved: () => void = () => {}
+  let {
+    open = false,
+    policy = null,
+    onClose = () => {},
+    onSaved = () => {}
+  }: {
+    open?: boolean
+    policy?: Policy | null
+    onClose?: () => void
+    onSaved?: () => void
+  } = $props()
 
   const platformOptions = [
     { value: 'all', label: 'All' },
@@ -18,20 +25,21 @@
     { value: 'windows', label: 'Windows' }
   ]
 
-  let dialog: HTMLDialogElement
-  let preparedFor: string | null = null
-  let title = ''
-  let query = ''
-  let description = ''
-  let resolution = ''
-  let platform = 'all'
-  let enabled = true
-  let groupIds: string[] = []
-  let availableGroups: Group[] = []
-  let error = ''
-  let isSubmitting = false
+  let dialog = $state<HTMLDialogElement>()
+  let preparedFor = $state<string | null>(null)
+  let title = $state('')
+  let query = $state('')
+  let description = $state('')
+  let resolution = $state('')
+  let platform = $state('all')
+  let enabled = $state(true)
+  let groupIds = $state<string[]>([])
+  let availableGroups = $state<Group[]>([])
+  let error = $state('')
+  let isSubmitting = $state(false)
 
-  $: if (open && dialog) {
+  $effect(() => {
+    if (!open || !dialog) return
     const key = policy?.uuid || 'new'
     if (preparedFor !== key) {
       loadForm(policy)
@@ -39,12 +47,13 @@
       loadGroups()
     }
     if (!dialog.open) dialog.showModal()
-  }
+  })
 
-  $: if (!open && dialog) {
+  $effect(() => {
+    if (open || !dialog) return
     preparedFor = null
     if (dialog.open) dialog.close()
-  }
+  })
 
   function loadForm(record: Policy | null) {
     title = record?.title || record?.name || ''
@@ -80,7 +89,7 @@
       if (policy?.uuid) await updatePolicy(policy.uuid, payload)
       else await createPolicy(payload)
       onSaved()
-      dialog.close()
+      dialog?.close()
     } catch (err) {
       error = (err as Error).message || 'Failed to save policy'
     } finally {
@@ -152,7 +161,7 @@
     </div>
 
     <footer>
-      <button type="button" class="outline" onclick={() => dialog.close()}>Cancel</button>
+      <button type="button" class="outline" onclick={() => dialog?.close()}>Cancel</button>
       <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined}>
         {isSubmitting
           ? policy

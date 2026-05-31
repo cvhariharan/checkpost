@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"flag"
@@ -79,79 +80,154 @@ func main() {
 	resultsWorkers.Start()
 	defer resultsWorkers.Close()
 
-	c, err := core.NewCore(logger, store, resultsWriter, resultsReader, cfg.AppConfig)
+	enforcer, err := core.NewEnforcer(db)
+	if err != nil {
+		log.Fatalf("could not initialize casbin enforcer: %v", err)
+	}
+
+	c, err := core.NewCore(logger, store, resultsWriter, resultsReader, enforcer, cfg.AppConfig)
 	if err != nil {
 		log.Fatalf("could not initialize core: %v", err)
 	}
 
+	// Rebuild the shared policy store from the code-defined role matrix +
+	// role_bindings, then ensure the config admin exists and holds the admin role.
+	if err := c.SyncPolicies(context.Background()); err != nil {
+		log.Fatalf("could not sync rbac policies: %v", err)
+	}
+	if err := c.EnsureAdminUser(context.Background(), cfg.AppConfig.AdminUsername, cfg.AppConfig.AdminPassword); err != nil {
+		log.Fatalf("could not ensure admin user: %v", err)
+	}
+
 	e := echo.New()
 
-	h := handlers.NewHandler(logger, cfg.AppConfig, c)
+	h, err := handlers.NewHandler(logger, db, cfg, c)
+	if err != nil {
+		log.Fatalf("could not initialize handlers: %v", err)
+	}
 	e.HTTPErrorHandler = h.ErrorHandler
 
-	api := e.Group("/api/v1")
+	// Resource/action constants for per-route authorization.
+	const (
+		rMachine      = "machine"
+		rMachineGroup = "machine_group"
+		rPolicy       = "policy"
+		rSchedule     = "schedule"
+		rQueryResult  = "query_result"
+		rYaraSource   = "yara_source"
+		rYaraScan     = "yara_scan"
+		rInventory    = "inventory"
+		rUser         = "user"
+		rUserGroup    = "user_group"
+		rRoleBinding  = "role_binding"
+		rSetting      = "setting"
 
-	api.POST("/schedules", h.HandleCreateSchedule)
-	api.GET("/schedules", h.HandleSchedulesPagination)
-	api.GET("/schedules/:id", h.HandleGetSchedule)
-	api.DELETE("/schedules/:id", h.HandleDeleteSchedule)
-	api.PUT("/schedules/:id", h.HandleUpdateSchedule)
-	api.GET("/schedules/:id/results", h.HandleScheduleResults)
+		aView    = "view"
+		aCreate  = "create"
+		aUpdate  = "update"
+		aDelete  = "delete"
+		aExecute = "execute"
+	)
 
-	api.POST("/policies", h.HandleCreatePolicy)
-	api.GET("/policies", h.HandlePoliciesPagination)
-	api.GET("/policies/:id", h.HandleGetPolicy)
-	api.DELETE("/policies/:id", h.HandleDeletePolicy)
-	api.PUT("/policies/:id", h.HandleUpdatePolicy)
-	api.GET("/policies/:id/machines", h.HandlePolicyMachines)
+	// Public auth routes (no session required).
+	e.POST("/login", h.HandleLogin)
+	e.POST("/logout", h.HandleLogout)
+	e.GET("/auth/providers", h.HandleProviders)
+	e.GET("/login/oidc", h.HandleOIDCLogin)
+	e.GET("/auth/callback", h.HandleAuthCallback)
 
-	api.POST("/groups", h.HandleCreateGroup)
-	api.GET("/groups", h.HandleGroupsPagination)
-	api.GET("/groups/:id", h.HandleGetGroup)
-	api.DELETE("/groups/:id", h.HandleDeleteGroup)
-	api.PUT("/groups/:id", h.HandleUpdateGroup)
-	api.GET("/groups/:id/machines", h.HandleGroupMachines)
-	api.PATCH("/groups/:id/machines", h.HandlePatchGroupMachines)
-
-	api.POST("/owners", h.HandleCreateOwner)
-	api.GET("/owners", h.HandleOwnersPagination)
-	api.GET("/owners/:id", h.HandleGetOwner)
-	api.DELETE("/owners/:id", h.HandleDeleteOwner)
-	api.PUT("/owners/:id", h.HandleUpdateOwner)
-	api.GET("/owners/:id/machines", h.HandleOwnerMachines)
-
-	api.GET("/machines", h.HandleMachinesPagination)
-	api.GET("/machines/:id/queries", h.HandleMachineQueries)
-	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery)
-	api.GET("/machines/:id/policies", h.HandleMachinePolicies)
-	api.GET("/machines/:id/groups", h.HandleMachineGroups)
-	api.PUT("/machines/:id/groups", h.HandleReplaceMachineGroups)
-	api.GET("/machines/:id/inventory", h.HandleMachineInventory)
-	api.PUT("/machines/:id/inventory", h.HandleUpdateMachineInventory)
-	api.DELETE("/machines/:id/inventory", h.HandleDeleteMachineInventory)
-	api.GET("/machines/:id/metrics", h.HandleMachineMetrics)
-	api.GET("/metrics/schemas", h.HandleMetricSchemas)
-	api.POST("/machines/:id/queries", h.HandleExecuteMachineQuery)
-	api.GET("/machines/:id", h.HandleGetMachine)
-
-	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources)
-	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource)
-	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource)
-	api.DELETE("/yara/signature-sources/:id", h.HandleDeleteYaraSignatureSource)
-	api.POST("/yara/scans", h.HandleCreateYaraScan)
-	api.GET("/yara/scans", h.HandleYaraScans)
-	api.GET("/yara/scans/:id", h.HandleGetYaraScan)
-	api.GET("/yara/scans/:id/matches", h.HandleYaraScanMatches)
-	api.GET("/yara/scans/:id/targets", h.HandleYaraScanTargets)
-
-	osqueryAPI := api.Group("/osquery")
+	// osquery agent endpoints — authenticated by enroll_secret / node_key, NOT
+	// the human session/RBAC layer.
+	osqueryAPI := e.Group("/api/v1/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 	osqueryAPI.POST("/config", h.HandleOSQueryConfig)
 	osqueryAPI.POST("/logger", h.HandleLog)
 	osqueryAPI.POST("/distributed/read", h.HandleDistributedRead)
 	osqueryAPI.POST("/distributed/write", h.HandleDistributedWrite)
 
-	e.GET("/bootstrap", h.HandleOsqueryBootstrap)
+	// Everything human goes through Authenticate (+ per-route Authorize).
+	api := e.Group("/api/v1", h.Authenticate)
+
+	api.GET("/me", h.HandleMe)
+
+	api.POST("/schedules", h.HandleCreateSchedule, h.Authorize(rSchedule, aCreate))
+	api.GET("/schedules", h.HandleSchedulesPagination, h.Authorize(rSchedule, aView))
+	api.GET("/schedules/:id", h.HandleGetSchedule, h.Authorize(rSchedule, aView))
+	api.DELETE("/schedules/:id", h.HandleDeleteSchedule, h.Authorize(rSchedule, aDelete))
+	api.PUT("/schedules/:id", h.HandleUpdateSchedule, h.Authorize(rSchedule, aUpdate))
+	api.GET("/schedules/:id/results", h.HandleScheduleResults, h.Authorize(rQueryResult, aView))
+
+	api.POST("/policies", h.HandleCreatePolicy, h.Authorize(rPolicy, aCreate))
+	api.GET("/policies", h.HandlePoliciesPagination, h.Authorize(rPolicy, aView))
+	api.GET("/policies/:id", h.HandleGetPolicy, h.Authorize(rPolicy, aView))
+	api.DELETE("/policies/:id", h.HandleDeletePolicy, h.Authorize(rPolicy, aDelete))
+	api.PUT("/policies/:id", h.HandleUpdatePolicy, h.Authorize(rPolicy, aUpdate))
+	api.GET("/policies/:id/machines", h.HandlePolicyMachines, h.Authorize(rPolicy, aView))
+
+	api.POST("/groups", h.HandleCreateGroup, h.Authorize(rMachineGroup, aCreate))
+	api.GET("/groups", h.HandleGroupsPagination, h.Authorize(rMachineGroup, aView))
+	api.GET("/groups/:id", h.HandleGetGroup, h.Authorize(rMachineGroup, aView))
+	api.DELETE("/groups/:id", h.HandleDeleteGroup, h.Authorize(rMachineGroup, aDelete))
+	api.PUT("/groups/:id", h.HandleUpdateGroup, h.Authorize(rMachineGroup, aUpdate))
+	api.GET("/groups/:id/machines", h.HandleGroupMachines, h.Authorize(rMachineGroup, aView))
+	api.PATCH("/groups/:id/machines", h.HandlePatchGroupMachines, h.Authorize(rMachineGroup, aUpdate))
+
+	api.POST("/owners", h.HandleCreateOwner, h.Authorize(rInventory, aCreate))
+	api.GET("/owners", h.HandleOwnersPagination, h.Authorize(rInventory, aView))
+	api.GET("/owners/:id", h.HandleGetOwner, h.Authorize(rInventory, aView))
+	api.DELETE("/owners/:id", h.HandleDeleteOwner, h.Authorize(rInventory, aDelete))
+	api.PUT("/owners/:id", h.HandleUpdateOwner, h.Authorize(rInventory, aUpdate))
+	api.GET("/owners/:id/machines", h.HandleOwnerMachines, h.Authorize(rInventory, aView))
+
+	api.GET("/machines", h.HandleMachinesPagination, h.Authorize(rMachine, aView))
+	api.GET("/machines/:id/queries", h.HandleMachineQueries, h.Authorize(rQueryResult, aView))
+	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery, h.Authorize(rQueryResult, aDelete))
+	api.GET("/machines/:id/policies", h.HandleMachinePolicies, h.Authorize(rMachine, aView))
+	api.GET("/machines/:id/groups", h.HandleMachineGroups, h.Authorize(rMachine, aView))
+	api.PUT("/machines/:id/groups", h.HandleReplaceMachineGroups, h.Authorize(rMachine, aUpdate))
+	api.GET("/machines/:id/inventory", h.HandleMachineInventory, h.Authorize(rInventory, aView))
+	api.PUT("/machines/:id/inventory", h.HandleUpdateMachineInventory, h.Authorize(rInventory, aUpdate))
+	api.DELETE("/machines/:id/inventory", h.HandleDeleteMachineInventory, h.Authorize(rInventory, aDelete))
+	api.GET("/machines/:id/metrics", h.HandleMachineMetrics, h.Authorize(rMachine, aView))
+	api.GET("/metrics/schemas", h.HandleMetricSchemas, h.Authorize(rMachine, aView))
+	api.POST("/machines/:id/queries", h.HandleExecuteMachineQuery, h.Authorize(rMachine, aExecute))
+	api.GET("/machines/:id", h.HandleGetMachine, h.Authorize(rMachine, aView))
+
+	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources, h.Authorize(rYaraSource, aView))
+	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource, h.Authorize(rYaraSource, aCreate))
+	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource, h.Authorize(rYaraSource, aUpdate))
+	api.DELETE("/yara/signature-sources/:id", h.HandleDeleteYaraSignatureSource, h.Authorize(rYaraSource, aDelete))
+	api.POST("/yara/scans", h.HandleCreateYaraScan, h.Authorize(rYaraScan, aCreate))
+	api.GET("/yara/scans", h.HandleYaraScans, h.Authorize(rYaraScan, aView))
+	api.GET("/yara/scans/:id", h.HandleGetYaraScan, h.Authorize(rYaraScan, aView))
+	api.GET("/yara/scans/:id/matches", h.HandleYaraScanMatches, h.Authorize(rYaraScan, aView))
+	api.GET("/yara/scans/:id/targets", h.HandleYaraScanTargets, h.Authorize(rYaraScan, aView))
+
+	// Admin management routes.
+	api.GET("/roles", h.HandleListRoles, h.Authorize(rRoleBinding, aView))
+
+	api.GET("/users", h.HandleListUsers, h.Authorize(rUser, aView))
+	api.POST("/users", h.HandleCreateUser, h.Authorize(rUser, aCreate))
+	api.PUT("/users/:id", h.HandleUpdateUser, h.Authorize(rUser, aUpdate))
+	api.DELETE("/users/:id", h.HandleDeleteUser, h.Authorize(rUser, aDelete))
+
+	api.GET("/user-groups", h.HandleListUserGroups, h.Authorize(rUserGroup, aView))
+	api.POST("/user-groups", h.HandleCreateUserGroup, h.Authorize(rUserGroup, aCreate))
+	api.GET("/user-groups/:id", h.HandleGetUserGroup, h.Authorize(rUserGroup, aView))
+	api.PUT("/user-groups/:id", h.HandleUpdateUserGroup, h.Authorize(rUserGroup, aUpdate))
+	api.DELETE("/user-groups/:id", h.HandleDeleteUserGroup, h.Authorize(rUserGroup, aDelete))
+	api.GET("/user-groups/:id/members", h.HandleListUserGroupMembers, h.Authorize(rUserGroup, aView))
+	api.POST("/user-groups/:id/members", h.HandleAddUserGroupMember, h.Authorize(rUserGroup, aUpdate))
+	api.DELETE("/user-groups/:id/members/:user_id", h.HandleRemoveUserGroupMember, h.Authorize(rUserGroup, aUpdate))
+
+	api.GET("/role-bindings", h.HandleListRoleBindings, h.Authorize(rRoleBinding, aView))
+	api.POST("/role-bindings", h.HandleCreateRoleBinding, h.Authorize(rRoleBinding, aCreate))
+	api.DELETE("/role-bindings/:id", h.HandleDeleteRoleBinding, h.Authorize(rRoleBinding, aDelete))
+
+	// The JSON bootstrap profile contains the enroll secret → behind setting:view.
+	// The raw install script (curl | bash) cannot carry a session cookie → public
+	// (network-restrict in production; the enroll secret is already shared).
+	e.GET("/bootstrap", h.HandleOsqueryBootstrap, h.Authenticate, h.Authorize(rSetting, aView))
 	e.GET("/bootstrap/:platform", h.HandleOsqueryBootstrapScript)
 
 	buildFS, err := fs.Sub(webassets.StaticFiles, "dist")

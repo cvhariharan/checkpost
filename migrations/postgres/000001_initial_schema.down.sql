@@ -1,3 +1,9 @@
+DROP TABLE IF EXISTS casbin_rule;
+DROP TABLE IF EXISTS role_bindings;
+DROP TABLE IF EXISTS user_group_members;
+DROP TABLE IF EXISTS user_groups;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS yara_scan_matches;
 DROP TABLE IF EXISTS yara_scan_targets;
 DROP TABLE IF EXISTS yara_scans;

@@ -8,31 +8,35 @@
   import GroupFormDialog from '$lib/components/GroupFormDialog.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
+  import { canFrom, me } from '$lib/auth'
 
-  let loadedGroups: Group[] = []
-  let currentPage = 1
-  let pageCount = 1
-  let totalCount = 0
+  let loadedGroups = $state<Group[]>([])
+  let currentPage = $state(1)
+  let pageCount = $state(1)
+  let totalCount = $state(0)
   const countPerPage = 10
-  let searchTerm = ''
-  let error = ''
-  let loading = true
-  let formOpen = false
-  let editingGroup: Group | null = null
-  let deleteOpen = false
-  let selectedGroup: Group | null = null
-  let isDeleting = false
+  let searchTerm = $state('')
+  let error = $state('')
+  let loading = $state(true)
+  let formOpen = $state(false)
+  let editingGroup = $state<Group | null>(null)
+  let deleteOpen = $state(false)
+  let selectedGroup = $state<Group | null>(null)
+  let isDeleting = $state(false)
 
-  $: groups = loadedGroups.filter((g) => {
+  const groups = $derived(loadedGroups.filter((g) => {
     const search = searchTerm.trim().toLowerCase()
     return (
       !search ||
       (g.name || '').toLowerCase().includes(search) ||
       (g.description || '').toLowerCase().includes(search)
     )
-  })
-  $: startResult = loadedGroups.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1
-  $: endResult = Math.min(currentPage * countPerPage, totalCount)
+  }))
+  const startResult = $derived(loadedGroups.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
+  const endResult = $derived(Math.min(currentPage * countPerPage, totalCount))
+  const canCreateGroup = $derived(canFrom($me, 'machine_group', 'create'))
+  const canUpdateGroup = $derived(canFrom($me, 'machine_group', 'update'))
+  const canDeleteGroup = $derived(canFrom($me, 'machine_group', 'delete'))
 
   onMount(loadGroups)
 
@@ -59,11 +63,13 @@
   }
 
   function openCreate() {
+    if (!canCreateGroup) return
     editingGroup = null
     formOpen = true
   }
 
   function openEdit(group: Group) {
+    if (!canUpdateGroup) return
     editingGroup = group
     formOpen = true
   }
@@ -74,6 +80,7 @@
   }
 
   function confirmDelete(group: Group) {
+    if (!canDeleteGroup) return
     selectedGroup = group
     deleteOpen = true
   }
@@ -101,7 +108,9 @@
       <h1 class="mb-2">Groups</h1>
       <p class="text-light">Organize machines and target policies to specific collections</p>
     </div>
-    <button type="button" onclick={openCreate}>Create Group</button>
+    {#if canCreateGroup}
+      <button type="button" onclick={openCreate}>Create Group</button>
+    {/if}
   </header>
 
   <div class="row">
@@ -130,19 +139,29 @@
           {#each groups as group}
             <tr>
               <td>
-                <button type="button" class="cell-link" onclick={() => openEdit(group)}>
-                  {group.name || 'Untitled'}
-                </button>
+                {#if canUpdateGroup}
+                  <button type="button" class="cell-link" onclick={() => openEdit(group)}>
+                    {group.name || 'Untitled'}
+                  </button>
+                {:else}
+                  <strong>{group.name || 'Untitled'}</strong>
+                {/if}
               </td>
               <td>{group.description || ''}</td>
               <td class="align-right">{group.machine_count || 0}</td>
               <td class="align-right">{group.policy_count || 0}</td>
               <td class="align-right">
-                <ActionsMenu label={`Actions for ${group.name || 'group'}`}>
-                  <button role="menuitem" type="button" onclick={() => openEdit(group)}>Edit</button>
-                  <hr />
-                  <button role="menuitem" type="button" onclick={() => confirmDelete(group)}>Delete</button>
-                </ActionsMenu>
+                {#if canUpdateGroup || canDeleteGroup}
+                  <ActionsMenu label={`Actions for ${group.name || 'group'}`}>
+                    {#if canUpdateGroup}
+                      <button role="menuitem" type="button" onclick={() => openEdit(group)}>Edit</button>
+                    {/if}
+                    {#if canUpdateGroup && canDeleteGroup}<hr />{/if}
+                    {#if canDeleteGroup}
+                      <button role="menuitem" type="button" onclick={() => confirmDelete(group)}>Delete</button>
+                    {/if}
+                  </ActionsMenu>
+                {/if}
               </td>
             </tr>
           {:else}
@@ -167,6 +186,7 @@
 <GroupFormDialog
   open={formOpen}
   group={editingGroup}
+  canManageMembers={canUpdateGroup}
   onClose={() => (formOpen = false)}
   onSaved={handleSaved}
   onChanged={loadGroups}
