@@ -43,6 +43,10 @@ func (c *Core) ListYaraSignatureSources(ctx context.Context, pageReq models.Page
 }
 
 func (c *Core) CreateYaraSignatureSource(ctx context.Context, req models.YaraSignatureSourceRequest) (models.YaraSignatureSource, error) {
+	if err := validateYaraSourceURL(req.URL); err != nil {
+		return models.YaraSignatureSource{}, fmt.Errorf("invalid yara source url: %w", err)
+	}
+
 	groupID, err := c.yaraSourceGroupID(ctx, req.GroupID)
 	if err != nil {
 		return models.YaraSignatureSource{}, err
