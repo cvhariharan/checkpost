@@ -37,18 +37,18 @@ func (q *Queries) CompleteYaraScanTarget(ctx context.Context, arg CompleteYaraSc
 const createYaraScan = `-- name: CreateYaraScan :one
 INSERT INTO yara_scans (
     group_id,
-    path,
+    paths,
     rule_urls,
     target_count
 ) VALUES (
-    $1, $2, $3::text[], $4
+    $1, $2::text[], $3::text[], $4
 )
-RETURNING id, uuid, group_id, path, rule_urls, status, target_count, completed_count, match_count, error, created_at, updated_at, completed_at
+RETURNING id, uuid, group_id, paths, rule_urls, status, target_count, completed_count, match_count, error, created_at, updated_at, completed_at
 `
 
 type CreateYaraScanParams struct {
 	GroupID     sql.NullInt64 `db:"group_id" json:"group_id"`
-	Path        string        `db:"path" json:"path"`
+	Paths       []string      `db:"paths" json:"paths"`
 	RuleUrls    []string      `db:"rule_urls" json:"rule_urls"`
 	TargetCount int32         `db:"target_count" json:"target_count"`
 }
@@ -56,7 +56,7 @@ type CreateYaraScanParams struct {
 func (q *Queries) CreateYaraScan(ctx context.Context, arg CreateYaraScanParams) (YaraScan, error) {
 	row := q.db.QueryRowContext(ctx, createYaraScan,
 		arg.GroupID,
-		arg.Path,
+		pq.Array(arg.Paths),
 		pq.Array(arg.RuleUrls),
 		arg.TargetCount,
 	)
@@ -65,7 +65,7 @@ func (q *Queries) CreateYaraScan(ctx context.Context, arg CreateYaraScanParams) 
 		&i.ID,
 		&i.Uuid,
 		&i.GroupID,
-		&i.Path,
+		pq.Array(&i.Paths),
 		pq.Array(&i.RuleUrls),
 		&i.Status,
 		&i.TargetCount,
@@ -179,7 +179,7 @@ SELECT
     yara_scans.group_id,
     groups.uuid AS group_uuid,
     groups.name AS group_name,
-    yara_scans.path,
+    yara_scans.paths,
     yara_scans.status,
     yara_scans.target_count,
     yara_scans.completed_count,
@@ -199,7 +199,7 @@ type GetYaraScanByUUIDRow struct {
 	GroupID        sql.NullInt64  `db:"group_id" json:"group_id"`
 	GroupUuid      uuid.NullUUID  `db:"group_uuid" json:"group_uuid"`
 	GroupName      sql.NullString `db:"group_name" json:"group_name"`
-	Path           string         `db:"path" json:"path"`
+	Paths          []string       `db:"paths" json:"paths"`
 	Status         string         `db:"status" json:"status"`
 	TargetCount    int32          `db:"target_count" json:"target_count"`
 	CompletedCount int32          `db:"completed_count" json:"completed_count"`
@@ -219,7 +219,7 @@ func (q *Queries) GetYaraScanByUUID(ctx context.Context, argUuid uuid.UUID) (Get
 		&i.GroupID,
 		&i.GroupUuid,
 		&i.GroupName,
-		&i.Path,
+		pq.Array(&i.Paths),
 		&i.Status,
 		&i.TargetCount,
 		&i.CompletedCount,
@@ -426,7 +426,7 @@ const listPendingYaraScanTargetsForNode = `-- name: ListPendingYaraScanTargetsFo
 SELECT
     yara_scans.id AS scan_id,
     yara_scans.uuid AS scan_uuid,
-    yara_scans.path,
+    yara_scans.paths,
     yara_scans.rule_urls
 FROM yara_scan_targets
 JOIN yara_scans ON yara_scans.id = yara_scan_targets.scan_id
@@ -438,7 +438,7 @@ ORDER BY yara_scan_targets.created_at ASC
 type ListPendingYaraScanTargetsForNodeRow struct {
 	ScanID   int64     `db:"scan_id" json:"scan_id"`
 	ScanUuid uuid.UUID `db:"scan_uuid" json:"scan_uuid"`
-	Path     string    `db:"path" json:"path"`
+	Paths    []string  `db:"paths" json:"paths"`
 	RuleUrls []string  `db:"rule_urls" json:"rule_urls"`
 }
 
@@ -454,7 +454,7 @@ func (q *Queries) ListPendingYaraScanTargetsForNode(ctx context.Context, nodeID 
 		if err := rows.Scan(
 			&i.ScanID,
 			&i.ScanUuid,
-			&i.Path,
+			pq.Array(&i.Paths),
 			pq.Array(&i.RuleUrls),
 		); err != nil {
 			return nil, err
@@ -627,7 +627,7 @@ WITH filtered AS (
         yara_scans.group_id,
         groups.uuid AS group_uuid,
         groups.name AS group_name,
-        yara_scans.path,
+        yara_scans.paths,
         yara_scans.status,
         yara_scans.target_count,
         yara_scans.completed_count,
@@ -642,7 +642,7 @@ WITH filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.group_id, filtered.group_uuid, filtered.group_name, filtered.path, filtered.status, filtered.target_count, filtered.completed_count, filtered.match_count, filtered.error, filtered.created_at, filtered.updated_at, filtered.completed_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.group_id, filtered.group_uuid, filtered.group_name, filtered.paths, filtered.status, filtered.target_count, filtered.completed_count, filtered.match_count, filtered.error, filtered.created_at, filtered.updated_at, filtered.completed_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -659,7 +659,7 @@ type ListYaraScansRow struct {
 	GroupID        sql.NullInt64  `db:"group_id" json:"group_id"`
 	GroupUuid      uuid.NullUUID  `db:"group_uuid" json:"group_uuid"`
 	GroupName      sql.NullString `db:"group_name" json:"group_name"`
-	Path           string         `db:"path" json:"path"`
+	Paths          []string       `db:"paths" json:"paths"`
 	Status         string         `db:"status" json:"status"`
 	TargetCount    int32          `db:"target_count" json:"target_count"`
 	CompletedCount int32          `db:"completed_count" json:"completed_count"`
@@ -686,7 +686,7 @@ func (q *Queries) ListYaraScans(ctx context.Context, arg ListYaraScansParams) ([
 			&i.GroupID,
 			&i.GroupUuid,
 			&i.GroupName,
-			&i.Path,
+			pq.Array(&i.Paths),
 			&i.Status,
 			&i.TargetCount,
 			&i.CompletedCount,

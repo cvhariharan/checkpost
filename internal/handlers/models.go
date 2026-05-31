@@ -343,7 +343,7 @@ type UpdateYaraSignatureSourceRequest struct {
 }
 
 type CreateYaraScanRequest struct {
-	Path     string   `json:"path" validate:"required"`
+	Paths    []string `json:"paths" validate:"required,min=1,dive,required"`
 	GroupID  string   `json:"group_id" validate:"omitempty,uuid"`
 	RuleURLs []string `json:"rule_urls" validate:"required,min=1,dive,required,url"`
 }

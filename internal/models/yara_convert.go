@@ -25,7 +25,7 @@ func YaraScanFromRow(row repo.GetYaraScanByUUIDRow) YaraScan {
 	out := YaraScan{
 		ID:             row.Uuid.String(),
 		UUID:           row.Uuid.String(),
-		Path:           row.Path,
+		Paths:          row.Paths,
 		Status:         row.Status,
 		TargetCount:    int(row.TargetCount),
 		CompletedCount: int(row.CompletedCount),
@@ -50,7 +50,7 @@ func YaraScanFromListRow(row repo.ListYaraScansRow) YaraScan {
 	out := YaraScan{
 		ID:             row.Uuid.String(),
 		UUID:           row.Uuid.String(),
-		Path:           row.Path,
+		Paths:          row.Paths,
 		Status:         row.Status,
 		TargetCount:    int(row.TargetCount),
 		CompletedCount: int(row.CompletedCount),

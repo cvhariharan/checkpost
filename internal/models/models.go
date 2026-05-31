@@ -404,7 +404,7 @@ type YaraSignatureSourceRequest struct {
 }
 
 type YaraScanRequest struct {
-	Path     string
+	Paths    []string
 	GroupID  string
 	RuleURLs []string
 }
@@ -414,7 +414,7 @@ type YaraScan struct {
 	UUID           string     `json:"uuid"`
 	GroupID        string     `json:"group_id,omitempty"`
 	GroupName      string     `json:"group_name,omitempty"`
-	Path           string     `json:"path"`
+	Paths          []string   `json:"paths"`
 	Status         string     `json:"status"`
 	TargetCount    int        `json:"target_count"`
 	CompletedCount int        `json:"completed_count"`

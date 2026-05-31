@@ -80,7 +80,7 @@ type UpdateScheduleTxParams struct {
 
 type CreateYaraScanTxParams struct {
 	GroupID  sql.NullInt64
-	Path     string
+	Paths    []string
 	NodeIDs  []int64
 	RuleURLs []string
 }
@@ -421,7 +421,7 @@ func (s *PostgresStore) CreateYaraScanTx(ctx context.Context, params CreateYaraS
 	q := s.Queries.WithTx(tx)
 	scan, err := q.CreateYaraScan(ctx, CreateYaraScanParams{
 		GroupID:     params.GroupID,
-		Path:        params.Path,
+		Paths:       params.Paths,
 		RuleUrls:    params.RuleURLs,
 		TargetCount: int32(len(params.NodeIDs)),
 	})

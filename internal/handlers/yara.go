@@ -105,7 +105,7 @@ func (h *Handler) HandleCreateYaraScan(c echo.Context) error {
 		return err
 	}
 	scan, err := h.c.CreateYaraScan(c.Request().Context(), models.YaraScanRequest{
-		Path:     req.Path,
+		Paths:    req.Paths,
 		GroupID:  req.GroupID,
 		RuleURLs: req.RuleURLs,
 	})

@@ -105,7 +105,7 @@ export type YaraScan = {
   uuid: string
   group_id?: string
   group_name?: string
-  path: string
+  paths: string[]
   status: string
   target_count?: number
   completed_count?: number
@@ -408,7 +408,7 @@ export function deleteYaraSignatureSource(uuid: string) {
   )
 }
 
-export function createYaraScan(payload: { path: string; group_id?: string; rule_urls: string[] }) {
+export function createYaraScan(payload: { paths: string[]; group_id?: string; rule_urls: string[] }) {
   return jsonRequest<YaraScan>('/yara/scans', 'POST', payload)
 }
 

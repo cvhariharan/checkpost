@@ -22,6 +22,7 @@
   import Pagination from '$lib/components/Pagination.svelte'
   import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
+  import TextListInput from '$lib/components/TextListInput.svelte'
   import { formatTimestamp } from '$lib/util'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
@@ -44,7 +45,7 @@
   let matchTotal = 0
   let targetTotal = 0
 
-  let path = ''
+  let paths = ['']
   let ruleURLs = ['']
   let scanGroupID = ''
   let sourceGroupID = ''
@@ -80,6 +81,7 @@
   $: scanEnd = Math.min(scanPage * scanCountPerPage, scanTotal)
   $: matchStart = matchTotal === 0 ? 0 : (matchPage - 1) * matchCountPerPage + 1
   $: matchEnd = Math.min(matchPage * matchCountPerPage, matchTotal)
+  $: hasPath = paths.some((path) => path.trim())
   $: hasRuleURL = ruleURLs.some((url) => url.trim())
 
   onMount(loadAll)
@@ -193,8 +195,9 @@
   }
 
   async function startScan() {
-    if (!path.trim()) {
-      scanError = 'Path is required'
+    const scanPaths = paths.map((path) => path.trim()).filter(Boolean)
+    if (scanPaths.length === 0) {
+      scanError = 'At least one path is required'
       return
     }
     const urls = ruleURLs.map((url) => url.trim()).filter(Boolean)
@@ -205,7 +208,7 @@
     startingScan = true
     scanError = ''
     try {
-      const scan = await createYaraScan({ path: path.trim(), group_id: scanGroupID, rule_urls: urls })
+      const scan = await createYaraScan({ paths: scanPaths, group_id: scanGroupID, rule_urls: urls })
       resetScanForm()
       scanDialogOpen = false
       selectedScan = scan
@@ -226,7 +229,7 @@
   }
 
   function resetScanForm() {
-    path = ''
+    paths = ['']
     ruleURLs = ['']
     scanGroupID = ''
     scanError = ''
@@ -237,21 +240,6 @@
     if (!startingScan) {
       resetScanForm()
     }
-  }
-
-  function addRuleURL() {
-    ruleURLs = [...ruleURLs, '']
-  }
-
-  function removeRuleURL(index: number) {
-    ruleURLs = ruleURLs.filter((_, i) => i !== index)
-    if (ruleURLs.length === 0) {
-      ruleURLs = ['']
-    }
-  }
-
-  function updateRuleURL(index: number, value: string) {
-    ruleURLs = ruleURLs.map((url, i) => (i === index ? value : url))
   }
 
   function openCreateSource() {
@@ -351,6 +339,10 @@
     return scan.group_name || 'All machines'
   }
 
+  function scanPathsLabel(scan: YaraScan) {
+    return (scan.paths || []).join(', ')
+  }
+
   async function refreshSelected() {
     await loadScans(scanPage)
     await loadTargets()
@@ -415,7 +407,7 @@
                   <tr>
                     <th>Scan UUID</th>
                     <th>Created</th>
-                    <th>Path</th>
+                    <th>Paths</th>
                     <th>Group</th>
                     <th>Status</th>
                     <th>Error</th>
@@ -430,7 +422,7 @@
                         <button type="button" class="cell-link" onclick={() => selectScan(scan)}>{scan.uuid}</button>
                       </td>
                       <td>{formatTimestamp(scan.created_at)}</td>
-                      <td title={scan.path}>{scan.path}</td>
+                      <td title={scanPathsLabel(scan)}>{scanPathsLabel(scan)}</td>
                       <td>{scanGroupLabel(scan)}</td>
                       <td>{scan.status}</td>
                       <td title={scan.error || ''}>{scan.error || ''}</td>
@@ -600,55 +592,30 @@
     <ErrorMessage message={scanError} onClose={() => (scanError = '')} />
 
     <div class="vstack">
-      <label data-field>
-        Path
-        <input bind:value={path} placeholder="/tmp/%" disabled={startingScan} />
-      </label>
+      <TextListInput
+        label="Paths"
+        bind:value={paths}
+        placeholder="/tmp/%"
+        addLabel="Add path"
+        disabled={startingScan}
+      />
 
       <SelectDropdown label="Group" options={groupOptions} bind:value={scanGroupID} disabled={startingScan} />
 
-      <div class="rule-urls">
-        <div class="rule-url-header">
-          <span>Rule URLs</span>
-          <button
-            type="button"
-            class="small outline icon-button"
-            aria-label="Add rule URL"
-            disabled={startingScan}
-            onclick={addRuleURL}
-          >
-            +
-          </button>
-        </div>
-        <div class="rule-url-list">
-          {#each ruleURLs as ruleURL, index}
-            <div class="rule-url-row">
-              <input
-                value={ruleURL}
-                placeholder="https://rules.example.com/rule.yar"
-                disabled={startingScan}
-                oninput={(event) => updateRuleURL(index, event.currentTarget.value)}
-              />
-              <button
-                type="button"
-                class="small outline icon-button"
-                aria-label="Remove rule URL"
-                disabled={startingScan || ruleURLs.length === 1}
-                onclick={() => removeRuleURL(index)}
-              >
-                -
-              </button>
-            </div>
-          {/each}
-        </div>
-      </div>
+      <TextListInput
+        label="Rule URLs"
+        bind:value={ruleURLs}
+        placeholder="https://rules.example.com/rule.yar"
+        addLabel="Add rule URL"
+        disabled={startingScan}
+      />
     </div>
 
     <footer>
       <button type="button" class="outline" onclick={() => scanDialog.close()}>Cancel</button>
       <button
         type="submit"
-        disabled={startingScan || !path.trim() || !hasRuleURL}
+        disabled={startingScan || !hasPath || !hasRuleURL}
         aria-busy={startingScan ? 'true' : undefined}
       >
         {startingScan ? 'Starting...' : 'Start scan'}
@@ -707,37 +674,6 @@
   .yara-tabs {
     display: block;
   }
-  .rule-urls {
-    margin-top: var(--space-2);
-  }
-  .rule-url-list {
-    display: grid;
-    gap: var(--space-2);
-  }
-  .rule-url-header {
-    align-items: center;
-    display: grid;
-    gap: var(--space-2);
-    grid-template-columns: minmax(0, 1fr) 2.4rem;
-    margin-bottom: var(--space-2);
-  }
-  .rule-url-row {
-    align-items: center;
-    display: grid;
-    gap: var(--space-2);
-    grid-template-columns: minmax(0, 1fr) 2.4rem;
-  }
-  .icon-button {
-    align-items: center;
-    flex: 0 0 2.4rem;
-    display: inline-flex;
-    height: 2.4rem;
-    justify-content: center;
-    line-height: 1;
-    min-width: 0;
-    padding: var(--space-2);
-    width: 2.4rem;
-  }
   .checkbox-label {
     align-items: center;
     display: flex;
@@ -761,10 +697,5 @@
   }
   .scans-table tr[aria-current='true'] {
     background: var(--accent);
-  }
-  @media (max-width: 900px) {
-    .rule-urls {
-      margin-top: 0;
-    }
   }
 </style>

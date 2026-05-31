@@ -195,7 +195,7 @@ CREATE TABLE yara_scans (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuidv7(),
     group_id BIGINT REFERENCES groups (id) ON DELETE SET NULL,
-    path TEXT NOT NULL,
+    paths TEXT[] NOT NULL,
     rule_urls TEXT[] NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     target_count INTEGER NOT NULL DEFAULT 0,
@@ -207,7 +207,7 @@ CREATE TABLE yara_scans (
     completed_at TIMESTAMPTZ,
 
     CONSTRAINT yara_scans_uuid_unique UNIQUE (uuid),
-    CONSTRAINT yara_scans_path_nonempty CHECK (length(trim(path)) > 0),
+    CONSTRAINT yara_scans_paths_nonempty CHECK (COALESCE(array_length(paths, 1), 0) > 0),
     CONSTRAINT yara_scans_rule_urls_nonempty CHECK (COALESCE(array_length(rule_urls, 1), 0) > 0),
     CONSTRAINT yara_scans_status_check CHECK (status IN ('pending', 'running', 'complete', 'partial', 'error'))
 );

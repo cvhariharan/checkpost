@@ -66,11 +66,11 @@ ORDER BY created_at ASC;
 -- name: CreateYaraScan :one
 INSERT INTO yara_scans (
     group_id,
-    path,
+    paths,
     rule_urls,
     target_count
 ) VALUES (
-    sqlc.arg(group_id), sqlc.arg(path), sqlc.arg(rule_urls)::text[], sqlc.arg(target_count)
+    sqlc.arg(group_id), sqlc.arg(paths)::text[], sqlc.arg(rule_urls)::text[], sqlc.arg(target_count)
 )
 RETURNING *;
 
@@ -91,7 +91,7 @@ WITH filtered AS (
         yara_scans.group_id,
         groups.uuid AS group_uuid,
         groups.name AS group_name,
-        yara_scans.path,
+        yara_scans.paths,
         yara_scans.status,
         yara_scans.target_count,
         yara_scans.completed_count,
@@ -118,7 +118,7 @@ SELECT
     yara_scans.group_id,
     groups.uuid AS group_uuid,
     groups.name AS group_name,
-    yara_scans.path,
+    yara_scans.paths,
     yara_scans.status,
     yara_scans.target_count,
     yara_scans.completed_count,
@@ -148,7 +148,7 @@ RETURNING scan_id;
 SELECT
     yara_scans.id AS scan_id,
     yara_scans.uuid AS scan_uuid,
-    yara_scans.path,
+    yara_scans.paths,
     yara_scans.rule_urls
 FROM yara_scan_targets
 JOIN yara_scans ON yara_scans.id = yara_scan_targets.scan_id

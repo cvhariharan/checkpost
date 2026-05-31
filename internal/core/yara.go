@@ -101,9 +101,9 @@ func (c *Core) DeleteYaraSignatureSource(ctx context.Context, req models.Resourc
 }
 
 func (c *Core) CreateYaraScan(ctx context.Context, req models.YaraScanRequest) (models.YaraScan, error) {
-	pathPattern := strings.TrimSpace(req.Path)
-	if pathPattern == "" || strings.ContainsRune(pathPattern, '\x00') {
-		return models.YaraScan{}, fmt.Errorf("%w: path is required", ErrInvalidQuery)
+	paths, err := normalizeYaraPaths(req.Paths)
+	if err != nil {
+		return models.YaraScan{}, err
 	}
 
 	var groupID sql.NullInt64
@@ -122,7 +122,6 @@ func (c *Core) CreateYaraScan(ctx context.Context, req models.YaraScanRequest) (
 	}
 
 	var nodeIDs []int64
-	var err error
 	if groupUUID == uuid.Nil {
 		nodeIDs, err = c.store.ListAllNodeIDs(ctx)
 	} else {
@@ -135,31 +134,14 @@ func (c *Core) CreateYaraScan(ctx context.Context, req models.YaraScanRequest) (
 		return models.YaraScan{}, fmt.Errorf("%w: no machines match the selected group", ErrInvalidQuery)
 	}
 
-	if len(req.RuleURLs) == 0 {
-		return models.YaraScan{}, fmt.Errorf("%w: at least one YARA rule URL is required", ErrInvalidQuery)
-	}
-	ruleURLs := make([]string, 0, len(req.RuleURLs))
-	seen := make(map[string]struct{}, len(req.RuleURLs))
-	for _, raw := range req.RuleURLs {
-		ruleURL := strings.TrimSpace(raw)
-		if ruleURL == "" {
-			return models.YaraScan{}, fmt.Errorf("%w: YARA rule URL is required", ErrInvalidQuery)
-		}
-		key := strings.ToLower(ruleURL)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		parsed, err := url.Parse(ruleURL)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
-			return models.YaraScan{}, fmt.Errorf("%w: YARA rule URL must be https", ErrInvalidQuery)
-		}
-		seen[key] = struct{}{}
-		ruleURLs = append(ruleURLs, ruleURL)
+	ruleURLs, err := normalizeYaraRuleURLs(req.RuleURLs)
+	if err != nil {
+		return models.YaraScan{}, err
 	}
 
 	scan, err := c.store.CreateYaraScanTx(ctx, repo.CreateYaraScanTxParams{
 		GroupID:  groupID,
-		Path:     pathPattern,
+		Paths:    paths,
 		NodeIDs:  nodeIDs,
 		RuleURLs: ruleURLs,
 	})
@@ -197,6 +179,53 @@ func (c *Core) ListYaraScans(ctx context.Context, pageReq models.PageRequest) (m
 		TotalCount: totalCount,
 		PageCount:  pageCountFor(totalCount, count),
 	}, nil
+}
+
+func normalizeYaraPaths(rawPaths []string) ([]string, error) {
+	if len(rawPaths) == 0 {
+		return nil, fmt.Errorf("%w: at least one path is required", ErrInvalidQuery)
+	}
+	return dedup(rawPaths, func(path string) (string, error) {
+		if path == "" || strings.ContainsRune(path, '\x00') {
+			return "", fmt.Errorf("%w: path is required", ErrInvalidQuery)
+		}
+		return path, nil
+	})
+}
+
+func normalizeYaraRuleURLs(rawRuleURLs []string) ([]string, error) {
+	if len(rawRuleURLs) == 0 {
+		return nil, fmt.Errorf("%w: at least one YARA rule URL is required", ErrInvalidQuery)
+	}
+	return dedup(rawRuleURLs, func(ruleURL string) (string, error) {
+		if ruleURL == "" {
+			return "", fmt.Errorf("%w: YARA rule URL is required", ErrInvalidQuery)
+		}
+		parsed, err := url.Parse(ruleURL)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return "", fmt.Errorf("%w: YARA rule URL must be https", ErrInvalidQuery)
+		}
+		return strings.ToLower(ruleURL), nil
+	})
+}
+
+// dedup and trim spaces in values in a string array
+func dedup(values []string, keyFor func(string) (string, error)) ([]string, error) {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, raw := range values {
+		value := strings.TrimSpace(raw)
+		key, err := keyFor(value)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, value)
+	}
+	return out, nil
 }
 
 func (c *Core) GetYaraScan(ctx context.Context, req models.ResourceID) (models.YaraScan, error) {
@@ -288,18 +317,13 @@ func (c *Core) PendingYaraQueries(ctx context.Context, node models.Node) (map[st
 
 	queries := make(map[string]string, len(pending))
 	for _, item := range pending {
+		if len(item.Paths) == 0 {
+			return nil, fmt.Errorf("%w: no paths for scan", ErrInvalidQuery)
+		}
 		if len(item.RuleUrls) == 0 {
 			return nil, fmt.Errorf("%w: no YARA rule URLs for scan", ErrInvalidQuery)
 		}
-		parts := make([]string, 0, len(item.RuleUrls))
-		for _, ruleURL := range item.RuleUrls {
-			parts = append(parts, fmt.Sprintf(
-				"SELECT path, matches, count, sigurl FROM yara_file WHERE path LIKE '%s' AND sigurl = '%s' AND count > 0",
-				sqlString(item.Path),
-				sqlString(strings.TrimSpace(ruleURL)),
-			))
-		}
-		queries[yaraQueryPrefix+item.ScanUuid.String()] = strings.Join(parts, " UNION ALL ")
+		queries[yaraQueryPrefix+item.ScanUuid.String()] = yaraFileQuery(item.Paths, item.RuleUrls)
 		if err := c.store.MarkYaraScanTargetDispatched(ctx, repo.MarkYaraScanTargetDispatchedParams{
 			ScanID: item.ScanID,
 			NodeID: node.ID,
@@ -311,6 +335,22 @@ func (c *Core) PendingYaraQueries(ctx context.Context, node models.Node) (map[st
 		}
 	}
 	return queries, nil
+}
+
+func yaraFileQuery(paths []string, ruleURLs []string) string {
+	pathConditions := make([]string, 0, len(paths))
+	for _, path := range paths {
+		pathConditions = append(pathConditions, fmt.Sprintf("path LIKE '%s'", sqlString(strings.TrimSpace(path))))
+	}
+	parts := make([]string, 0, len(ruleURLs))
+	for _, ruleURL := range ruleURLs {
+		parts = append(parts, fmt.Sprintf(
+			"SELECT path, matches, count, sigurl FROM yara_file WHERE (%s) AND sigurl = '%s' AND count > 0",
+			strings.Join(pathConditions, " OR "),
+			sqlString(strings.TrimSpace(ruleURL)),
+		))
+	}
+	return strings.Join(parts, " UNION ALL ")
 }
 
 func (c *Core) completeYaraResult(ctx context.Context, node models.Node, queryID string, rows interface{}, errMsg string) (bool, error) {

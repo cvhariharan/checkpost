@@ -174,7 +174,7 @@ type YaraScan struct {
 	ID             int64         `db:"id" json:"id"`
 	Uuid           uuid.UUID     `db:"uuid" json:"uuid"`
 	GroupID        sql.NullInt64 `db:"group_id" json:"group_id"`
-	Path           string        `db:"path" json:"path"`
+	Paths          []string      `db:"paths" json:"paths"`
 	RuleUrls       []string      `db:"rule_urls" json:"rule_urls"`
 	Status         string        `db:"status" json:"status"`
 	TargetCount    int32         `db:"target_count" json:"target_count"`
