@@ -14,6 +14,7 @@ type Store interface {
 
 	CreatePolicyTx(ctx context.Context, params CreatePolicyTxParams) (Policy, error)
 	CreateScheduleTx(ctx context.Context, params CreateScheduleTxParams) (Schedule, error)
+	CreateYaraScanTx(ctx context.Context, params CreateYaraScanTxParams) (YaraScan, error)
 	InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error
 	ListNodesMatchingIdentity(ctx context.Context, term string) ([]MatchNodesByIdentityPatternRow, error)
 	PatchGroupNodesTx(ctx context.Context, params PatchGroupNodesTxParams) error
@@ -75,6 +76,13 @@ type CreateScheduleTxParams struct {
 type UpdateScheduleTxParams struct {
 	Schedule   UpdateScheduleByUUIDParams
 	GroupUUIDs []uuid.UUID
+}
+
+type CreateYaraScanTxParams struct {
+	GroupID  sql.NullInt64
+	Path     string
+	NodeIDs  []int64
+	RuleURLs []string
 }
 
 // ListNodesMatchingIdentity wraps the generated pattern lookup, applying
@@ -401,6 +409,40 @@ func (s *PostgresStore) UpdateScheduleTx(ctx context.Context, params UpdateSched
 	}
 
 	return schedule, nil
+}
+
+func (s *PostgresStore) CreateYaraScanTx(ctx context.Context, params CreateYaraScanTxParams) (YaraScan, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return YaraScan{}, fmt.Errorf("begin create yara scan transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	scan, err := q.CreateYaraScan(ctx, CreateYaraScanParams{
+		GroupID:     params.GroupID,
+		Path:        params.Path,
+		RuleUrls:    params.RuleURLs,
+		TargetCount: int32(len(params.NodeIDs)),
+	})
+	if err != nil {
+		return YaraScan{}, fmt.Errorf("create yara scan: %w", err)
+	}
+
+	for _, nodeID := range params.NodeIDs {
+		if err := q.CreateYaraScanTarget(ctx, CreateYaraScanTargetParams{
+			ScanID: scan.ID,
+			NodeID: nodeID,
+		}); err != nil {
+			return YaraScan{}, fmt.Errorf("create yara scan target: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return YaraScan{}, fmt.Errorf("commit create yara scan transaction: %w", err)
+	}
+
+	return scan, nil
 }
 
 func loadGroupsTx(ctx context.Context, q *Queries, groupUUIDs []uuid.UUID) ([]Group, error) {

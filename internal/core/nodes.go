@@ -88,12 +88,12 @@ func (c *Core) PaginateNodes(ctx context.Context, req models.NodeListRequest) (m
 	}
 
 	rows, err := c.store.ListNodes(ctx, repo.ListNodesParams{
-		Query:     strings.TrimSpace(req.Query),
-		Platform:  strings.TrimSpace(req.Platform),
-		OwnerUuid: strings.TrimSpace(req.OwnerID),
-		Assigned:  strings.TrimSpace(req.Assigned),
-		Limit:     int32(countPerPage),
-		Offset:    int32(page * countPerPage),
+		Query:       strings.TrimSpace(req.Query),
+		Platform:    strings.TrimSpace(req.Platform),
+		OwnerUuid:   strings.TrimSpace(req.OwnerID),
+		Assigned:    strings.TrimSpace(req.Assigned),
+		LimitCount:  int32(countPerPage),
+		OffsetCount: int32(page * countPerPage),
 	})
 	if err != nil {
 		return models.Page[models.Node]{}, fmt.Errorf("list nodes: %w", err)

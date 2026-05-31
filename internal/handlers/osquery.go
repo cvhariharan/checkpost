@@ -53,11 +53,16 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 	if err != nil {
 		return wrapError(http.StatusBadRequest, "error getting schedules for node", err, EnrollmentResponse{NodeInvalid: true})
 	}
+	yaraURLs, err := h.c.YaraSignatureURLAllowlist(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey})
+	if err != nil {
+		return wrapError(http.StatusBadRequest, "error getting YARA allowlist for node", err, EnrollmentResponse{NodeInvalid: true})
+	}
 
 	h.logger.Debug("config", "response", s)
 
 	osc := OSQueryConfigResponse{
 		Schedule: make(map[string]ScheduleConfig),
+		Yara:     YaraConfig{SignatureURLs: yaraURLs},
 	}
 	for _, sched := range s {
 		sc := ScheduleConfig{

@@ -9,7 +9,8 @@
     { href: '/inventory', label: 'Inventory', section: 'inventory' },
     { href: '/groups', label: 'Groups', section: 'groups' },
     { href: '/policies', label: 'Policies', section: 'policies' },
-    { href: '/schedules', label: 'Schedules', section: 'schedules' }
+    { href: '/schedules', label: 'Schedules', section: 'schedules' },
+    { href: '/yara', label: 'YARA', section: 'yara' }
   ]
 
   $: rootSection = $page.url.pathname.split('/')[1] || ''

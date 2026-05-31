@@ -383,6 +383,92 @@ type MachineQueryResult struct {
 	Error     string      `json:"error,omitempty"`
 }
 
+type YaraSignatureSource struct {
+	ID        string    `json:"id"`
+	UUID      string    `json:"uuid"`
+	GroupID   string    `json:"group_id,omitempty"`
+	GroupName string    `json:"group_name,omitempty"`
+	URL       string    `json:"url"`
+	Label     string    `json:"label"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type YaraSignatureSourceRequest struct {
+	UUID    string
+	GroupID string
+	URL     string
+	Label   string
+	Enabled bool
+}
+
+type YaraScanRequest struct {
+	Path     string
+	GroupID  string
+	RuleURLs []string
+}
+
+type YaraScan struct {
+	ID             string     `json:"id"`
+	UUID           string     `json:"uuid"`
+	GroupID        string     `json:"group_id,omitempty"`
+	GroupName      string     `json:"group_name,omitempty"`
+	Path           string     `json:"path"`
+	Status         string     `json:"status"`
+	TargetCount    int        `json:"target_count"`
+	CompletedCount int        `json:"completed_count"`
+	MatchCount     int        `json:"match_count"`
+	Error          string     `json:"error,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+}
+
+type YaraScanMatch struct {
+	MachineUUID string    `json:"machine_uuid"`
+	Hostname    string    `json:"hostname"`
+	Path        string    `json:"path"`
+	Matches     string    `json:"matches"`
+	Count       int       `json:"count"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type YaraScanTarget struct {
+	MachineUUID  string     `json:"machine_uuid"`
+	Hostname     string     `json:"hostname"`
+	Status       string     `json:"status"`
+	DispatchedAt *time.Time `json:"dispatched_at,omitempty"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	Error        string     `json:"error,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+type YaraSignatureSourcesResponse struct {
+	Sources    []YaraSignatureSource `json:"sources"`
+	TotalCount int                   `json:"total_count"`
+	PageCount  int                   `json:"page_count"`
+}
+
+type YaraScansResponse struct {
+	Scans      []YaraScan `json:"scans"`
+	TotalCount int        `json:"total_count"`
+	PageCount  int        `json:"page_count"`
+}
+
+type YaraScanMatchesResponse struct {
+	Matches    []YaraScanMatch `json:"matches"`
+	TotalCount int             `json:"total_count"`
+	PageCount  int             `json:"page_count"`
+}
+
+type YaraScanTargetsResponse struct {
+	Targets    []YaraScanTarget `json:"targets"`
+	TotalCount int              `json:"total_count"`
+	PageCount  int              `json:"page_count"`
+}
+
 type NodeKeyRequest struct {
 	NodeKey string
 }

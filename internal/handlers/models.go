@@ -322,6 +322,49 @@ type ScheduleResultsRequest struct {
 	Query string `query:"q" validate:"lte=4096"`
 }
 
+type YaraSignatureSourcesRequest struct {
+	Page  int `query:"page" validate:"gte=0"`
+	Count int `query:"count_per_page" validate:"gte=0"`
+}
+
+type CreateYaraSignatureSourceRequest struct {
+	GroupID string `json:"group_id" validate:"omitempty,uuid"`
+	URL     string `json:"url" validate:"required"`
+	Label   string `json:"label" validate:"lte=255"`
+	Enabled *bool  `json:"enabled"`
+}
+
+type UpdateYaraSignatureSourceRequest struct {
+	ID      string `param:"id" validate:"required,uuid"`
+	GroupID string `json:"group_id" validate:"omitempty,uuid"`
+	URL     string `json:"url" validate:"required"`
+	Label   string `json:"label" validate:"lte=255"`
+	Enabled *bool  `json:"enabled"`
+}
+
+type CreateYaraScanRequest struct {
+	Path     string   `json:"path" validate:"required"`
+	GroupID  string   `json:"group_id" validate:"omitempty,uuid"`
+	RuleURLs []string `json:"rule_urls" validate:"required,min=1,dive,required,url"`
+}
+
+type YaraScansRequest struct {
+	Page  int `query:"page" validate:"gte=0"`
+	Count int `query:"count_per_page" validate:"gte=0"`
+}
+
+type YaraScanMatchesRequest struct {
+	ID    string `param:"id" validate:"required,uuid"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0,lte=1000"`
+}
+
+type YaraScanTargetsRequest struct {
+	ID    string `param:"id" validate:"required,uuid"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0,lte=1000"`
+}
+
 type ConfigRequest struct {
 	NodeKey string `json:"node_key" validate:"required,uuid"`
 }
@@ -335,6 +378,11 @@ type ScheduleConfig struct {
 
 type OSQueryConfigResponse struct {
 	Schedule map[string]ScheduleConfig `json:"schedule"`
+	Yara     YaraConfig                `json:"yara,omitempty"`
+}
+
+type YaraConfig struct {
+	SignatureURLs []string `json:"signature_urls,omitempty"`
 }
 
 type LogRequest struct {

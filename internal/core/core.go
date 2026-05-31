@@ -17,8 +17,9 @@ var (
 )
 
 type Core struct {
-	store  repo.Store
-	logger *slog.Logger
+	store   repo.Store
+	logger  *slog.Logger
+	rootURL string
 
 	results       *results.Writer
 	resultsReader *results.Reader
@@ -33,6 +34,7 @@ func NewCore(logger *slog.Logger, store repo.Store, writer *results.Writer, read
 	return &Core{
 		store:                store,
 		logger:               logger.WithGroup("core"),
+		rootURL:              cfg.RootURL,
 		results:              writer,
 		resultsReader:        reader,
 		systemMetrics:        DefaultSystemMetrics(),

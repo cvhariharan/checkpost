@@ -47,10 +47,17 @@ func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyReq
 	if err != nil {
 		return nil, err
 	}
+	yaraQueries, err := c.PendingYaraQueries(ctx, node)
+	if err != nil {
+		return nil, err
+	}
 
-	queries := make(map[string]string, len(pending))
+	queries := make(map[string]string, len(pending)+len(yaraQueries))
 	for _, item := range pending {
 		queries[item.ID] = item.Query
+	}
+	for id, query := range yaraQueries {
+		queries[id] = query
 	}
 
 	if policyDue {
@@ -75,19 +82,54 @@ func (c *Core) WriteDistributedQueryResults(ctx context.Context, req models.Node
 		return err
 	}
 
+	yaraErr := c.deliverYaraResults(ctx, node, results, statuses, messages)
 	adHocErr := c.deliverAdHocResults(ctx, node, results, statuses, messages)
 	policyErr := c.recordPolicyResults(ctx, node, results, statuses, messages)
 
+	if yaraErr != nil {
+		return yaraErr
+	}
 	if adHocErr != nil {
 		return adHocErr
 	}
 	return policyErr
 }
 
+func (c *Core) deliverYaraResults(ctx context.Context, node models.Node, results map[string]interface{}, statuses, messages map[string]string) error {
+	var firstErr error
+	seen := make(map[string]struct{}, len(results)+len(statuses))
+	for queryID, rows := range results {
+		seen[queryID] = struct{}{}
+		handled, err := c.completeYaraResult(ctx, node, queryID, rows, distributedErrorMessage(statuses[queryID], messages[queryID]))
+		if handled && err != nil {
+			c.logger.Error("record yara query result", "node_id", node.ID, "query_id", queryID, "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	for queryID, status := range statuses {
+		if _, ok := seen[queryID]; ok || !strings.HasPrefix(queryID, yaraQueryPrefix) {
+			continue
+		}
+		handled, err := c.completeYaraResult(ctx, node, queryID, nil, distributedErrorMessage(status, messages[queryID]))
+		if handled && err != nil {
+			c.logger.Error("record yara query status", "node_id", node.ID, "query_id", queryID, "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
 func (c *Core) deliverAdHocResults(ctx context.Context, node models.Node, results map[string]interface{}, statuses, messages map[string]string) error {
 	var firstErr error
 	for queryID, rows := range results {
 		if isPolicyDistributedQuery(queryID) {
+			continue
+		}
+		if strings.HasPrefix(queryID, yaraQueryPrefix) {
 			continue
 		}
 		_, _, err := c.completeAdHocResult(ctx, queryID, rows, distributedErrorMessage(statuses[queryID], messages[queryID]))

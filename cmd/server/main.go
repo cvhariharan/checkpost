@@ -134,6 +134,16 @@ func main() {
 	api.POST("/machines/:id/queries", h.HandleExecuteMachineQuery)
 	api.GET("/machines/:id", h.HandleGetMachine)
 
+	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources)
+	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource)
+	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource)
+	api.DELETE("/yara/signature-sources/:id", h.HandleDeleteYaraSignatureSource)
+	api.POST("/yara/scans", h.HandleCreateYaraScan)
+	api.GET("/yara/scans", h.HandleYaraScans)
+	api.GET("/yara/scans/:id", h.HandleGetYaraScan)
+	api.GET("/yara/scans/:id/matches", h.HandleYaraScanMatches)
+	api.GET("/yara/scans/:id/targets", h.HandleYaraScanTargets)
+
 	osqueryAPI := api.Group("/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 	osqueryAPI.POST("/config", h.HandleOSQueryConfig)

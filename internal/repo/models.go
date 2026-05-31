@@ -169,3 +169,51 @@ type ScheduleGroup struct {
 	GroupID    int64     `db:"group_id" json:"group_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 }
+
+type YaraScan struct {
+	ID             int64         `db:"id" json:"id"`
+	Uuid           uuid.UUID     `db:"uuid" json:"uuid"`
+	GroupID        sql.NullInt64 `db:"group_id" json:"group_id"`
+	Path           string        `db:"path" json:"path"`
+	RuleUrls       []string      `db:"rule_urls" json:"rule_urls"`
+	Status         string        `db:"status" json:"status"`
+	TargetCount    int32         `db:"target_count" json:"target_count"`
+	CompletedCount int32         `db:"completed_count" json:"completed_count"`
+	MatchCount     int32         `db:"match_count" json:"match_count"`
+	Error          string        `db:"error" json:"error"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	CompletedAt    sql.NullTime  `db:"completed_at" json:"completed_at"`
+}
+
+type YaraScanMatch struct {
+	ID        int64     `db:"id" json:"id"`
+	ScanID    int64     `db:"scan_id" json:"scan_id"`
+	NodeID    int64     `db:"node_id" json:"node_id"`
+	Path      string    `db:"path" json:"path"`
+	Matches   string    `db:"matches" json:"matches"`
+	Count     int32     `db:"count" json:"count"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+type YaraScanTarget struct {
+	ScanID       int64        `db:"scan_id" json:"scan_id"`
+	NodeID       int64        `db:"node_id" json:"node_id"`
+	Status       string       `db:"status" json:"status"`
+	DispatchedAt sql.NullTime `db:"dispatched_at" json:"dispatched_at"`
+	CompletedAt  sql.NullTime `db:"completed_at" json:"completed_at"`
+	Error        string       `db:"error" json:"error"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time    `db:"updated_at" json:"updated_at"`
+}
+
+type YaraSignatureSource struct {
+	ID        int64         `db:"id" json:"id"`
+	Uuid      uuid.UUID     `db:"uuid" json:"uuid"`
+	GroupID   sql.NullInt64 `db:"group_id" json:"group_id"`
+	Url       string        `db:"url" json:"url"`
+	Label     string        `db:"label" json:"label"`
+	Enabled   bool          `db:"enabled" json:"enabled"`
+	CreatedAt time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
+}

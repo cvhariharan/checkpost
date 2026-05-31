@@ -182,25 +182,25 @@ WITH filtered AS (
     LEFT JOIN node_inventory ON node_inventory.node_id = nodes.id
     LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
     WHERE (
-        $1::text = ''
-        OR nodes.hostname ILIKE '%' || $1::text || '%'
-        OR nodes.host_identifier ILIKE '%' || $1::text || '%'
-        OR node_inventory.internal_tracking_id ILIKE '%' || $1::text || '%'
-        OR device_owners.display_name ILIKE '%' || $1::text || '%'
-        OR device_owners.email ILIKE '%' || $1::text || '%'
-    )
-      AND (
-        $2::text = ''
-        OR nodes.platform = $2::text
-    )
-      AND (
         $3::text = ''
-        OR device_owners.uuid::text = $3::text
+        OR nodes.hostname ILIKE '%' || $3::text || '%'
+        OR nodes.host_identifier ILIKE '%' || $3::text || '%'
+        OR node_inventory.internal_tracking_id ILIKE '%' || $3::text || '%'
+        OR device_owners.display_name ILIKE '%' || $3::text || '%'
+        OR device_owners.email ILIKE '%' || $3::text || '%'
     )
       AND (
         $4::text = ''
-        OR ($4::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
-        OR ($4::text = 'unassigned' AND node_inventory.owner_id IS NULL)
+        OR nodes.platform = $4::text
+    )
+      AND (
+        $5::text = ''
+        OR device_owners.uuid::text = $5::text
+    )
+      AND (
+        $6::text = ''
+        OR ($6::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
+        OR ($6::text = 'unassigned' AND node_inventory.owner_id IS NULL)
     )
 ),
 total AS (
@@ -209,16 +209,16 @@ total AS (
 SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
-LIMIT $5 OFFSET $6
+LIMIT $2 OFFSET $1
 `
 
 type ListNodesParams struct {
-	Query     string `db:"query" json:"query"`
-	Platform  string `db:"platform" json:"platform"`
-	OwnerUuid string `db:"owner_uuid" json:"owner_uuid"`
-	Assigned  string `db:"assigned" json:"assigned"`
-	Limit     int32  `db:"limit" json:"limit"`
-	Offset    int32  `db:"offset" json:"offset"`
+	OffsetCount int32  `db:"offset_count" json:"offset_count"`
+	LimitCount  int32  `db:"limit_count" json:"limit_count"`
+	Query       string `db:"query" json:"query"`
+	Platform    string `db:"platform" json:"platform"`
+	OwnerUuid   string `db:"owner_uuid" json:"owner_uuid"`
+	Assigned    string `db:"assigned" json:"assigned"`
 }
 
 type ListNodesRow struct {
@@ -242,12 +242,12 @@ type ListNodesRow struct {
 
 func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNodes,
+		arg.OffsetCount,
+		arg.LimitCount,
 		arg.Query,
 		arg.Platform,
 		arg.OwnerUuid,
 		arg.Assigned,
-		arg.Limit,
-		arg.Offset,
 	)
 	if err != nil {
 		return nil, err

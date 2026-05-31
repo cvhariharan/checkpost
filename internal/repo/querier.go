@@ -6,6 +6,7 @@ package repo
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -13,6 +14,7 @@ import (
 type Querier interface {
 	BumpScheduleVersion(ctx context.Context, id int64) (BumpScheduleVersionRow, error)
 	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
+	CompleteYaraScanTarget(ctx context.Context, arg CompleteYaraScanTargetParams) error
 	CreateDeviceOwner(ctx context.Context, arg CreateDeviceOwnerParams) (DeviceOwner, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMembership(ctx context.Context, arg CreateGroupMembershipParams) error
@@ -23,6 +25,9 @@ type Querier interface {
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
+	CreateYaraScan(ctx context.Context, arg CreateYaraScanParams) (YaraScan, error)
+	CreateYaraScanTarget(ctx context.Context, arg CreateYaraScanTargetParams) error
+	CreateYaraSignatureSource(ctx context.Context, arg CreateYaraSignatureSourceParams) (YaraSignatureSource, error)
 	DeleteDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteGroupMembershipForNode(ctx context.Context, arg DeleteGroupMembershipForNodeParams) error
@@ -35,6 +40,8 @@ type Querier interface {
 	DeleteQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
+	DeleteYaraSignatureSourceByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	ErrorYaraScanTarget(ctx context.Context, arg ErrorYaraScanTargetParams) error
 	GetDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (DeviceOwner, error)
 	GetDeviceOwnerWithCountsByUUID(ctx context.Context, ownerUuid uuid.UUID) (GetDeviceOwnerWithCountsByUUIDRow, error)
 	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
@@ -48,16 +55,23 @@ type Querier interface {
 	GetQuerySchema(ctx context.Context, arg GetQuerySchemaParams) (QuerySchema, error)
 	GetScheduleByName(ctx context.Context, name string) (Schedule, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
+	GetYaraScanByUUID(ctx context.Context, argUuid uuid.UUID) (GetYaraScanByUUIDRow, error)
+	GetYaraSignatureSourceByUUID(ctx context.Context, argUuid uuid.UUID) (YaraSignatureSource, error)
+	InsertYaraScanMatch(ctx context.Context, arg InsertYaraScanMatchParams) error
+	ListAllNodeIDs(ctx context.Context) ([]int64, error)
 	ListAllQuerySchemas(ctx context.Context) ([]ListAllQuerySchemasRow, error)
 	ListDeviceOwnersWithCounts(ctx context.Context, arg ListDeviceOwnersWithCountsParams) ([]ListDeviceOwnersWithCountsRow, error)
+	ListEnabledDefaultYaraSignatureSources(ctx context.Context) ([]YaraSignatureSource, error)
 	ListEnabledPoliciesForNode(ctx context.Context, arg ListEnabledPoliciesForNodeParams) ([]Policy, error)
 	ListEnabledSchedules(ctx context.Context, limit int32) ([]Schedule, error)
 	ListEnabledSchedulesForNode(ctx context.Context, arg ListEnabledSchedulesForNodeParams) ([]Schedule, error)
+	ListEnabledYaraSignatureSourcesByGroupID(ctx context.Context, groupID sql.NullInt64) ([]YaraSignatureSource, error)
 	ListGroupsForNode(ctx context.Context, nodeUuid uuid.UUID) ([]Group, error)
 	ListGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) ([]Group, error)
 	ListGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]Group, error)
 	ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error)
 	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
+	ListNodeIDsByGroupUUID(ctx context.Context, argUuid uuid.UUID) ([]int64, error)
 	ListNodeInventoriesByNodeUUIDs(ctx context.Context, nodeUuids []uuid.UUID) ([]ListNodeInventoriesByNodeUUIDsRow, error)
 	ListNodeMetricsByNodeUUID(ctx context.Context, argUuid uuid.UUID) ([]ListNodeMetricsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
@@ -66,15 +80,24 @@ type Querier interface {
 	ListNodesByOwner(ctx context.Context, arg ListNodesByOwnerParams) ([]ListNodesByOwnerRow, error)
 	ListNodesByPolicyResponse(ctx context.Context, arg ListNodesByPolicyResponseParams) ([]ListNodesByPolicyResponseRow, error)
 	ListPendingMachineQueryResults(ctx context.Context, nodeID int64) ([]MachineQueryResult, error)
+	ListPendingYaraScanTargetsForNode(ctx context.Context, nodeID int64) ([]ListPendingYaraScanTargetsForNodeRow, error)
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
 	ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error)
 	ListQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]QuerySchema, error)
 	ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error)
 	ListSchedules(ctx context.Context, arg ListSchedulesParams) ([]ListSchedulesRow, error)
 	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
+	ListYaraScanMatches(ctx context.Context, arg ListYaraScanMatchesParams) ([]ListYaraScanMatchesRow, error)
+	ListYaraScanTargets(ctx context.Context, arg ListYaraScanTargetsParams) ([]ListYaraScanTargetsRow, error)
+	ListYaraScans(ctx context.Context, arg ListYaraScansParams) ([]ListYaraScansRow, error)
+	ListYaraSignatureSources(ctx context.Context, arg ListYaraSignatureSourcesParams) ([]ListYaraSignatureSourcesRow, error)
 	MarkMachineQueryResultsDispatched(ctx context.Context, ids []int64) error
+	MarkYaraScanRunning(ctx context.Context, id int64) error
+	MarkYaraScanTargetDispatched(ctx context.Context, arg MarkYaraScanTargetDispatchedParams) error
 	// @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
 	MatchNodesByIdentityPattern(ctx context.Context, arg MatchNodesByIdentityPatternParams) ([]MatchNodesByIdentityPatternRow, error)
+	RefreshYaraScanStats(ctx context.Context, scanID int64) error
+	TimeoutStaleYaraScanTargets(ctx context.Context, timeout string) ([]int64, error)
 	TouchNode(ctx context.Context, nodeKey uuid.UUID) error
 	UpdateDeviceOwnerByUUID(ctx context.Context, arg UpdateDeviceOwnerByUUIDParams) (DeviceOwner, error)
 	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
@@ -82,6 +105,7 @@ type Querier interface {
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
+	UpdateYaraSignatureSourceByUUID(ctx context.Context, arg UpdateYaraSignatureSourceByUUIDParams) (YaraSignatureSource, error)
 	UpsertNodeInventory(ctx context.Context, arg UpsertNodeInventoryParams) (NodeInventory, error)
 	UpsertNodeMetric(ctx context.Context, arg UpsertNodeMetricParams) error
 	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error

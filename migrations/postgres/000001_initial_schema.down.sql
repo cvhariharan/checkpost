@@ -1,3 +1,7 @@
+DROP TABLE IF EXISTS yara_scan_matches;
+DROP TABLE IF EXISTS yara_scan_targets;
+DROP TABLE IF EXISTS yara_scans;
+DROP TABLE IF EXISTS yara_signature_sources;
 DROP TABLE IF EXISTS node_metrics;
 DROP TABLE IF EXISTS query_schemas;
 DROP TABLE IF EXISTS schedule_groups;

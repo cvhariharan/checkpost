@@ -88,6 +88,54 @@ export type MachineQueryRecord = {
   timestamp?: string
 }
 
+export type YaraSignatureSource = {
+  id: string
+  uuid: string
+  group_id?: string
+  group_name?: string
+  url: string
+  label?: string
+  enabled?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export type YaraScan = {
+  id: string
+  uuid: string
+  group_id?: string
+  group_name?: string
+  path: string
+  status: string
+  target_count?: number
+  completed_count?: number
+  match_count?: number
+  error?: string
+  created_at?: string
+  updated_at?: string
+  completed_at?: string
+}
+
+export type YaraScanMatch = {
+  machine_uuid?: string
+  hostname?: string
+  path?: string
+  matches?: string
+  count?: number
+  created_at?: string
+}
+
+export type YaraScanTarget = {
+  machine_uuid?: string
+  hostname?: string
+  status?: string
+  dispatched_at?: string
+  completed_at?: string
+  error?: string
+  created_at?: string
+  updated_at?: string
+}
+
 export type MachinePolicyPosture = {
   uuid?: string
   name?: string
@@ -332,6 +380,57 @@ export function patchGroupMachines(
     'PATCH',
     { add_node_ids: changes.add ?? [], remove_node_ids: changes.remove ?? [] }
   )
+}
+
+// YARA
+export function fetchYaraSignatureSources(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 100 } = opts
+  return fetch(apiUrl('/yara/signature-sources', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<YaraSignatureSource, 'sources'>>(r)
+  )
+}
+
+export function createYaraSignatureSource(payload: Record<string, unknown>) {
+  return jsonRequest<YaraSignatureSource>('/yara/signature-sources', 'POST', payload)
+}
+
+export function updateYaraSignatureSource(uuid: string, payload: Record<string, unknown>) {
+  return jsonRequest<YaraSignatureSource>(
+    `/yara/signature-sources/${encodeURIComponent(uuid)}`,
+    'PUT',
+    payload
+  )
+}
+
+export function deleteYaraSignatureSource(uuid: string) {
+  return fetch(`${BASE_URL}/yara/signature-sources/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
+export function createYaraScan(payload: { path: string; group_id?: string; rule_urls: string[] }) {
+  return jsonRequest<YaraScan>('/yara/scans', 'POST', payload)
+}
+
+export function fetchYaraScans(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 10 } = opts
+  return fetch(apiUrl('/yara/scans', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<YaraScan, 'scans'>>(r)
+  )
+}
+
+export function fetchYaraScanMatches(uuid: string, opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 100 } = opts
+  return fetch(
+    apiUrl(`/yara/scans/${encodeURIComponent(uuid)}/matches`, { page, count_per_page: countPerPage })
+  ).then((r) => handleResponse<Paginated<YaraScanMatch, 'matches'>>(r))
+}
+
+export function fetchYaraScanTargets(uuid: string, opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 1000 } = opts
+  return fetch(
+    apiUrl(`/yara/scans/${encodeURIComponent(uuid)}/targets`, { page, count_per_page: countPerPage })
+  ).then((r) => handleResponse<Paginated<YaraScanTarget, 'targets'>>(r))
 }
 
 // Owners and inventory

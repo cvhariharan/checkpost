@@ -95,4 +95,4 @@ total AS (
 SELECT filtered.*, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
-LIMIT @limit OFFSET @offset;
+LIMIT @limit_count OFFSET @offset_count;

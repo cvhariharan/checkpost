@@ -166,6 +166,89 @@ CREATE TABLE group_membership (
 CREATE INDEX group_membership_node_idx ON group_membership (node_id);
 CREATE INDEX group_membership_group_idx ON group_membership (group_id);
 
+CREATE TABLE yara_signature_sources (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    group_id BIGINT REFERENCES groups (id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT yara_signature_sources_uuid_unique UNIQUE (uuid),
+    CONSTRAINT yara_signature_sources_url_nonempty CHECK (length(trim(url)) > 0)
+);
+
+CREATE UNIQUE INDEX yara_signature_sources_default_url_unique_idx
+    ON yara_signature_sources (lower(trim(url)))
+    WHERE group_id IS NULL;
+
+CREATE UNIQUE INDEX yara_signature_sources_group_url_unique_idx
+    ON yara_signature_sources (group_id, lower(trim(url)))
+    WHERE group_id IS NOT NULL;
+
+CREATE INDEX yara_signature_sources_group_idx ON yara_signature_sources (group_id);
+CREATE INDEX yara_signature_sources_enabled_idx ON yara_signature_sources (enabled);
+
+CREATE TABLE yara_scans (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    group_id BIGINT REFERENCES groups (id) ON DELETE SET NULL,
+    path TEXT NOT NULL,
+    rule_urls TEXT[] NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    target_count INTEGER NOT NULL DEFAULT 0,
+    completed_count INTEGER NOT NULL DEFAULT 0,
+    match_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    completed_at TIMESTAMPTZ,
+
+    CONSTRAINT yara_scans_uuid_unique UNIQUE (uuid),
+    CONSTRAINT yara_scans_path_nonempty CHECK (length(trim(path)) > 0),
+    CONSTRAINT yara_scans_rule_urls_nonempty CHECK (COALESCE(array_length(rule_urls, 1), 0) > 0),
+    CONSTRAINT yara_scans_status_check CHECK (status IN ('pending', 'running', 'complete', 'partial', 'error'))
+);
+
+CREATE INDEX yara_scans_created_at_idx ON yara_scans (created_at DESC);
+CREATE INDEX yara_scans_status_idx ON yara_scans (status);
+
+CREATE TABLE yara_scan_targets (
+    scan_id BIGINT NOT NULL REFERENCES yara_scans (id) ON DELETE CASCADE,
+    node_id BIGINT NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    dispatched_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    PRIMARY KEY (scan_id, node_id),
+    CONSTRAINT yara_scan_targets_status_check CHECK (status IN ('pending', 'dispatched', 'complete', 'error'))
+);
+
+CREATE INDEX yara_scan_targets_node_status_created_idx ON yara_scan_targets (node_id, status, created_at);
+CREATE INDEX yara_scan_targets_scan_status_idx ON yara_scan_targets (scan_id, status);
+
+CREATE TABLE yara_scan_matches (
+    id BIGSERIAL PRIMARY KEY,
+    scan_id BIGINT NOT NULL REFERENCES yara_scans (id) ON DELETE CASCADE,
+    node_id BIGINT NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    matches TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT yara_scan_matches_count_positive CHECK (count > 0),
+    CONSTRAINT yara_scan_matches_matches_nonempty CHECK (length(trim(matches)) > 0)
+);
+
+CREATE INDEX yara_scan_matches_scan_idx ON yara_scan_matches (scan_id);
+CREATE INDEX yara_scan_matches_node_idx ON yara_scan_matches (node_id);
+CREATE INDEX yara_scan_matches_created_at_idx ON yara_scan_matches (created_at DESC);
+
 CREATE TABLE device_owners (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuidv7(),
