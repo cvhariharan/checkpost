@@ -1,7 +1,7 @@
 # Watcher developer tasks. Run `make` (or `make help`) to list targets.
 
 BINARY      := watcher
-COMPOSE_DEV := docker compose -f docker-compose.yml -f dev/docker-compose.yml
+COMPOSE_DEV := docker compose -f dev/docker-compose.yml
 
 # Inputs that, when changed, should trigger a rebuild.
 WEB_DIST    := web/dist/index.html
@@ -35,7 +35,7 @@ dev: ## Start the full dev stack (watcher, postgres, dex, mailhog, osquery agent
 	$(COMPOSE_DEV) up --build -d
 
 dev-down: ## Stop the dev stack and remove its volumes
-	$(COMPOSE_DEV) down
+	$(COMPOSE_DEV) down -v
 
 up: ## Quick start: watcher + postgres over HTTPS
 	docker compose up --build

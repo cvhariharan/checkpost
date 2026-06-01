@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// AlertTarget is a delivery destination (smtp). Config is opaque to the engine.
+// AlertTarget is a delivery destination. Config is opaque to the engine.
 type AlertTarget struct {
 	UUID      string          `json:"uuid"`
 	Name      string          `json:"name"`

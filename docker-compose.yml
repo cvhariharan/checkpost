@@ -1,11 +1,3 @@
-# Quick start: Watcher + PostgreSQL over HTTPS (self-signed dev cert).
-#
-#   docker compose up --build
-#   open https://localhost:1323   (default login: watcher_admin / watcher_password)
-#
-# For the full local dev stack (SSO via dex, MailHog for alert email, osquery
-# test agents), layer the dev overlay on top — see dev/README.md:
-#   docker compose -f docker-compose.yml -f dev/docker-compose.yml up --build
 services:
   watcher:
     build:

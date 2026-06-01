@@ -515,7 +515,7 @@ CREATE TABLE alert_targets (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT alert_targets_uuid_unique UNIQUE (uuid),
     CONSTRAINT alert_targets_name_unique UNIQUE (name),
-    CONSTRAINT alert_targets_type_check CHECK (type IN ('smtp'))
+    CONSTRAINT alert_targets_type_check CHECK (type IN ('smtp', 'webhook'))
 );
 
 CREATE TABLE alert_rules (

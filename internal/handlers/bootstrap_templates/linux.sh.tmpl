@@ -21,6 +21,12 @@ require_root() {
   fi
 }
 
+cleanup_package() {
+  if [[ -n "${PACKAGE_PATH:-}" ]]; then
+    rm -f "${PACKAGE_PATH}"
+  fi
+}
+
 download_file() {
   local url="$1"
   local output="$2"
@@ -129,20 +135,19 @@ install_osquery_if_missing() {
 
   local family
   local arch
-  local package_path
   family="$(package_family)"
   arch="$(arch_key)"
   select_package "${family}" "${arch}"
 
-  package_path="$(mktemp "/tmp/watcher-osquery.XXXXXX.${PACKAGE_EXT}")"
-  trap 'rm -f "${package_path}"' EXIT
-  download_file "${PACKAGE_URL}" "${package_path}"
-  verify_sha256 "${package_path}" "${PACKAGE_SHA256}"
+  PACKAGE_PATH="$(mktemp "/tmp/watcher-osquery.XXXXXX.${PACKAGE_EXT}")"
+  trap cleanup_package EXIT
+  download_file "${PACKAGE_URL}" "${PACKAGE_PATH}"
+  verify_sha256 "${PACKAGE_PATH}" "${PACKAGE_SHA256}"
 
   if [[ "${family}" == "deb" ]]; then
-    install_deb "${package_path}"
+    install_deb "${PACKAGE_PATH}"
   else
-    install_rpm "${package_path}"
+    install_rpm "${PACKAGE_PATH}"
   fi
 }
 

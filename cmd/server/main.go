@@ -115,6 +115,7 @@ func main() {
 			log.Fatalf("could not initialize smtp notifier: %v", err)
 		}
 		alerts.RegisterNotifier(smtpNotifier)
+		alerts.RegisterNotifier(alerts.NewWebhookNotifier())
 
 		alertEngine := alerts.NewEngine(store, logger)
 		alertEngine.Start()

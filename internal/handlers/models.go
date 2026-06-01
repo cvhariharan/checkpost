@@ -11,7 +11,7 @@ import (
 
 type CreateAlertTargetRequest struct {
 	Name    string          `json:"name" validate:"required"`
-	Type    string          `json:"type" validate:"required,oneof=smtp"`
+	Type    string          `json:"type" validate:"required,oneof=smtp webhook"`
 	Config  json.RawMessage `json:"config"`
 	Enabled *bool           `json:"enabled"`
 }
