@@ -7,9 +7,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Trust the Watcher test server certificate so the installer's HTTPS download validates.
-COPY server_cert.pem /usr/local/share/ca-certificates/watcher-test.crt
+# Build context is the repo root (see dev/docker-compose.yml).
+COPY testdata/server_cert.pem /usr/local/share/ca-certificates/watcher-test.crt
 RUN update-ca-certificates
 
 # osquery ignores the system trust store, so also keep the cert at a fixed path the
 # enrollment flags can point at via --tls_server_certs.
-COPY server_cert.pem /etc/osquery-tls/server.pem
+COPY testdata/server_cert.pem /etc/osquery-tls/server.pem

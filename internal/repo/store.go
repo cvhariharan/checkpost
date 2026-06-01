@@ -22,6 +22,8 @@ type Store interface {
 	UpdateNodeInventoryTx(ctx context.Context, params UpdateNodeInventoryTxParams) (GetNodeInventoryByNodeUUIDRow, error)
 	UpdatePolicyTx(ctx context.Context, params UpdatePolicyTxParams) (Policy, error)
 	UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error)
+	CreateAlertRuleTx(ctx context.Context, params CreateAlertRuleTxParams) (AlertRule, error)
+	UpdateAlertRuleTx(ctx context.Context, params UpdateAlertRuleTxParams) (AlertRule, error)
 }
 
 type PostgresStore struct {
@@ -443,6 +445,74 @@ func (s *PostgresStore) CreateYaraScanTx(ctx context.Context, params CreateYaraS
 	}
 
 	return scan, nil
+}
+
+type CreateAlertRuleTxParams struct {
+	Rule        CreateAlertRuleParams
+	TargetUUIDs []uuid.UUID
+}
+
+type UpdateAlertRuleTxParams struct {
+	Rule        UpdateAlertRuleByUUIDParams
+	TargetUUIDs []uuid.UUID
+}
+
+func (s *PostgresStore) CreateAlertRuleTx(ctx context.Context, params CreateAlertRuleTxParams) (AlertRule, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return AlertRule{}, fmt.Errorf("begin create alert rule transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	rule, err := q.CreateAlertRule(ctx, params.Rule)
+	if err != nil {
+		return AlertRule{}, fmt.Errorf("create alert rule: %w", err)
+	}
+	if err := linkAlertTargetsTx(ctx, q, rule.ID, params.TargetUUIDs); err != nil {
+		return AlertRule{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return AlertRule{}, fmt.Errorf("commit create alert rule transaction: %w", err)
+	}
+	return rule, nil
+}
+
+func (s *PostgresStore) UpdateAlertRuleTx(ctx context.Context, params UpdateAlertRuleTxParams) (AlertRule, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return AlertRule{}, fmt.Errorf("begin update alert rule transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	rule, err := q.UpdateAlertRuleByUUID(ctx, params.Rule)
+	if err != nil {
+		return AlertRule{}, fmt.Errorf("update alert rule: %w", err)
+	}
+	if err := q.DeleteAlertRuleTargetsForRule(ctx, rule.ID); err != nil {
+		return AlertRule{}, fmt.Errorf("clear alert rule targets: %w", err)
+	}
+	if err := linkAlertTargetsTx(ctx, q, rule.ID, params.TargetUUIDs); err != nil {
+		return AlertRule{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return AlertRule{}, fmt.Errorf("commit update alert rule transaction: %w", err)
+	}
+	return rule, nil
+}
+
+func linkAlertTargetsTx(ctx context.Context, q *Queries, ruleID int64, targetUUIDs []uuid.UUID) error {
+	for _, tu := range targetUUIDs {
+		target, err := q.GetAlertTargetByUUID(ctx, tu)
+		if err != nil {
+			return fmt.Errorf("get alert target %s: %w", tu, err)
+		}
+		if err := q.CreateAlertRuleTarget(ctx, CreateAlertRuleTargetParams{RuleID: ruleID, TargetID: target.ID}); err != nil {
+			return fmt.Errorf("attach alert rule target: %w", err)
+		}
+	}
+	return nil
 }
 
 func loadGroupsTx(ctx context.Context, q *Queries, groupUUIDs []uuid.UUID) ([]Group, error) {

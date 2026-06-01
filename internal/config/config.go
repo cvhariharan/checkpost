@@ -8,6 +8,21 @@ type Config struct {
 	SessionConfig SessionConfig
 	DBConfig      DBConfig
 	DataConfig    DataConfig
+	AlertsConfig  AlertsConfig
+}
+
+type AlertsConfig struct {
+	Enabled bool
+	SMTP    SMTPConfig
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
+	TLS      string // starttls | implicit | none
 }
 
 type AppConfig struct {

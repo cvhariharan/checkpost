@@ -24,7 +24,9 @@
     { href: '/groups', label: 'Groups', section: 'groups', resource: 'machine_group', action: 'view' },
     { href: '/policies', label: 'Policies', section: 'policies', resource: 'policy', action: 'view' },
     { href: '/schedules', label: 'Schedules', section: 'schedules', resource: 'schedule', action: 'view' },
-    { href: '/yara', label: 'YARA', section: 'yara', resource: 'yara_source', action: 'view' }
+    { href: '/yara', label: 'YARA', section: 'yara', resource: 'yara_source', action: 'view' },
+    { href: '/alerts', label: 'Alerts', section: 'alerts', resource: 'alert_rule', action: 'view' },
+    { href: '/alert-targets', label: 'Alert Targets', section: 'alert-targets', resource: 'alert_target', action: 'view' }
   ]
 
   const adminItems: NavItem[] = [

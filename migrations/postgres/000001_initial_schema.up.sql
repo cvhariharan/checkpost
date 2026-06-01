@@ -501,3 +501,61 @@ ON CONFLICT (name) DO UPDATE SET
     snapshot = EXCLUDED.snapshot,
     is_system = EXCLUDED.is_system,
     updated_at = now();
+
+-- ALERTING ----------------------------------------------------------------
+
+CREATE TABLE alert_targets (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    config JSONB NOT NULL DEFAULT '{}'::jsonb,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT alert_targets_uuid_unique UNIQUE (uuid),
+    CONSTRAINT alert_targets_name_unique UNIQUE (name),
+    CONSTRAINT alert_targets_type_check CHECK (type IN ('smtp'))
+);
+
+CREATE TABLE alert_rules (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL,
+    params JSONB NOT NULL DEFAULT '{}'::jsonb,
+    severity TEXT NOT NULL DEFAULT 'medium',
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    evaluation_interval_seconds INT NOT NULL DEFAULT 300,
+    for_seconds INT NOT NULL DEFAULT 0,
+    repeat_interval_seconds INT NOT NULL DEFAULT 0,
+    last_evaluated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT alert_rules_uuid_unique UNIQUE (uuid),
+    CONSTRAINT alert_rules_name_unique UNIQUE (name),
+    CONSTRAINT alert_rules_severity_check CHECK (severity IN ('critical','high','medium','low','info')),
+    CONSTRAINT alert_rules_eval_check CHECK (evaluation_interval_seconds >= 60),
+    CONSTRAINT alert_rules_for_check CHECK (for_seconds >= 0),
+    CONSTRAINT alert_rules_repeat_check CHECK (repeat_interval_seconds >= 0)
+);
+
+CREATE TABLE alert_rule_targets (
+    rule_id BIGINT NOT NULL REFERENCES alert_rules (id) ON DELETE CASCADE,
+    target_id BIGINT NOT NULL REFERENCES alert_targets (id) ON DELETE CASCADE,
+    PRIMARY KEY (rule_id, target_id)
+);
+
+CREATE TABLE alert_state (
+    rule_id BIGINT NOT NULL REFERENCES alert_rules (id) ON DELETE CASCADE,
+    alert_key TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    labels JSONB NOT NULL DEFAULT '{}'::jsonb,
+    annotations JSONB NOT NULL DEFAULT '{}'::jsonb,
+    first_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_notified_at TIMESTAMPTZ,
+    PRIMARY KEY (rule_id, alert_key),
+    CONSTRAINT alert_state_status_check CHECK (status IN ('pending','firing'))
+);

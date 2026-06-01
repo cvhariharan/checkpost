@@ -1,6 +1,75 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// AlertTarget is a delivery destination (smtp). Config is opaque to the engine.
+type AlertTarget struct {
+	UUID      string          `json:"uuid"`
+	Name      string          `json:"name"`
+	Type      string          `json:"type"`
+	Config    json.RawMessage `json:"config"`
+	Enabled   bool            `json:"enabled"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type AlertRule struct {
+	UUID               string          `json:"uuid"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description"`
+	Source             string          `json:"source"`
+	Params             json.RawMessage `json:"params"`
+	Severity           string          `json:"severity"`
+	Enabled            bool            `json:"enabled"`
+	EvaluationInterval int             `json:"evaluation_interval_seconds"`
+	For                int             `json:"for_seconds"`
+	RepeatInterval     int             `json:"repeat_interval_seconds"`
+	TargetIDs          []string        `json:"target_ids"`
+	LastEvaluatedAt    *time.Time      `json:"last_evaluated_at,omitempty"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+}
+
+// AlertSourceInfo describes a registered source type and its params JSON Schema.
+type AlertSourceInfo struct {
+	Type   string `json:"type"`
+	Schema any    `json:"schema"`
+}
+
+type CreateAlertTarget struct {
+	Name    string
+	Type    string
+	Config  json.RawMessage
+	Enabled bool
+}
+
+type UpdateAlertTarget struct {
+	UUID    string
+	Name    string
+	Config  json.RawMessage
+	Enabled bool
+}
+
+type CreateAlertRule struct {
+	Name               string
+	Description        string
+	Source             string
+	Params             json.RawMessage
+	Severity           string
+	Enabled            bool
+	EvaluationInterval int
+	For                int
+	RepeatInterval     int
+	TargetIDs          []string
+}
+
+type UpdateAlertRule struct {
+	UUID string
+	CreateAlertRule
+}
 
 type Node struct {
 	ID                int64           `json:"-"`

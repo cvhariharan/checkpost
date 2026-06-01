@@ -24,7 +24,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-builder /out/watcher /usr/local/bin/watcher
-COPY migrations ./migrations
 COPY config.toml.example /etc/watcher/config.toml
 
 EXPOSE 1323

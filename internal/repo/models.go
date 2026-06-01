@@ -13,6 +13,50 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AlertRule struct {
+	ID                        int64           `db:"id" json:"id"`
+	Uuid                      uuid.UUID       `db:"uuid" json:"uuid"`
+	Name                      string          `db:"name" json:"name"`
+	Description               string          `db:"description" json:"description"`
+	Source                    string          `db:"source" json:"source"`
+	Params                    json.RawMessage `db:"params" json:"params"`
+	Severity                  string          `db:"severity" json:"severity"`
+	Enabled                   bool            `db:"enabled" json:"enabled"`
+	EvaluationIntervalSeconds int32           `db:"evaluation_interval_seconds" json:"evaluation_interval_seconds"`
+	ForSeconds                int32           `db:"for_seconds" json:"for_seconds"`
+	RepeatIntervalSeconds     int32           `db:"repeat_interval_seconds" json:"repeat_interval_seconds"`
+	LastEvaluatedAt           sql.NullTime    `db:"last_evaluated_at" json:"last_evaluated_at"`
+	CreatedAt                 time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                 time.Time       `db:"updated_at" json:"updated_at"`
+}
+
+type AlertRuleTarget struct {
+	RuleID   int64 `db:"rule_id" json:"rule_id"`
+	TargetID int64 `db:"target_id" json:"target_id"`
+}
+
+type AlertState struct {
+	RuleID         int64           `db:"rule_id" json:"rule_id"`
+	AlertKey       string          `db:"alert_key" json:"alert_key"`
+	Status         string          `db:"status" json:"status"`
+	Labels         json.RawMessage `db:"labels" json:"labels"`
+	Annotations    json.RawMessage `db:"annotations" json:"annotations"`
+	FirstSeenAt    time.Time       `db:"first_seen_at" json:"first_seen_at"`
+	LastSeenAt     time.Time       `db:"last_seen_at" json:"last_seen_at"`
+	LastNotifiedAt sql.NullTime    `db:"last_notified_at" json:"last_notified_at"`
+}
+
+type AlertTarget struct {
+	ID        int64           `db:"id" json:"id"`
+	Uuid      uuid.UUID       `db:"uuid" json:"uuid"`
+	Name      string          `db:"name" json:"name"`
+	Type      string          `db:"type" json:"type"`
+	Config    json.RawMessage `db:"config" json:"config"`
+	Enabled   bool            `db:"enabled" json:"enabled"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time       `db:"updated_at" json:"updated_at"`
+}
+
 type CasbinRule struct {
 	ID    int64  `db:"id" json:"id"`
 	Ptype string `db:"ptype" json:"ptype"`

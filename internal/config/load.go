@@ -33,6 +33,17 @@ type rawConfig struct {
 	DBConfig               rawDBConfig               `koanf:",squash"`
 	DataConfig             rawDataConfig             `koanf:",squash"`
 	OsqueryBootstrapConfig rawOsqueryBootstrapConfig `koanf:",squash"`
+	AlertsConfig           rawAlertsConfig           `koanf:",squash"`
+}
+
+type rawAlertsConfig struct {
+	Enabled      bool   `koanf:"alerts.enabled"`
+	SMTPHost     string `koanf:"alerts.smtp.host"`
+	SMTPPort     int    `koanf:"alerts.smtp.port"`
+	SMTPUsername string `koanf:"alerts.smtp.username"`
+	SMTPPassword string `koanf:"alerts.smtp.password"`
+	SMTPFrom     string `koanf:"alerts.smtp.from"`
+	SMTPTLS      string `koanf:"alerts.smtp.tls"`
 }
 
 type rawAppConfig struct {
@@ -190,6 +201,17 @@ func (r rawConfig) toConfig() (Config, error) {
 		DataConfig: DataConfig{
 			ParquetRoot: r.DataConfig.ParquetRoot,
 			DuckDBPath:  r.DataConfig.DuckDBPath,
+		},
+		AlertsConfig: AlertsConfig{
+			Enabled: r.AlertsConfig.Enabled,
+			SMTP: SMTPConfig{
+				Host:     strings.TrimSpace(r.AlertsConfig.SMTPHost),
+				Port:     r.AlertsConfig.SMTPPort,
+				Username: r.AlertsConfig.SMTPUsername,
+				Password: r.AlertsConfig.SMTPPassword,
+				From:     strings.TrimSpace(r.AlertsConfig.SMTPFrom),
+				TLS:      strings.TrimSpace(r.AlertsConfig.SMTPTLS),
+			},
 		},
 	}
 
@@ -371,6 +393,13 @@ func loadDefaults(k *koanf.Koanf) error {
 		"db.user":                                      "watcher",
 		"data.parquet_root":                            "./data/results",
 		"data.duckdb_path":                             "",
+		"alerts.enabled":                               false,
+		"alerts.smtp.host":                             "",
+		"alerts.smtp.port":                             587,
+		"alerts.smtp.username":                         "",
+		"alerts.smtp.password":                         "",
+		"alerts.smtp.from":                             "watcher@example.com",
+		"alerts.smtp.tls":                              "starttls",
 		"osquery_bootstrap.enabled":                    true,
 		"osquery_bootstrap.linux.deb_amd64.url":        "",
 		"osquery_bootstrap.linux.deb_amd64.sha256":     "",

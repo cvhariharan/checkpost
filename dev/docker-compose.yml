@@ -1,0 +1,96 @@
+# Dev overlay — layers the full local stack on top of the quick-start compose:
+# SSO (dex), MailHog (alert email testing), and osquery test agents.
+#
+# Run from the repo root (paths resolve against the first -f file's directory):
+#   docker compose -f docker-compose.yml -f dev/docker-compose.yml up --build
+# or just: make dev
+#
+# MailHog UI: http://localhost:8025   dex login: user / watcher
+
+# Shared config for the osquery test agents: both self-enroll against watcher via
+# /bootstrap, differing only in base image (build) and data volume.
+x-osquery-agent: &osquery-agent
+  depends_on:
+    watcher:
+      condition: service_started
+  command:
+    - bash
+    - -c
+    - |
+      until curl -fsS -o /dev/null https://watcher:1323/bootstrap/linux.sh; do
+        echo "waiting for watcher..."; sleep 2;
+      done
+      curl -fsSL https://watcher:1323/bootstrap/linux.sh | bash || true
+      sed -i 's|^--tls_hostname=.*|--tls_hostname=watcher:1323|' /etc/osquery/osquery.flags
+      echo '--tls_server_certs=/etc/osquery-tls/server.pem' >> /etc/osquery/osquery.flags
+      # The installer's restart step may launch a daemon (via init.d on Debian) that
+      # holds the pidfile; --force makes our foreground instance kill it and take over.
+      exec osqueryd --flagfile=/etc/osquery/osquery.flags --force
+
+services:
+  watcher:
+    environment:
+      - WATCHER_APP__POLICY_UPDATE_INTERVAL=5s
+      # SSO via dex. The canonical issuer/token host (dex:5556) is reachable from
+      # the watcher container; the browser-facing auth host is localhost:5556
+      # (dex issuerRotation accepts both).
+      - WATCHER_APP__OIDC__ISSUER=http://dex:5556/dex
+      - WATCHER_APP__OIDC__CLIENT_ID=watcher
+      - WATCHER_APP__OIDC__CLIENT_SECRET=secret
+      - WATCHER_APP__OIDC__LABEL=Dex SSO
+      - WATCHER_APP__OIDC__AUTH_URL=http://localhost:5556/dex/auth
+      - WATCHER_APP__OIDC__TOKEN_URL=http://dex:5556/dex/token
+      - WATCHER_APP__OIDC__REDIRECT_URL=https://localhost:1323/auth/callback
+      - WATCHER_APP__OIDC__DEFAULT_ROLE=viewer
+      # Alerting via MailHog (plaintext SMTP; no STARTTLS/auth).
+      - WATCHER_ALERTS__ENABLED=true
+      - WATCHER_ALERTS__SMTP__HOST=mailhog
+      - WATCHER_ALERTS__SMTP__PORT=1025
+      - WATCHER_ALERTS__SMTP__TLS=none
+      - WATCHER_ALERTS__SMTP__FROM=watcher@watcher.internal
+    depends_on:
+      dex:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+
+  dex:
+    image: dexidp/dex:v2.44.0-alpine
+    restart: unless-stopped
+    ports:
+      - "5556:5556"
+    volumes:
+      - "./dev/dex-config.yaml:/etc/dex/config.yml:ro,z"
+    command: ["dex", "serve", "/etc/dex/config.yml"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5556/dex/.well-known/openid-configuration"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
+    ports:
+      - "1025:1025" # SMTP
+      - "8025:8025" # web UI
+
+  osquery-fedora:
+    <<: *osquery-agent
+    build:
+      context: .
+      dockerfile: dev/osquery.fedora.Dockerfile
+    volumes:
+      - "osquery-fedora-db:/var/osquery"
+
+  osquery-debian:
+    <<: *osquery-agent
+    build:
+      context: .
+      dockerfile: dev/osquery.debian.Dockerfile
+    volumes:
+      - "osquery-debian-db:/var/osquery"
+
+volumes:
+  osquery-fedora-db:
+  osquery-debian-db:

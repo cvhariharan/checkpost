@@ -5,9 +5,10 @@ FROM fedora:latest
 RUN dnf install -y curl ca-certificates && dnf clean all
 
 # Trust the Watcher test server certificate so the installer's HTTPS download validates.
-COPY server_cert.pem /etc/pki/ca-trust/source/anchors/watcher-test.pem
+# Build context is the repo root (see dev/docker-compose.yml).
+COPY testdata/server_cert.pem /etc/pki/ca-trust/source/anchors/watcher-test.pem
 RUN update-ca-trust extract
 
 # osquery ignores the system trust store, so also keep the cert at a fixed path the
 # enrollment flags can point at via --tls_server_certs.
-COPY server_cert.pem /etc/osquery-tls/server.pem
+COPY testdata/server_cert.pem /etc/osquery-tls/server.pem

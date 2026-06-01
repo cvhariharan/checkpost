@@ -13,15 +13,17 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cvhariharan/watcher/internal/alerts"
 	"github.com/cvhariharan/watcher/internal/config"
 	"github.com/cvhariharan/watcher/internal/core"
 	"github.com/cvhariharan/watcher/internal/handlers"
 	"github.com/cvhariharan/watcher/internal/repo"
 	"github.com/cvhariharan/watcher/internal/results"
+	"github.com/cvhariharan/watcher/migrations"
 	webassets "github.com/cvhariharan/watcher/web"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
 )
@@ -99,6 +101,26 @@ func main() {
 		log.Fatalf("could not ensure admin user: %v", err)
 	}
 
+	if cfg.AlertsConfig.Enabled {
+		core.RegisterAlertSources(store, cfg.AppConfig.PolicyStaleAfter)
+		smtpNotifier, err := alerts.NewSMTPNotifier(alerts.SMTPRelay{
+			Host:     cfg.AlertsConfig.SMTP.Host,
+			Port:     cfg.AlertsConfig.SMTP.Port,
+			Username: cfg.AlertsConfig.SMTP.Username,
+			Password: cfg.AlertsConfig.SMTP.Password,
+			From:     cfg.AlertsConfig.SMTP.From,
+			TLS:      cfg.AlertsConfig.SMTP.TLS,
+		}, store.ListUserGroupMemberEmails)
+		if err != nil {
+			log.Fatalf("could not initialize smtp notifier: %v", err)
+		}
+		alerts.RegisterNotifier(smtpNotifier)
+
+		alertEngine := alerts.NewEngine(store, logger)
+		alertEngine.Start()
+		defer alertEngine.Close()
+	}
+
 	e := echo.New()
 
 	h, err := handlers.NewHandler(logger, db, cfg, c)
@@ -107,28 +129,6 @@ func main() {
 	}
 	e.HTTPErrorHandler = h.ErrorHandler
 
-	// Resource/action constants for per-route authorization.
-	const (
-		rMachine      = "machine"
-		rMachineGroup = "machine_group"
-		rPolicy       = "policy"
-		rSchedule     = "schedule"
-		rQueryResult  = "query_result"
-		rYaraSource   = "yara_source"
-		rYaraScan     = "yara_scan"
-		rInventory    = "inventory"
-		rUser         = "user"
-		rUserGroup    = "user_group"
-		rRoleBinding  = "role_binding"
-		rSetting      = "setting"
-
-		aView    = "view"
-		aCreate  = "create"
-		aUpdate  = "update"
-		aDelete  = "delete"
-		aExecute = "execute"
-	)
-
 	// Public auth routes (no session required).
 	e.POST("/login", h.HandleLogin)
 	e.POST("/logout", h.HandleLogout)
@@ -136,8 +136,7 @@ func main() {
 	e.GET("/login/oidc", h.HandleOIDCLogin)
 	e.GET("/auth/callback", h.HandleAuthCallback)
 
-	// osquery agent endpoints — authenticated by enroll_secret / node_key, NOT
-	// the human session/RBAC layer.
+	// osquery agent endpoints — authenticated by enroll_secret / node_key
 	osqueryAPI := e.Group("/api/v1/osquery")
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 	osqueryAPI.POST("/config", h.HandleOSQueryConfig)
@@ -150,84 +149,95 @@ func main() {
 
 	api.GET("/me", h.HandleMe)
 
-	api.POST("/schedules", h.HandleCreateSchedule, h.Authorize(rSchedule, aCreate))
-	api.GET("/schedules", h.HandleSchedulesPagination, h.Authorize(rSchedule, aView))
-	api.GET("/schedules/:id", h.HandleGetSchedule, h.Authorize(rSchedule, aView))
-	api.DELETE("/schedules/:id", h.HandleDeleteSchedule, h.Authorize(rSchedule, aDelete))
-	api.PUT("/schedules/:id", h.HandleUpdateSchedule, h.Authorize(rSchedule, aUpdate))
-	api.GET("/schedules/:id/results", h.HandleScheduleResults, h.Authorize(rQueryResult, aView))
+	api.POST("/schedules", h.HandleCreateSchedule, h.Authorize(core.ResourceSchedule, core.ActionCreate))
+	api.GET("/schedules", h.HandleSchedulesPagination, h.Authorize(core.ResourceSchedule, core.ActionView))
+	api.GET("/schedules/:id", h.HandleGetSchedule, h.Authorize(core.ResourceSchedule, core.ActionView))
+	api.DELETE("/schedules/:id", h.HandleDeleteSchedule, h.Authorize(core.ResourceSchedule, core.ActionDelete))
+	api.PUT("/schedules/:id", h.HandleUpdateSchedule, h.Authorize(core.ResourceSchedule, core.ActionUpdate))
+	api.GET("/schedules/:id/results", h.HandleScheduleResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 
-	api.POST("/policies", h.HandleCreatePolicy, h.Authorize(rPolicy, aCreate))
-	api.GET("/policies", h.HandlePoliciesPagination, h.Authorize(rPolicy, aView))
-	api.GET("/policies/:id", h.HandleGetPolicy, h.Authorize(rPolicy, aView))
-	api.DELETE("/policies/:id", h.HandleDeletePolicy, h.Authorize(rPolicy, aDelete))
-	api.PUT("/policies/:id", h.HandleUpdatePolicy, h.Authorize(rPolicy, aUpdate))
-	api.GET("/policies/:id/machines", h.HandlePolicyMachines, h.Authorize(rPolicy, aView))
+	api.POST("/policies", h.HandleCreatePolicy, h.Authorize(core.ResourcePolicy, core.ActionCreate))
+	api.GET("/policies", h.HandlePoliciesPagination, h.Authorize(core.ResourcePolicy, core.ActionView))
+	api.GET("/policies/:id", h.HandleGetPolicy, h.Authorize(core.ResourcePolicy, core.ActionView))
+	api.DELETE("/policies/:id", h.HandleDeletePolicy, h.Authorize(core.ResourcePolicy, core.ActionDelete))
+	api.PUT("/policies/:id", h.HandleUpdatePolicy, h.Authorize(core.ResourcePolicy, core.ActionUpdate))
+	api.GET("/policies/:id/machines", h.HandlePolicyMachines, h.Authorize(core.ResourcePolicy, core.ActionView))
 
-	api.POST("/groups", h.HandleCreateGroup, h.Authorize(rMachineGroup, aCreate))
-	api.GET("/groups", h.HandleGroupsPagination, h.Authorize(rMachineGroup, aView))
-	api.GET("/groups/:id", h.HandleGetGroup, h.Authorize(rMachineGroup, aView))
-	api.DELETE("/groups/:id", h.HandleDeleteGroup, h.Authorize(rMachineGroup, aDelete))
-	api.PUT("/groups/:id", h.HandleUpdateGroup, h.Authorize(rMachineGroup, aUpdate))
-	api.GET("/groups/:id/machines", h.HandleGroupMachines, h.Authorize(rMachineGroup, aView))
-	api.PATCH("/groups/:id/machines", h.HandlePatchGroupMachines, h.Authorize(rMachineGroup, aUpdate))
+	api.POST("/groups", h.HandleCreateGroup, h.Authorize(core.ResourceMachineGroup, core.ActionCreate))
+	api.GET("/groups", h.HandleGroupsPagination, h.Authorize(core.ResourceMachineGroup, core.ActionView))
+	api.GET("/groups/:id", h.HandleGetGroup, h.Authorize(core.ResourceMachineGroup, core.ActionView))
+	api.DELETE("/groups/:id", h.HandleDeleteGroup, h.Authorize(core.ResourceMachineGroup, core.ActionDelete))
+	api.PUT("/groups/:id", h.HandleUpdateGroup, h.Authorize(core.ResourceMachineGroup, core.ActionUpdate))
+	api.GET("/groups/:id/machines", h.HandleGroupMachines, h.Authorize(core.ResourceMachineGroup, core.ActionView))
+	api.PATCH("/groups/:id/machines", h.HandlePatchGroupMachines, h.Authorize(core.ResourceMachineGroup, core.ActionUpdate))
 
-	api.POST("/owners", h.HandleCreateOwner, h.Authorize(rInventory, aCreate))
-	api.GET("/owners", h.HandleOwnersPagination, h.Authorize(rInventory, aView))
-	api.GET("/owners/:id", h.HandleGetOwner, h.Authorize(rInventory, aView))
-	api.DELETE("/owners/:id", h.HandleDeleteOwner, h.Authorize(rInventory, aDelete))
-	api.PUT("/owners/:id", h.HandleUpdateOwner, h.Authorize(rInventory, aUpdate))
-	api.GET("/owners/:id/machines", h.HandleOwnerMachines, h.Authorize(rInventory, aView))
+	api.POST("/owners", h.HandleCreateOwner, h.Authorize(core.ResourceInventory, core.ActionCreate))
+	api.GET("/owners", h.HandleOwnersPagination, h.Authorize(core.ResourceInventory, core.ActionView))
+	api.GET("/owners/:id", h.HandleGetOwner, h.Authorize(core.ResourceInventory, core.ActionView))
+	api.DELETE("/owners/:id", h.HandleDeleteOwner, h.Authorize(core.ResourceInventory, core.ActionDelete))
+	api.PUT("/owners/:id", h.HandleUpdateOwner, h.Authorize(core.ResourceInventory, core.ActionUpdate))
+	api.GET("/owners/:id/machines", h.HandleOwnerMachines, h.Authorize(core.ResourceInventory, core.ActionView))
 
-	api.GET("/machines", h.HandleMachinesPagination, h.Authorize(rMachine, aView))
-	api.GET("/machines/:id/queries", h.HandleMachineQueries, h.Authorize(rQueryResult, aView))
-	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery, h.Authorize(rQueryResult, aDelete))
-	api.GET("/machines/:id/policies", h.HandleMachinePolicies, h.Authorize(rMachine, aView))
-	api.GET("/machines/:id/groups", h.HandleMachineGroups, h.Authorize(rMachine, aView))
-	api.PUT("/machines/:id/groups", h.HandleReplaceMachineGroups, h.Authorize(rMachine, aUpdate))
-	api.GET("/machines/:id/inventory", h.HandleMachineInventory, h.Authorize(rInventory, aView))
-	api.PUT("/machines/:id/inventory", h.HandleUpdateMachineInventory, h.Authorize(rInventory, aUpdate))
-	api.DELETE("/machines/:id/inventory", h.HandleDeleteMachineInventory, h.Authorize(rInventory, aDelete))
-	api.GET("/machines/:id/metrics", h.HandleMachineMetrics, h.Authorize(rMachine, aView))
-	api.GET("/metrics/schemas", h.HandleMetricSchemas, h.Authorize(rMachine, aView))
-	api.POST("/machines/:id/queries", h.HandleExecuteMachineQuery, h.Authorize(rMachine, aExecute))
-	api.GET("/machines/:id", h.HandleGetMachine, h.Authorize(rMachine, aView))
+	api.GET("/machines", h.HandleMachinesPagination, h.Authorize(core.ResourceMachine, core.ActionView))
+	api.GET("/machines/:id/queries", h.HandleMachineQueries, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
+	api.GET("/machines/:id/policies", h.HandleMachinePolicies, h.Authorize(core.ResourceMachine, core.ActionView))
+	api.GET("/machines/:id/groups", h.HandleMachineGroups, h.Authorize(core.ResourceMachine, core.ActionView))
+	api.PUT("/machines/:id/groups", h.HandleReplaceMachineGroups, h.Authorize(core.ResourceMachine, core.ActionUpdate))
+	api.GET("/machines/:id/inventory", h.HandleMachineInventory, h.Authorize(core.ResourceInventory, core.ActionView))
+	api.PUT("/machines/:id/inventory", h.HandleUpdateMachineInventory, h.Authorize(core.ResourceInventory, core.ActionUpdate))
+	api.DELETE("/machines/:id/inventory", h.HandleDeleteMachineInventory, h.Authorize(core.ResourceInventory, core.ActionDelete))
+	api.GET("/machines/:id/metrics", h.HandleMachineMetrics, h.Authorize(core.ResourceMachine, core.ActionView))
+	api.GET("/metrics/schemas", h.HandleMetricSchemas, h.Authorize(core.ResourceMachine, core.ActionView))
+	api.POST("/machines/:id/queries", h.HandleExecuteMachineQuery, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.GET("/machines/:id", h.HandleGetMachine, h.Authorize(core.ResourceMachine, core.ActionView))
 
-	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources, h.Authorize(rYaraSource, aView))
-	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource, h.Authorize(rYaraSource, aCreate))
-	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource, h.Authorize(rYaraSource, aUpdate))
-	api.DELETE("/yara/signature-sources/:id", h.HandleDeleteYaraSignatureSource, h.Authorize(rYaraSource, aDelete))
-	api.POST("/yara/scans", h.HandleCreateYaraScan, h.Authorize(rYaraScan, aCreate))
-	api.GET("/yara/scans", h.HandleYaraScans, h.Authorize(rYaraScan, aView))
-	api.GET("/yara/scans/:id", h.HandleGetYaraScan, h.Authorize(rYaraScan, aView))
-	api.GET("/yara/scans/:id/matches", h.HandleYaraScanMatches, h.Authorize(rYaraScan, aView))
-	api.GET("/yara/scans/:id/targets", h.HandleYaraScanTargets, h.Authorize(rYaraScan, aView))
+	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources, h.Authorize(core.ResourceYaraSource, core.ActionView))
+	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionCreate))
+	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionUpdate))
+	api.DELETE("/yara/signature-sources/:id", h.HandleDeleteYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionDelete))
+	api.POST("/yara/scans", h.HandleCreateYaraScan, h.Authorize(core.ResourceYaraScan, core.ActionCreate))
+	api.GET("/yara/scans", h.HandleYaraScans, h.Authorize(core.ResourceYaraScan, core.ActionView))
+	api.GET("/yara/scans/:id", h.HandleGetYaraScan, h.Authorize(core.ResourceYaraScan, core.ActionView))
+	api.GET("/yara/scans/:id/matches", h.HandleYaraScanMatches, h.Authorize(core.ResourceYaraScan, core.ActionView))
+	api.GET("/yara/scans/:id/targets", h.HandleYaraScanTargets, h.Authorize(core.ResourceYaraScan, core.ActionView))
+
+	api.POST("/alert-targets", h.HandleCreateAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionCreate))
+	api.GET("/alert-targets", h.HandleAlertTargetsPagination, h.Authorize(core.ResourceAlertTarget, core.ActionView))
+	api.GET("/alert-targets/:id", h.HandleGetAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionView))
+	api.PUT("/alert-targets/:id", h.HandleUpdateAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionUpdate))
+	api.DELETE("/alert-targets/:id", h.HandleDeleteAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionDelete))
+	api.POST("/alert-targets/:id/test", h.HandleTestAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionExecute))
+
+	api.POST("/alert-rules", h.HandleCreateAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionCreate))
+	api.GET("/alert-rules", h.HandleAlertRulesPagination, h.Authorize(core.ResourceAlertRule, core.ActionView))
+	api.GET("/alert-rules/:id", h.HandleGetAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionView))
+	api.PUT("/alert-rules/:id", h.HandleUpdateAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionUpdate))
+	api.DELETE("/alert-rules/:id", h.HandleDeleteAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionDelete))
+	api.GET("/alert-sources", h.HandleAlertSources, h.Authorize(core.ResourceAlertRule, core.ActionView))
 
 	// Admin management routes.
-	api.GET("/roles", h.HandleListRoles, h.Authorize(rRoleBinding, aView))
+	api.GET("/roles", h.HandleListRoles, h.Authorize(core.ResourceRoleBinding, core.ActionView))
 
-	api.GET("/users", h.HandleListUsers, h.Authorize(rUser, aView))
-	api.POST("/users", h.HandleCreateUser, h.Authorize(rUser, aCreate))
-	api.PUT("/users/:id", h.HandleUpdateUser, h.Authorize(rUser, aUpdate))
-	api.DELETE("/users/:id", h.HandleDeleteUser, h.Authorize(rUser, aDelete))
+	api.GET("/users", h.HandleListUsers, h.Authorize(core.ResourceUser, core.ActionView))
+	api.POST("/users", h.HandleCreateUser, h.Authorize(core.ResourceUser, core.ActionCreate))
+	api.PUT("/users/:id", h.HandleUpdateUser, h.Authorize(core.ResourceUser, core.ActionUpdate))
+	api.DELETE("/users/:id", h.HandleDeleteUser, h.Authorize(core.ResourceUser, core.ActionDelete))
 
-	api.GET("/user-groups", h.HandleListUserGroups, h.Authorize(rUserGroup, aView))
-	api.POST("/user-groups", h.HandleCreateUserGroup, h.Authorize(rUserGroup, aCreate))
-	api.GET("/user-groups/:id", h.HandleGetUserGroup, h.Authorize(rUserGroup, aView))
-	api.PUT("/user-groups/:id", h.HandleUpdateUserGroup, h.Authorize(rUserGroup, aUpdate))
-	api.DELETE("/user-groups/:id", h.HandleDeleteUserGroup, h.Authorize(rUserGroup, aDelete))
-	api.GET("/user-groups/:id/members", h.HandleListUserGroupMembers, h.Authorize(rUserGroup, aView))
-	api.POST("/user-groups/:id/members", h.HandleAddUserGroupMember, h.Authorize(rUserGroup, aUpdate))
-	api.DELETE("/user-groups/:id/members/:user_id", h.HandleRemoveUserGroupMember, h.Authorize(rUserGroup, aUpdate))
+	api.GET("/user-groups", h.HandleListUserGroups, h.Authorize(core.ResourceUserGroup, core.ActionView))
+	api.POST("/user-groups", h.HandleCreateUserGroup, h.Authorize(core.ResourceUserGroup, core.ActionCreate))
+	api.GET("/user-groups/:id", h.HandleGetUserGroup, h.Authorize(core.ResourceUserGroup, core.ActionView))
+	api.PUT("/user-groups/:id", h.HandleUpdateUserGroup, h.Authorize(core.ResourceUserGroup, core.ActionUpdate))
+	api.DELETE("/user-groups/:id", h.HandleDeleteUserGroup, h.Authorize(core.ResourceUserGroup, core.ActionDelete))
+	api.GET("/user-groups/:id/members", h.HandleListUserGroupMembers, h.Authorize(core.ResourceUserGroup, core.ActionView))
+	api.POST("/user-groups/:id/members", h.HandleAddUserGroupMember, h.Authorize(core.ResourceUserGroup, core.ActionUpdate))
+	api.DELETE("/user-groups/:id/members/:user_id", h.HandleRemoveUserGroupMember, h.Authorize(core.ResourceUserGroup, core.ActionUpdate))
 
-	api.GET("/role-bindings", h.HandleListRoleBindings, h.Authorize(rRoleBinding, aView))
-	api.POST("/role-bindings", h.HandleCreateRoleBinding, h.Authorize(rRoleBinding, aCreate))
-	api.DELETE("/role-bindings/:id", h.HandleDeleteRoleBinding, h.Authorize(rRoleBinding, aDelete))
+	api.GET("/role-bindings", h.HandleListRoleBindings, h.Authorize(core.ResourceRoleBinding, core.ActionView))
+	api.POST("/role-bindings", h.HandleCreateRoleBinding, h.Authorize(core.ResourceRoleBinding, core.ActionCreate))
+	api.DELETE("/role-bindings/:id", h.HandleDeleteRoleBinding, h.Authorize(core.ResourceRoleBinding, core.ActionDelete))
 
-	// The JSON bootstrap profile contains the enroll secret → behind setting:view.
-	// The raw install script (curl | bash) cannot carry a session cookie → public
-	// (network-restrict in production; the enroll secret is already shared).
-	e.GET("/bootstrap", h.HandleOsqueryBootstrap, h.Authenticate, h.Authorize(rSetting, aView))
+	e.GET("/bootstrap", h.HandleOsqueryBootstrap, h.Authenticate, h.Authorize(core.ResourceSetting, core.ActionView))
 	e.GET("/bootstrap/:platform", h.HandleOsqueryBootstrapScript)
 
 	buildFS, err := fs.Sub(webassets.StaticFiles, "dist")
@@ -264,7 +274,17 @@ func runDBMigration(db *sql.DB) error {
 		return fmt.Errorf("failed to create postgres driver instance: %w", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance("file://migrations/postgres", "postgres", driver)
+	migrationsFS, err := fs.Sub(migrations.Files, "postgres")
+	if err != nil {
+		return fmt.Errorf("failed to get migrations sub-filesystem: %w", err)
+	}
+
+	sourceDriver, err := iofs.New(migrationsFS, ".")
+	if err != nil {
+		return fmt.Errorf("failed to create iofs source driver: %w", err)
+	}
+
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, "postgres", driver)
 	if err != nil {
 		return fmt.Errorf("failed to create migration instance: %w", err)
 	}

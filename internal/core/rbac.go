@@ -42,6 +42,8 @@ const (
 	ResourceUserGroup    = "user_group"
 	ResourceRoleBinding  = "role_binding"
 	ResourceSetting      = "setting"
+	ResourceAlertRule    = "alert_rule"
+	ResourceAlertTarget  = "alert_target"
 )
 
 // Actions.
@@ -79,6 +81,8 @@ var permissionCatalog = []models.PermissionCatalogEntry{
 	{Resource: ResourceUserGroup, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete}, Scopable: false},
 	{Resource: ResourceRoleBinding, Actions: []string{ActionView, ActionCreate, ActionDelete}, Scopable: false},
 	{Resource: ResourceSetting, Actions: []string{ActionView, ActionUpdate}, Scopable: false},
+	{Resource: ResourceAlertRule, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete}, Scopable: false},
+	{Resource: ResourceAlertTarget, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute}, Scopable: false},
 }
 
 // roleMatrix is set for each built-in role:
@@ -97,6 +101,8 @@ var roleMatrix = map[string]map[string][]string{
 		ResourceUserGroup:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
 		ResourceRoleBinding:  {ActionView, ActionCreate, ActionDelete},
 		ResourceSetting:      {ActionView, ActionUpdate},
+		ResourceAlertRule:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceAlertTarget:  {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
 	},
 	RoleOperator: {
 		ResourceMachine:      {ActionView, ActionUpdate, ActionExecute, ActionDelete},
@@ -108,6 +114,8 @@ var roleMatrix = map[string]map[string][]string{
 		ResourceYaraScan:     {ActionView, ActionCreate},
 		ResourceInventory:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
 		ResourceSetting:      {ActionView},
+		ResourceAlertRule:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceAlertTarget:  {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
 	},
 	RoleAnalyst: {
 		ResourceMachine:      {ActionView, ActionExecute},
@@ -118,6 +126,8 @@ var roleMatrix = map[string]map[string][]string{
 		ResourceYaraSource:   {ActionView},
 		ResourceYaraScan:     {ActionView, ActionCreate},
 		ResourceInventory:    {ActionView},
+		ResourceAlertRule:    {ActionView},
+		ResourceAlertTarget:  {ActionView},
 	},
 	RoleViewer: {
 		ResourceMachine:      {ActionView},
@@ -128,6 +138,8 @@ var roleMatrix = map[string]map[string][]string{
 		ResourceYaraSource:   {ActionView},
 		ResourceYaraScan:     {ActionView},
 		ResourceInventory:    {ActionView},
+		ResourceAlertRule:    {ActionView},
+		ResourceAlertTarget:  {ActionView},
 	},
 }
 

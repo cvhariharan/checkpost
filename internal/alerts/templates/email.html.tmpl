@@ -1,0 +1,8 @@
+<h2>{{.Title}} — {{.Kind}}</h2>
+<p>Severity: {{.Severity}}</p>
+<ul>
+{{- range .Items}}
+  <li>{{.Summary}}
+  {{- if .Resolution}}<br><em>{{.Resolution}}</em>{{- end}}</li>
+{{- end}}
+</ul>

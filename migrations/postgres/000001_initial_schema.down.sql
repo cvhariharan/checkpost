@@ -1,3 +1,7 @@
+DROP TABLE IF EXISTS alert_state;
+DROP TABLE IF EXISTS alert_rule_targets;
+DROP TABLE IF EXISTS alert_rules;
+DROP TABLE IF EXISTS alert_targets;
 DROP TABLE IF EXISTS casbin_rule;
 DROP TABLE IF EXISTS role_bindings;
 DROP TABLE IF EXISTS user_group_members;

@@ -1,0 +1,30 @@
+issuer: http://dex:5556/dex
+issuerRotation:
+  - issuer: http://localhost:5556/dex
+
+storage:
+  type: sqlite3
+  config:
+    file: /var/dex/dex.db
+
+web:
+  http: 0.0.0.0:5556
+
+staticClients:
+  - id: watcher
+    redirectURIs:
+      - "https://localhost:1323/auth/callback"
+    name: watcher
+    secret: secret
+
+oauth2:
+  skipApprovalScreen: true
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: "user@watcher.internal"
+    # Password: watcher
+    hash: "$2a$10$OsKBctWYwSczSpMx4vvEsOcOomBuJImEV8fqwjt5fWDMyXDj5PKjS"
+    username: "user"
+    userID: "5f8d3c2a-1b4e-4d7a-9c6f-2e3a4b5c6d7e"

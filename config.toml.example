@@ -80,3 +80,18 @@ parquet_root = './data/results'
 # Path to a persistent DuckDB catalog file. Empty = in-memory (re-scans
 # Parquet metadata on cold start). Set a path to persist catalogs/indexes.
 duckdb_path = ''
+
+[alerts]
+# Master switch for the alerting engine. When false, no rules are evaluated.
+enabled = false
+
+[alerts.smtp]
+# Global relay for all SMTP targets. An empty host disables SMTP delivery.
+host = ''
+port = 587
+username = ''
+# Prefer the WATCHER_ALERTS__SMTP__PASSWORD env var over storing this here.
+password = ''
+from = 'watcher@example.com'
+# starttls | implicit | none (none is discouraged; dev/trusted networks only)
+tls = 'starttls'

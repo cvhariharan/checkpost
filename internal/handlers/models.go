@@ -7,6 +7,56 @@ import (
 	"github.com/cvhariharan/watcher/internal/models"
 )
 
+// ALERTING ----------------------------------------------------------------
+
+type CreateAlertTargetRequest struct {
+	Name    string          `json:"name" validate:"required"`
+	Type    string          `json:"type" validate:"required,oneof=smtp"`
+	Config  json.RawMessage `json:"config"`
+	Enabled *bool           `json:"enabled"`
+}
+
+type UpdateAlertTargetRequest struct {
+	ID      string          `param:"id" validate:"required,uuid"`
+	Name    string          `json:"name" validate:"required"`
+	Config  json.RawMessage `json:"config"`
+	Enabled *bool           `json:"enabled"`
+}
+
+type PaginateAlertTargetsResponse struct {
+	Targets    []models.AlertTarget `json:"targets"`
+	TotalCount int                  `json:"total_count"`
+	PageCount  int                  `json:"page_count"`
+}
+
+type CreateAlertRuleRequest struct {
+	Name               string          `json:"name" validate:"required"`
+	Description        string          `json:"description"`
+	Source             string          `json:"source" validate:"required"`
+	Params             json.RawMessage `json:"params"`
+	Severity           string          `json:"severity" validate:"required,oneof=critical high medium low info"`
+	Enabled            *bool           `json:"enabled"`
+	EvaluationInterval int             `json:"evaluation_interval_seconds" validate:"gte=60"`
+	For                int             `json:"for_seconds" validate:"gte=0"`
+	RepeatInterval     int             `json:"repeat_interval_seconds" validate:"gte=0"`
+	TargetIDs          []string        `json:"target_ids" validate:"omitempty,dive,uuid"`
+}
+
+type UpdateAlertRuleRequest struct {
+	ID string `param:"id" validate:"required,uuid"`
+	CreateAlertRuleRequest
+}
+
+type PaginateAlertRulesResponse struct {
+	Rules      []models.AlertRule `json:"rules"`
+	TotalCount int                `json:"total_count"`
+	PageCount  int                `json:"page_count"`
+}
+
+type AlertSourcesResponse struct {
+	Sources []models.AlertSourceInfo `json:"sources"`
+}
+
 type OsqueryStatus string
 
 func (s *OsqueryStatus) UnmarshalJSON(data []byte) error {

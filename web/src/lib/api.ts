@@ -757,3 +757,88 @@ export function deleteRoleBinding(uuid: string) {
     (r) => handleResponse<unknown>(r)
   )
 }
+
+// Alerting
+export type AlertTarget = {
+  uuid: string
+  name?: string
+  type?: string
+  config?: Record<string, unknown>
+  enabled?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export type AlertRule = {
+  uuid: string
+  name?: string
+  description?: string
+  source?: string
+  params?: Record<string, unknown>
+  severity?: string
+  enabled?: boolean
+  evaluation_interval_seconds?: number
+  for_seconds?: number
+  repeat_interval_seconds?: number
+  target_ids?: string[]
+  last_evaluated_at?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type AlertSource = {
+  type: string
+  schema: Record<string, unknown>
+}
+
+export function fetchAlertTargets(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 10 } = opts
+  return fetch(apiUrl('/alert-targets', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<AlertTarget, 'targets'>>(r)
+  )
+}
+
+export function createAlertTarget(payload: Record<string, unknown>) {
+  return jsonRequest<AlertTarget>('/alert-targets', 'POST', payload)
+}
+
+export function updateAlertTarget(uuid: string, payload: Record<string, unknown>) {
+  return jsonRequest<AlertTarget>(`/alert-targets/${encodeURIComponent(uuid)}`, 'PUT', payload)
+}
+
+export function deleteAlertTarget(uuid: string) {
+  return fetch(`${BASE_URL}/alert-targets/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then(
+    (r) => handleResponse<unknown>(r)
+  )
+}
+
+export function testAlertTarget(uuid: string) {
+  return jsonRequest<unknown>(`/alert-targets/${encodeURIComponent(uuid)}/test`, 'POST', {})
+}
+
+export function fetchAlertRules(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 10 } = opts
+  return fetch(apiUrl('/alert-rules', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<AlertRule, 'rules'>>(r)
+  )
+}
+
+export function createAlertRule(payload: Record<string, unknown>) {
+  return jsonRequest<AlertRule>('/alert-rules', 'POST', payload)
+}
+
+export function updateAlertRule(uuid: string, payload: Record<string, unknown>) {
+  return jsonRequest<AlertRule>(`/alert-rules/${encodeURIComponent(uuid)}`, 'PUT', payload)
+}
+
+export function deleteAlertRule(uuid: string) {
+  return fetch(`${BASE_URL}/alert-rules/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then(
+    (r) => handleResponse<unknown>(r)
+  )
+}
+
+export function fetchAlertSources() {
+  return fetch(`${BASE_URL}/alert-sources`).then((r) =>
+    handleResponse<{ sources: AlertSource[] }>(r)
+  )
+}

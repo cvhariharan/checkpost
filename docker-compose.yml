@@ -1,3 +1,11 @@
+# Quick start: Watcher + PostgreSQL over HTTPS (self-signed dev cert).
+#
+#   docker compose up --build
+#   open https://localhost:1323   (default login: watcher_admin / watcher_password)
+#
+# For the full local dev stack (SSO via dex, MailHog for alert email, osquery
+# test agents), layer the dev overlay on top — see dev/README.md:
+#   docker compose -f docker-compose.yml -f dev/docker-compose.yml up --build
 services:
   watcher:
     build:
@@ -12,7 +20,12 @@ services:
       - WATCHER_APP__HTTP_TLS_CERT=/etc/watcher/tls/server_cert.pem
       - WATCHER_APP__HTTP_TLS_KEY=/etc/watcher/tls/server_key.pem
       - WATCHER_APP__ENROLLMENT_KEY=secret-key
-      - WATCHER_APP__POLICY_UPDATE_INTERVAL=5s
+      - WATCHER_DB__HOST=postgres
+      - WATCHER_DB__PORT=5432
+      - WATCHER_DB__USER=watcher
+      - WATCHER_DB__PASSWORD=watcher
+      - WATCHER_DB__DBNAME=watcher
+      # osquery agent install packages served by /bootstrap.
       - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_AMD64__URL=https://pkg.osquery.io/deb/osquery_5.23.0-1.linux_amd64.deb
       - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_AMD64__SHA256=8938e83d71c6e668f24648b4fb612581db30f95cd31bf76a86c3ba4a6680a7dc
       - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_ARM64__URL=https://pkg.osquery.io/deb/osquery_5.23.0-1.linux_arm64.deb
@@ -25,30 +38,12 @@ services:
       - WATCHER_OSQUERY_BOOTSTRAP__MACOS__PKG_UNIVERSAL__SHA256=2621179c334a6482fa822732f121409bbccc36784db18f576e2965dfc4f1845d
       - WATCHER_OSQUERY_BOOTSTRAP__WINDOWS__MSI_AMD64__URL=https://pkg.osquery.io/windows/osquery-5.23.0.msi
       - WATCHER_OSQUERY_BOOTSTRAP__WINDOWS__MSI_AMD64__SHA256=5060c7cc21bc00258b5d7822a769cb619ff432c02ba89f6c1b6cbfa127d59b40
-      - WATCHER_DB__HOST=postgres
-      - WATCHER_DB__PORT=5432
-      - WATCHER_DB__USER=watcher
-      - WATCHER_DB__PASSWORD=watcher
-      - WATCHER_DB__DBNAME=watcher
-      # SSO via dex (local dev). The canonical issuer/token host (dex:5556) is
-      # reachable from the watcher container; the browser-facing auth host is
-      # localhost:5556 (dex issuerRotation accepts both).
-      - WATCHER_APP__OIDC__ISSUER=http://dex:5556/dex
-      - WATCHER_APP__OIDC__CLIENT_ID=watcher
-      - WATCHER_APP__OIDC__CLIENT_SECRET=secret
-      - WATCHER_APP__OIDC__LABEL=Dex SSO
-      - WATCHER_APP__OIDC__AUTH_URL=http://localhost:5556/dex/auth
-      - WATCHER_APP__OIDC__TOKEN_URL=http://dex:5556/dex/token
-      - WATCHER_APP__OIDC__REDIRECT_URL=https://localhost:1323/auth/callback
-      - WATCHER_APP__OIDC__DEFAULT_ROLE=viewer
     volumes:
       - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,z"
-      - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,Z"
-      - "./data:/app/data:Z"
+      - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,z"
+      - "./data:/app/data:z"
     depends_on:
       postgres:
-        condition: service_healthy
-      dex:
         condition: service_healthy
     networks:
       default:
@@ -74,102 +69,5 @@ services:
         source: watcher-db-data
         target: /var/lib/postgresql
 
-  dex:
-    image: dexidp/dex:v2.44.0-alpine
-    restart: unless-stopped
-    ports:
-      - "5556:5556"
-    configs:
-      - source: dex-config
-        target: /etc/dex/config.yml
-    command: ["dex", "serve", "/etc/dex/config.yml"]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5556/dex/.well-known/openid-configuration"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-
-  osquery-fedora:
-    build:
-      context: ./testdata
-      dockerfile: Dockerfile.osquery
-    depends_on:
-      watcher:
-        condition: service_started
-    command:
-      - bash
-      - -c
-      - |
-        until curl -fsS -o /dev/null https://watcher:1323/bootstrap/linux.sh; do
-          echo "waiting for watcher..."; sleep 2;
-        done
-        curl -fsSL https://watcher:1323/bootstrap/linux.sh | bash || true
-        sed -i 's|^--tls_hostname=.*|--tls_hostname=watcher:1323|' /etc/osquery/osquery.flags
-        echo '--tls_server_certs=/etc/osquery-tls/server.pem' >> /etc/osquery/osquery.flags
-        # The installer's restart step may launch a daemon (via init.d on Debian) that
-        # holds the pidfile; --force makes our foreground instance kill it and take over.
-        exec osqueryd --flagfile=/etc/osquery/osquery.flags --force
-    volumes:
-      - "osquery-fedora-db:/var/osquery"
-
-  osquery-debian:
-    build:
-      context: ./testdata
-      dockerfile: Dockerfile.osquery.debian
-    depends_on:
-      watcher:
-        condition: service_started
-    command:
-      - bash
-      - -c
-      - |
-        until curl -fsS -o /dev/null https://watcher:1323/bootstrap/linux.sh; do
-          echo "waiting for watcher..."; sleep 2;
-        done
-        curl -fsSL https://watcher:1323/bootstrap/linux.sh | bash || true
-        sed -i 's|^--tls_hostname=.*|--tls_hostname=watcher:1323|' /etc/osquery/osquery.flags
-        echo '--tls_server_certs=/etc/osquery-tls/server.pem' >> /etc/osquery/osquery.flags
-        # The installer's restart step may launch a daemon (via init.d on Debian) that
-        # holds the pidfile; --force makes our foreground instance kill it and take over.
-        exec osqueryd --flagfile=/etc/osquery/osquery.flags --force
-    volumes:
-      - "osquery-debian-db:/var/osquery"
-
 volumes:
   watcher-db-data:
-  osquery-fedora-db:
-  osquery-debian-db:
-
-configs:
-  dex-config:
-    content: |
-      issuer: http://dex:5556/dex
-      issuerRotation:
-        - issuer: http://localhost:5556/dex
-
-      storage:
-        type: sqlite3
-        config:
-          file: /var/dex/dex.db
-
-      web:
-        http: 0.0.0.0:5556
-
-      staticClients:
-        - id: watcher
-          redirectURIs:
-            - "https://localhost:1323/auth/callback"
-          name: watcher
-          secret: secret
-
-      oauth2:
-        skipApprovalScreen: true
-
-      enablePasswordDB: true
-
-      staticPasswords:
-        - email: "user@watcher.internal"
-          # Password - watcher ($$ escapes the literal $ from compose interpolation)
-          hash: "$$2a$$10$$OsKBctWYwSczSpMx4vvEsOcOomBuJImEV8fqwjt5fWDMyXDj5PKjS"
-          username: "user"
-          userID: "5f8d3c2a-1b4e-4d7a-9c6f-2e3a4b5c6d7e"

@@ -1,0 +1,7 @@
+{{.Title}} — {{.Kind}} ({{.Severity}})
+{{range .Items}}
+- {{.Summary}}
+{{- if .Resolution}}
+  resolution: {{.Resolution}}
+{{- end}}
+{{- end}}
