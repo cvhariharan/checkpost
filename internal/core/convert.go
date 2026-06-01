@@ -210,6 +210,60 @@ func toModelPolicyRow(row repo.ListPoliciesWithCountsRow) models.Policy {
 	}
 }
 
+func toModelPolicyPage(rows []repo.ListPoliciesWithCountsRow) ([]models.Policy, int) {
+	out := make([]models.Policy, 0, len(rows))
+	indexByID := make(map[int64]int, len(rows))
+	totalCount := 0
+
+	for _, row := range rows {
+		totalCount = int(row.TotalCount)
+
+		index, ok := indexByID[row.ID]
+		if !ok {
+			policy := toModelPolicyRow(row)
+			policy.Groups = nil
+			policy.TargetAllMachines = true
+			out = append(out, policy)
+			index = len(out) - 1
+			indexByID[row.ID] = index
+		}
+
+		group, ok := toModelGroupFromPolicyRow(row)
+		if !ok {
+			continue
+		}
+		out[index].Groups = append(out[index].Groups, group)
+		out[index].TargetAllMachines = false
+	}
+
+	return out, totalCount
+}
+
+func toModelGroupFromPolicyRow(row repo.ListPoliciesWithCountsRow) (models.Group, bool) {
+	if !row.GroupID.Valid || !row.GroupUuid.Valid {
+		return models.Group{}, false
+	}
+
+	group := models.Group{
+		ID:         row.GroupID.Int64,
+		ResourceID: row.GroupUuid.UUID.String(),
+		UUID:       row.GroupUuid.UUID.String(),
+	}
+	if row.GroupName.Valid {
+		group.Name = row.GroupName.String
+	}
+	if row.GroupDescription.Valid {
+		group.Description = row.GroupDescription.String
+	}
+	if row.GroupCreatedAt.Valid {
+		group.CreatedAt = row.GroupCreatedAt.Time
+	}
+	if row.GroupUpdatedAt.Valid {
+		group.UpdatedAt = row.GroupUpdatedAt.Time
+	}
+	return group, true
+}
+
 func toModelPolicyPosture(row repo.ListPoliciesForNodeRow) models.PolicyPosture {
 	return models.PolicyPosture{
 		Policy: models.Policy{

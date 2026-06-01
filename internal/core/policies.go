@@ -100,16 +100,7 @@ func (c *Core) PaginatePolicies(ctx context.Context, req models.PageRequest) (mo
 		return models.Page[models.Policy]{}, fmt.Errorf("list policies: %w", err)
 	}
 
-	out := make([]models.Policy, 0, len(rows))
-	totalCount := 0
-	for _, row := range rows {
-		out = append(out, toModelPolicyRow(row))
-		totalCount = int(row.TotalCount)
-	}
-
-	if err := c.attachGroupsToPolicies(ctx, out); err != nil {
-		return models.Page[models.Policy]{}, err
-	}
+	out, totalCount := toModelPolicyPage(rows)
 
 	return models.Page[models.Policy]{
 		Items:      out,

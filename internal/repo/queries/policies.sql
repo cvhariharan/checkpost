@@ -46,89 +46,100 @@ ORDER BY name;
 
 -- name: ListPoliciesWithCounts :many
 WITH filtered AS (
-    SELECT *
+    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
     FROM policies
+),
+total AS (
+    SELECT count(*) AS total_count FROM filtered
+),
+page AS (
+    SELECT *
+    FROM filtered
+    ORDER BY created_at DESC, id DESC
+    LIMIT @limit_count OFFSET @offset_count
 ),
 effective_targets AS (
     SELECT
-        filtered.id AS policy_id,
+        page.id AS policy_id,
         nodes.id AS node_id
-    FROM filtered
+    FROM page
     JOIN nodes ON (
-        filtered.platform IN ('all', 'any')
-        OR filtered.platform = nodes.platform
-        OR (filtered.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
-        OR (filtered.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
+        page.platform IN ('all', 'any')
+        OR page.platform = nodes.platform
+        OR (page.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
+        OR (page.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
     )
     WHERE (
         NOT EXISTS (
             SELECT 1
             FROM policy_groups
-            WHERE policy_groups.policy_id = filtered.id
+            WHERE policy_groups.policy_id = page.id
         )
         OR EXISTS (
             SELECT 1
             FROM policy_groups
             JOIN group_membership ON group_membership.group_id = policy_groups.group_id
-            WHERE policy_groups.policy_id = filtered.id
+            WHERE policy_groups.policy_id = page.id
               AND group_membership.node_id = nodes.id
         )
     )
 ),
-total AS (
-    SELECT count(*) AS total_count FROM filtered
+counts AS (
+    SELECT
+        page.id AS policy_id,
+        count(effective_targets.node_id) FILTER (
+            WHERE policy_membership.passes = true
+              AND policy_membership.checked_at >= now() - sqlc.arg(stale_after)::text::interval
+        )::bigint AS passing_count,
+        count(effective_targets.node_id) FILTER (
+            WHERE policy_membership.passes = false
+              AND policy_membership.checked_at >= now() - sqlc.arg(stale_after)::text::interval
+        )::bigint AS failing_count,
+        count(effective_targets.node_id) FILTER (
+            WHERE effective_targets.node_id IS NOT NULL
+              AND (
+                policy_membership.policy_id IS NULL
+                OR policy_membership.passes IS NULL
+                OR policy_membership.checked_at < now() - sqlc.arg(stale_after)::text::interval
+              )
+        )::bigint AS unknown_count,
+        max(policy_membership.updated_at) AS last_count_updated_at
+    FROM page
+    LEFT JOIN effective_targets ON effective_targets.policy_id = page.id
+    LEFT JOIN policy_membership
+        ON policy_membership.policy_id = page.id
+       AND policy_membership.node_id = effective_targets.node_id
+    GROUP BY page.id
 )
 SELECT
-    filtered.id,
-    filtered.uuid,
-    filtered.name,
-    filtered.query,
-    filtered.description,
-    filtered.resolution,
-    filtered.platform,
-    filtered.enabled,
-    filtered.is_system,
-    filtered.created_at,
-    filtered.updated_at,
-    count(effective_targets.node_id) FILTER (
-        WHERE policy_membership.passes = true
-          AND policy_membership.checked_at >= now() - sqlc.arg(stale_after)::text::interval
-    )::bigint AS passing_count,
-    count(effective_targets.node_id) FILTER (
-        WHERE policy_membership.passes = false
-          AND policy_membership.checked_at >= now() - sqlc.arg(stale_after)::text::interval
-    )::bigint AS failing_count,
-    count(effective_targets.node_id) FILTER (
-        WHERE effective_targets.node_id IS NOT NULL
-          AND (
-            policy_membership.policy_id IS NULL
-            OR policy_membership.passes IS NULL
-            OR policy_membership.checked_at < now() - sqlc.arg(stale_after)::text::interval
-          )
-    )::bigint AS unknown_count,
-    max(policy_membership.updated_at) AS last_count_updated_at,
-    total.total_count
-FROM filtered
+    page.id,
+    page.uuid,
+    page.name,
+    page.query,
+    page.description,
+    page.resolution,
+    page.platform,
+    page.enabled,
+    page.is_system,
+    page.created_at,
+    page.updated_at,
+    COALESCE(counts.passing_count, 0)::bigint AS passing_count,
+    COALESCE(counts.failing_count, 0)::bigint AS failing_count,
+    COALESCE(counts.unknown_count, 0)::bigint AS unknown_count,
+    counts.last_count_updated_at,
+    total.total_count,
+    groups.id AS group_id,
+    groups.uuid AS group_uuid,
+    groups.name AS group_name,
+    groups.description AS group_description,
+    groups.created_at AS group_created_at,
+    groups.updated_at AS group_updated_at
+FROM page
 CROSS JOIN total
-LEFT JOIN effective_targets ON effective_targets.policy_id = filtered.id
-LEFT JOIN policy_membership
-    ON policy_membership.policy_id = filtered.id
-   AND policy_membership.node_id = effective_targets.node_id
-GROUP BY
-    filtered.id,
-    filtered.uuid,
-    filtered.name,
-    filtered.query,
-    filtered.description,
-    filtered.resolution,
-    filtered.platform,
-    filtered.enabled,
-    filtered.is_system,
-    filtered.created_at,
-    filtered.updated_at,
-    total.total_count
-ORDER BY filtered.created_at DESC
-LIMIT @limit_count OFFSET @offset_count;
+LEFT JOIN counts ON counts.policy_id = page.id
+LEFT JOIN policy_groups ON policy_groups.policy_id = page.id
+LEFT JOIN groups ON groups.id = policy_groups.group_id
+ORDER BY page.created_at DESC, page.id DESC, groups.name;
 
 -- name: UpdatePolicyByUUID :one
 UPDATE policies SET

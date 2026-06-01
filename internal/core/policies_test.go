@@ -1,10 +1,13 @@
 package core
 
 import (
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/google/uuid"
 )
 
 func TestValidatePolicyQuery(t *testing.T) {
@@ -121,6 +124,102 @@ func TestNodePolicyDue(t *testing.T) {
 	old := now.Add(-2 * time.Hour)
 	if !core.nodePolicyDue(models.Node{UUID: "node-a", LastPolicyCheckAt: &old}) {
 		t.Fatalf("stale node should be due")
+	}
+}
+
+func TestToModelPolicyPageCollapsesGroupRows(t *testing.T) {
+	now := time.Now().UTC()
+	policyAllID := uuid.New()
+	policyGroupedID := uuid.New()
+	groupAID := uuid.New()
+	groupBID := uuid.New()
+
+	rows := []repo.ListPoliciesWithCountsRow{
+		{
+			ID:           1,
+			Uuid:         policyAllID,
+			Name:         "All machines",
+			Query:        "SELECT 1",
+			Platform:     "all",
+			Enabled:      true,
+			CreatedAt:    now.Add(-time.Minute),
+			UpdatedAt:    now,
+			PassingCount: 1,
+			UnknownCount: 2,
+			TotalCount:   2,
+		},
+		{
+			ID:               2,
+			Uuid:             policyGroupedID,
+			Name:             "Grouped",
+			Query:            "SELECT 1",
+			Platform:         "all",
+			Enabled:          true,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			PassingCount:     3,
+			FailingCount:     4,
+			UnknownCount:     5,
+			TotalCount:       2,
+			GroupID:          sql.NullInt64{Int64: 10, Valid: true},
+			GroupUuid:        uuid.NullUUID{UUID: groupAID, Valid: true},
+			GroupName:        sql.NullString{String: "Engineering", Valid: true},
+			GroupDescription: sql.NullString{String: "eng nodes", Valid: true},
+			GroupCreatedAt:   sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+			GroupUpdatedAt:   sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
+		},
+		{
+			ID:           2,
+			Uuid:         policyGroupedID,
+			Name:         "Grouped",
+			Query:        "SELECT 1",
+			Platform:     "all",
+			Enabled:      true,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			PassingCount: 3,
+			FailingCount: 4,
+			UnknownCount: 5,
+			TotalCount:   2,
+			GroupID:      sql.NullInt64{Int64: 11, Valid: true},
+			GroupUuid:    uuid.NullUUID{UUID: groupBID, Valid: true},
+			GroupName:    sql.NullString{String: "Security", Valid: true},
+		},
+	}
+
+	policies, totalCount := toModelPolicyPage(rows)
+	if totalCount != 2 {
+		t.Fatalf("totalCount = %d, want 2", totalCount)
+	}
+	if len(policies) != 2 {
+		t.Fatalf("len(policies) = %d, want 2", len(policies))
+	}
+
+	if !policies[0].TargetAllMachines {
+		t.Fatalf("policy without groups should target all machines")
+	}
+	if len(policies[0].Groups) != 0 {
+		t.Fatalf("policy without groups has %d groups, want 0", len(policies[0].Groups))
+	}
+	if policies[0].PassingCount != 1 || policies[0].UnknownCount != 2 {
+		t.Fatalf("all-machine counts = (%d, %d), want (1, 2)", policies[0].PassingCount, policies[0].UnknownCount)
+	}
+
+	grouped := policies[1]
+	if grouped.TargetAllMachines {
+		t.Fatalf("policy with groups should not target all machines")
+	}
+	if len(grouped.Groups) != 2 {
+		t.Fatalf("len(grouped.Groups) = %d, want 2", len(grouped.Groups))
+	}
+	if grouped.PassingCount != 3 || grouped.FailingCount != 4 || grouped.UnknownCount != 5 {
+		t.Fatalf("grouped counts = (%d, %d, %d), want (3, 4, 5)", grouped.PassingCount, grouped.FailingCount, grouped.UnknownCount)
+	}
+	if grouped.Groups[0].UUID != groupAID.String() || grouped.Groups[0].Name != "Engineering" {
+		t.Fatalf("first group = (%q, %q), want (%q, Engineering)", grouped.Groups[0].UUID, grouped.Groups[0].Name, groupAID.String())
+	}
+	if grouped.Groups[1].UUID != groupBID.String() || grouped.Groups[1].Name != "Security" {
+		t.Fatalf("second group = (%q, %q), want (%q, Security)", grouped.Groups[1].UUID, grouped.Groups[1].Name, groupBID.String())
 	}
 }
 
