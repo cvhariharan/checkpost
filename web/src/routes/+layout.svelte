@@ -202,17 +202,17 @@
     }
   }
 
-  :global(dialog:has(> form > div.vstack)) {
+  :global(dialog[open]:has(> form > div.vstack)) {
     display: flex;
     flex-direction: column;
   }
-  :global(dialog:has(> form > div.vstack) > form) {
+  :global(dialog[open]:has(> form > div.vstack) > form) {
     display: flex;
     flex-direction: column;
     min-height: 0;
     max-height: 100%;
   }
-  :global(dialog > form > div.vstack) {
+  :global(dialog[open] > form > div.vstack) {
     flex: 1 1 auto;
     min-height: 0;
   }

@@ -92,12 +92,17 @@
     opacity: 0.7;
   }
   .selectdropdown-menu {
-    display: flex;
     flex-direction: column;
     max-height: min(18rem, 60vh);
     overflow: auto;
     padding: var(--space-1);
     background-color: var(--card);
+  }
+  /* Only lay out the menu when open; a closed [popover] must keep its
+     UA `display: none`, otherwise it lingers as an invisible, click-eating
+     overlay parked over the trigger (oat keeps closed popovers at opacity 0). */
+  .selectdropdown-menu:popover-open {
+    display: flex;
   }
   .selectdropdown-option {
     justify-content: space-between;
