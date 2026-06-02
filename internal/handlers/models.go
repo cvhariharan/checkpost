@@ -511,6 +511,12 @@ type ProvidersResponse struct {
 	} `json:"sso"`
 }
 
+// IssueTokenRequest is the body for minting an API token (0 days = server default).
+type IssueTokenRequest struct {
+	Name          string `json:"name"`
+	ExpiresInDays int    `json:"expires_in_days" validate:"gte=0"`
+}
+
 // MeResponse is the current user + effective permission set.
 type MeResponse struct {
 	User        models.SessionUser  `json:"user"`

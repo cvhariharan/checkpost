@@ -101,6 +101,10 @@ func main() {
 		log.Fatalf("could not ensure admin user: %v", err)
 	}
 
+	tokenSweeper := core.NewTokenSweeper(c, logger)
+	tokenSweeper.Start()
+	defer tokenSweeper.Close()
+
 	if cfg.AlertsConfig.Enabled {
 		core.RegisterAlertSources(store, cfg.AppConfig.PolicyStaleAfter)
 		smtpNotifier, err := alerts.NewSMTPNotifier(alerts.SMTPRelay{
@@ -149,6 +153,11 @@ func main() {
 	api := e.Group("/api/v1", h.Authenticate)
 
 	api.GET("/me", h.HandleMe)
+
+	// Self-service API tokens; minting requires an interactive session.
+	api.POST("/auth/tokens", h.HandleIssueToken, h.SessionOnly)
+	api.GET("/auth/tokens", h.HandleListTokens)
+	api.DELETE("/auth/tokens/:id", h.HandleRevokeToken)
 
 	api.POST("/schedules", h.HandleCreateSchedule, h.Authorize(core.ResourceSchedule, core.ActionCreate))
 	api.GET("/schedules", h.HandleSchedulesPagination, h.Authorize(core.ResourceSchedule, core.ActionView))

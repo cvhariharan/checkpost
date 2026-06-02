@@ -38,7 +38,7 @@
   const section = $derived(
     rootSection === 'machines'
       ? 'inventory'
-      : rootSection === 'admin'
+      : rootSection === 'admin' || rootSection === 'settings'
         ? pathname.split('/')[2] || ''
         : rootSection
   )
@@ -113,6 +113,20 @@
                 </a>
               </li>
             {/each}
+          </ul>
+        {/if}
+
+        {#if user}
+          <p class="admin-heading text-light">Settings</p>
+          <ul>
+            <li>
+              <a
+                href="/settings/api-tokens"
+                aria-current={section === 'api-tokens' ? 'page' : undefined}
+              >
+                API Tokens
+              </a>
+            </li>
           </ul>
         {/if}
       </nav>

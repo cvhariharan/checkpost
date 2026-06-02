@@ -511,6 +511,23 @@ type SessionUser struct {
 	LoginType string `json:"login_type"`
 }
 
+// APIToken is the API-facing view of a token row (no secret, no hash).
+type APIToken struct {
+	UUID       string     `json:"uuid"`
+	Name       string     `json:"name"`
+	Source     string     `json:"source"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// IssuedAPIToken adds the plaintext secret, returned only once at creation.
+type IssuedAPIToken struct {
+	APIToken
+	Secret string `json:"secret"`
+}
+
 type CreateUser struct {
 	Name  string
 	Email string

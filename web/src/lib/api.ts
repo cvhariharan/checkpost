@@ -636,6 +636,20 @@ export type RolesResponse = {
   catalog: { resources: PermissionCatalogEntry[] }
 }
 
+export type APIToken = {
+  uuid: string
+  name?: string
+  source?: string
+  expires_at?: string
+  last_used_at?: string
+  revoked_at?: string
+  created_at?: string
+}
+
+export type IssuedAPIToken = APIToken & {
+  secret: string
+}
+
 export function fetchMe() {
   return fetch(`${BASE_URL}/me`).then((r) => handleResponse<Me>(r))
 }
@@ -654,6 +668,21 @@ export function login(username: string, password: string) {
 
 export function logout() {
   return fetch('/logout', { method: 'POST' }).then((r) => handleResponse<unknown>(r))
+}
+
+// API tokens (self-service).
+export function fetchAPITokens() {
+  return fetch(`${BASE_URL}/auth/tokens`).then((r) => handleResponse<APIToken[]>(r))
+}
+
+export function createAPIToken(payload: { name: string; expires_in_days: number }) {
+  return jsonRequest<IssuedAPIToken>('/auth/tokens', 'POST', payload)
+}
+
+export function revokeAPIToken(uuid: string) {
+  return fetch(`${BASE_URL}/auth/tokens/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then(
+    (r) => handleResponse<unknown>(r)
+  )
 }
 
 // Users

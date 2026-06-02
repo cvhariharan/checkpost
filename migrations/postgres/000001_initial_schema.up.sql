@@ -435,6 +435,27 @@ CREATE TABLE casbin_rule (
     CONSTRAINT casbin_rule_unique UNIQUE (ptype, v0, v1, v2, v3, v4, v5)
 );
 
+-- Bearer API tokens. Only the SHA-256 hash of the secret is stored at rest.
+CREATE TABLE api_tokens (
+    id           BIGSERIAL PRIMARY KEY,
+    uuid         UUID NOT NULL DEFAULT uuidv7(),
+    user_id      BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    name         TEXT NOT NULL DEFAULT '',
+    token_hash   TEXT NOT NULL,
+    source       TEXT NOT NULL DEFAULT 'self',    -- 'self' | 'device' (future: 'admin')
+    expires_at   TIMESTAMPTZ,                     -- NULL = never
+    last_used_at TIMESTAMPTZ,
+    revoked_at   TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT api_tokens_uuid_unique   UNIQUE (uuid),
+    CONSTRAINT api_tokens_hash_unique   UNIQUE (token_hash),
+    CONSTRAINT api_tokens_source_check  CHECK (source IN ('self','device','admin'))
+);
+
+CREATE INDEX api_tokens_user_idx    ON api_tokens (user_id);
+CREATE INDEX api_tokens_expires_idx ON api_tokens (expires_at);
+
 -- System schedules carry their SQL inline. The schedule name is the key the
 -- systemmetrics registry maps to a metric kind.
 INSERT INTO schedules (name, sql, description, interval_seconds, platform, snapshot, is_system)

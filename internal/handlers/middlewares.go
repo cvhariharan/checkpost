@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/cvhariharan/watcher/internal/models"
 	"github.com/labstack/echo/v4"
@@ -26,6 +27,11 @@ const (
 
 	// contextUserKey is where the authenticated user is stashed for handlers.
 	contextUserKey = "user"
+	// contextAuthMethodKey records how the request authenticated (session|token).
+	contextAuthMethodKey = "auth_method"
+
+	authMethodSession = "session"
+	authMethodToken   = "token"
 )
 
 // acquireSession returns the current session, creating one if none exists.
@@ -41,6 +47,17 @@ func (h *Handler) acquireSession(c echo.Context) (*simplesessions.Session, error
 // OIDC tokens, and re-checks the disabled flag before allowing the request through.
 func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		// Bearer API tokens authenticate as the owning user; a generic 401 hides why.
+		if secret, ok := bearerToken(c.Request()); ok {
+			user, err := h.c.AuthenticateToken(c.Request().Context(), secret)
+			if err != nil {
+				return wrapError(http.StatusUnauthorized, "invalid or expired token", err, nil)
+			}
+			c.Set(contextUserKey, user)
+			c.Set(contextAuthMethodKey, authMethodToken)
+			return next(c)
+		}
+
 		sess, err := h.sessMgr.Acquire(c.Request().Context(), c, c)
 		if err != nil {
 			return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
@@ -86,8 +103,23 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		c.Set(contextUserKey, user)
+		c.Set(contextAuthMethodKey, authMethodSession)
 		return next(c)
 	}
+}
+
+// bearerToken extracts the secret from an "Authorization: Bearer <secret>" header.
+func bearerToken(r *http.Request) (string, bool) {
+	const prefix = "bearer "
+	header := r.Header.Get("Authorization")
+	if len(header) < len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
+		return "", false
+	}
+	secret := strings.TrimSpace(header[len(prefix):])
+	if secret == "" {
+		return "", false
+	}
+	return secret, true
 }
 
 // Authorize enforces a global (domain "*") permission check for the route.
@@ -116,6 +148,17 @@ func (h *Handler) currentUser(c echo.Context) (models.SessionUser, error) {
 		return v, nil
 	}
 	return models.SessionUser{}, errors.New("no authenticated user in context")
+}
+
+// SessionOnly rejects bearer-token requests so a leaked token can't perform
+// sensitive actions like minting new tokens.
+func (h *Handler) SessionOnly(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		if method, _ := c.Get(contextAuthMethodKey).(string); method != authMethodSession {
+			return wrapError(http.StatusForbidden, "this action requires an interactive session", nil, nil)
+		}
+		return next(c)
+	}
 }
 
 // decodeSessionUser converts the value returned by the session store (a decoded

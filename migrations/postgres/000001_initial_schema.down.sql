@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS api_tokens;
 DROP TABLE IF EXISTS alert_state;
 DROP TABLE IF EXISTS alert_rule_targets;
 DROP TABLE IF EXISTS alert_rules;
