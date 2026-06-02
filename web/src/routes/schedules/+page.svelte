@@ -148,21 +148,15 @@
           {#each schedules as schedule}
             <tr>
               <td>
-                {#if canUpdateSchedule}
-                  <button type="button" class="cell-link" onclick={() => openEdit(schedule)}>
-                    <Truncate text={schedule.title || 'Untitled'} />
-                  </button>
-                {:else}
-                  <strong><Truncate text={schedule.title || 'Untitled'} /></strong>
-                {/if}
+                <button type="button" class="cell-link" onclick={() => goto(`/schedules/${schedule.uuid}`)}>
+                  <Truncate text={schedule.title || 'Untitled'} />
+                </button>
               </td>
               <td class="text-light">
                 <Truncate text={descriptionFor(schedule)} lines={2} />
               </td>
               <td class="col-actions">
                 <ActionsMenu label={`Actions for ${schedule.title || 'schedule'}`}>
-                  <button role="menuitem" type="button" onclick={() => goto(`/schedules/${schedule.uuid}`)}>Results</button>
-                  {#if canUpdateSchedule || canDeleteSchedule}<hr />{/if}
                   {#if canUpdateSchedule}
                     <button role="menuitem" type="button" onclick={() => openEdit(schedule)}>Edit</button>
                   {/if}
