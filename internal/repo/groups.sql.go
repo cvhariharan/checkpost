@@ -205,6 +205,24 @@ func (q *Queries) GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group,
 	return i, err
 }
 
+const getGroupByName = `-- name: GetGroupByName :one
+SELECT id, uuid, name, description, created_at, updated_at FROM groups WHERE name = $1
+`
+
+func (q *Queries) GetGroupByName(ctx context.Context, name string) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByName, name)
+	var i Group
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getGroupWithCountsByUUID = `-- name: GetGroupWithCountsByUUID :one
 SELECT
     groups.id,

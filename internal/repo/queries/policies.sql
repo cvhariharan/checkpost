@@ -15,6 +15,9 @@ RETURNING *;
 -- name: GetPolicyByUUID :one
 SELECT * FROM policies WHERE uuid = $1;
 
+-- name: GetPolicyByName :one
+SELECT * FROM policies WHERE name = $1;
+
 -- name: GetPolicyByID :one
 SELECT * FROM policies WHERE id = $1;
 

@@ -10,6 +10,9 @@ RETURNING *;
 -- name: GetGroupByUUID :one
 SELECT * FROM groups WHERE uuid = $1;
 
+-- name: GetGroupByName :one
+SELECT * FROM groups WHERE name = $1;
+
 -- name: GetGroupByID :one
 SELECT * FROM groups WHERE id = $1;
 

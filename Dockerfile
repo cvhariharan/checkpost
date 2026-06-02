@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web-builder /src/web/dist ./web/dist
-RUN CGO_ENABLED=1 GOOS=linux go build -o /out/watcher ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -o /out/watcher ./cmd/watcher
 
 FROM debian:trixie-slim
 
@@ -29,4 +29,4 @@ COPY config.toml.example /etc/watcher/config.toml
 EXPOSE 1323
 
 ENTRYPOINT ["watcher"]
-CMD ["-config", "/etc/watcher/config.toml"]
+CMD ["server", "--config", "/etc/watcher/config.toml"]

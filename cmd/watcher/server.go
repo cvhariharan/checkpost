@@ -4,10 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"flag"
 	"fmt"
 	"io/fs"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,9 +24,21 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
 	_ "github.com/lib/pq"
+	"github.com/spf13/cobra"
 )
 
-func main() {
+func newServerCmd(flags *rootFlags) *cobra.Command {
+	return &cobra.Command{
+		Use:   "server",
+		Short: "Start the Watcher HTTP server",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServer(flags)
+		},
+	}
+}
+
+func runServer(flags *rootFlags) error {
 	loglevel := slog.LevelError
 	if os.Getenv("DEBUG_LOG") == "true" {
 		loglevel = slog.LevelDebug
@@ -41,40 +51,41 @@ func main() {
 
 	logger.Debug("starting server")
 
-	var configFile string
-	flag.StringVar(&configFile, "config", "config.toml", "Path to the config file. If the file doesn't exist, a default file will be generated")
-	flag.Parse()
+	configFile := flags.config
+	if strings.TrimSpace(configFile) == "" {
+		configFile = "config.toml"
+	}
 
 	cfg, err := config.Load(configFile)
 	if err != nil {
-		log.Fatalf("could not load config: %v", err)
+		return fmt.Errorf("could not load config: %w", err)
 	}
 
 	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", cfg.DBConfig.User, cfg.DBConfig.Password, cfg.DBConfig.Host, cfg.DBConfig.Port, cfg.DBConfig.DBName))
 	if err != nil {
-		log.Fatalf("could not open database: %v", err)
+		return fmt.Errorf("could not open database: %w", err)
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("could not connect to database: %v", err)
+		return fmt.Errorf("could not connect to database: %w", err)
 	}
 
 	if err := runDBMigration(db); err != nil {
-		log.Fatalf("could not complete db migration: %v", err)
+		return fmt.Errorf("could not complete db migration: %w", err)
 	}
 
 	store := repo.NewPostgresStore(db)
 
 	resultsWriter, err := results.NewWriter(cfg.DataConfig.ParquetRoot, results.NewQueryStore(store), logger)
 	if err != nil {
-		log.Fatalf("could not initialize results writer: %v", err)
+		return fmt.Errorf("could not initialize results writer: %w", err)
 	}
 	defer resultsWriter.Close()
 
 	resultsReader, err := results.NewReader(cfg.DataConfig.ParquetRoot, cfg.DataConfig.DuckDBPath)
 	if err != nil {
-		log.Fatalf("could not initialize results reader: %v", err)
+		return fmt.Errorf("could not initialize results reader: %w", err)
 	}
 	defer resultsReader.Close()
 
@@ -84,21 +95,21 @@ func main() {
 
 	enforcer, err := core.NewEnforcer(db)
 	if err != nil {
-		log.Fatalf("could not initialize casbin enforcer: %v", err)
+		return fmt.Errorf("could not initialize casbin enforcer: %w", err)
 	}
 
 	c, err := core.NewCore(logger, store, resultsWriter, resultsReader, enforcer, cfg.AppConfig)
 	if err != nil {
-		log.Fatalf("could not initialize core: %v", err)
+		return fmt.Errorf("could not initialize core: %w", err)
 	}
 
 	// Rebuild the shared policy store from the code-defined role matrix +
 	// role_bindings, then ensure the config admin exists and holds the admin role.
 	if err := c.SyncPolicies(context.Background()); err != nil {
-		log.Fatalf("could not sync rbac policies: %v", err)
+		return fmt.Errorf("could not sync rbac policies: %w", err)
 	}
 	if err := c.EnsureAdminUser(context.Background(), cfg.AppConfig.AdminUsername, cfg.AppConfig.AdminPassword); err != nil {
-		log.Fatalf("could not ensure admin user: %v", err)
+		return fmt.Errorf("could not ensure admin user: %w", err)
 	}
 
 	tokenSweeper := core.NewTokenSweeper(c, logger)
@@ -116,7 +127,7 @@ func main() {
 			TLS:      cfg.AlertsConfig.SMTP.TLS,
 		}, store.ListUserGroupMemberEmails)
 		if err != nil {
-			log.Fatalf("could not initialize smtp notifier: %v", err)
+			return fmt.Errorf("could not initialize smtp notifier: %w", err)
 		}
 		alerts.RegisterNotifier(smtpNotifier)
 		alerts.RegisterNotifier(alerts.NewWebhookNotifier())
@@ -130,7 +141,7 @@ func main() {
 
 	h, err := handlers.NewHandler(logger, db, cfg, c)
 	if err != nil {
-		log.Fatalf("could not initialize handlers: %v", err)
+		return fmt.Errorf("could not initialize handlers: %w", err)
 	}
 	e.HTTPErrorHandler = h.ErrorHandler
 
@@ -161,6 +172,7 @@ func main() {
 
 	api.POST("/schedules", h.HandleCreateSchedule, h.Authorize(core.ResourceSchedule, core.ActionCreate))
 	api.GET("/schedules", h.HandleSchedulesPagination, h.Authorize(core.ResourceSchedule, core.ActionView))
+	api.GET("/schedules/by-name/:name", h.HandleGetScheduleByName, h.Authorize(core.ResourceSchedule, core.ActionView))
 	api.GET("/schedules/:id", h.HandleGetSchedule, h.Authorize(core.ResourceSchedule, core.ActionView))
 	api.DELETE("/schedules/:id", h.HandleDeleteSchedule, h.Authorize(core.ResourceSchedule, core.ActionDelete))
 	api.PUT("/schedules/:id", h.HandleUpdateSchedule, h.Authorize(core.ResourceSchedule, core.ActionUpdate))
@@ -168,6 +180,7 @@ func main() {
 
 	api.POST("/policies", h.HandleCreatePolicy, h.Authorize(core.ResourcePolicy, core.ActionCreate))
 	api.GET("/policies", h.HandlePoliciesPagination, h.Authorize(core.ResourcePolicy, core.ActionView))
+	api.GET("/policies/by-name/:name", h.HandleGetPolicyByName, h.Authorize(core.ResourcePolicy, core.ActionView))
 	api.GET("/policies/:id", h.HandleGetPolicy, h.Authorize(core.ResourcePolicy, core.ActionView))
 	api.DELETE("/policies/:id", h.HandleDeletePolicy, h.Authorize(core.ResourcePolicy, core.ActionDelete))
 	api.PUT("/policies/:id", h.HandleUpdatePolicy, h.Authorize(core.ResourcePolicy, core.ActionUpdate))
@@ -175,6 +188,7 @@ func main() {
 
 	api.POST("/groups", h.HandleCreateGroup, h.Authorize(core.ResourceMachineGroup, core.ActionCreate))
 	api.GET("/groups", h.HandleGroupsPagination, h.Authorize(core.ResourceMachineGroup, core.ActionView))
+	api.GET("/groups/by-name/:name", h.HandleGetGroupByName, h.Authorize(core.ResourceMachineGroup, core.ActionView))
 	api.GET("/groups/:id", h.HandleGetGroup, h.Authorize(core.ResourceMachineGroup, core.ActionView))
 	api.DELETE("/groups/:id", h.HandleDeleteGroup, h.Authorize(core.ResourceMachineGroup, core.ActionDelete))
 	api.PUT("/groups/:id", h.HandleUpdateGroup, h.Authorize(core.ResourceMachineGroup, core.ActionUpdate))
@@ -214,6 +228,7 @@ func main() {
 
 	api.POST("/alert-targets", h.HandleCreateAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionCreate))
 	api.GET("/alert-targets", h.HandleAlertTargetsPagination, h.Authorize(core.ResourceAlertTarget, core.ActionView))
+	api.GET("/alert-targets/by-name/:name", h.HandleGetAlertTargetByName, h.Authorize(core.ResourceAlertTarget, core.ActionView))
 	api.GET("/alert-targets/:id", h.HandleGetAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionView))
 	api.PUT("/alert-targets/:id", h.HandleUpdateAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionUpdate))
 	api.DELETE("/alert-targets/:id", h.HandleDeleteAlertTarget, h.Authorize(core.ResourceAlertTarget, core.ActionDelete))
@@ -221,6 +236,7 @@ func main() {
 
 	api.POST("/alert-rules", h.HandleCreateAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionCreate))
 	api.GET("/alert-rules", h.HandleAlertRulesPagination, h.Authorize(core.ResourceAlertRule, core.ActionView))
+	api.GET("/alert-rules/by-name/:name", h.HandleGetAlertRuleByName, h.Authorize(core.ResourceAlertRule, core.ActionView))
 	api.GET("/alert-rules/:id", h.HandleGetAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionView))
 	api.PUT("/alert-rules/:id", h.HandleUpdateAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionUpdate))
 	api.DELETE("/alert-rules/:id", h.HandleDeleteAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionDelete))
@@ -252,7 +268,7 @@ func main() {
 
 	buildFS, err := fs.Sub(webassets.StaticFiles, "dist")
 	if err != nil {
-		log.Fatalf("could not load embedded frontend: %v", err)
+		return fmt.Errorf("could not load embedded frontend: %w", err)
 	}
 	fileServer := http.FileServer(http.FS(buildFS))
 	e.GET("/*", func(c echo.Context) error {
@@ -272,10 +288,9 @@ func main() {
 	})
 
 	if cfg.AppConfig.UseTLS {
-		e.Logger.Fatal(e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath))
-	} else {
-		e.Logger.Fatal(e.Start(":1323"))
+		return e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath)
 	}
+	return e.Start(":1323")
 }
 
 func runDBMigration(db *sql.DB) error {

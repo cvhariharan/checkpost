@@ -16,7 +16,7 @@ build: $(BINARY) ## Build the frontend + watcher binary (needs CGO toolchain; se
 web: $(WEB_DIST) ## Build the frontend bundle (embedded into the binary)
 
 build-go: ## Force-build only the Go binary (assumes web/dist already built)
-	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/server
+	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/watcher
 
 # Install node deps only when the manifest/lockfile change.
 $(WEB_STAMP): web/package.json web/package-lock.json
@@ -29,7 +29,7 @@ $(WEB_DIST): $(WEB_SRC) $(WEB_STAMP)
 
 # Rebuild the binary only when Go sources, modules, or the embedded bundle change.
 $(BINARY): $(GO_SRC) go.mod go.sum $(WEB_DIST)
-	CGO_ENABLED=1 go build -o $@ ./cmd/server
+	CGO_ENABLED=1 go build -o $@ ./cmd/watcher
 
 dev: ## Start the full dev stack (watcher, postgres, dex, mailhog, osquery agents)
 	$(COMPOSE_DEV) up --build -d

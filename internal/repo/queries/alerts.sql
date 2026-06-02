@@ -6,6 +6,9 @@ RETURNING *;
 -- name: GetAlertTargetByUUID :one
 SELECT * FROM alert_targets WHERE uuid = $1;
 
+-- name: GetAlertTargetByName :one
+SELECT * FROM alert_targets WHERE name = $1;
+
 -- name: UpdateAlertTargetByUUID :one
 UPDATE alert_targets
 SET name = $2, config = $3, enabled = $4, updated_at = now()
@@ -30,6 +33,9 @@ RETURNING *;
 
 -- name: GetAlertRuleByUUID :one
 SELECT * FROM alert_rules WHERE uuid = $1;
+
+-- name: GetAlertRuleByName :one
+SELECT * FROM alert_rules WHERE name = $1;
 
 -- name: UpdateAlertRuleByUUID :one
 UPDATE alert_rules

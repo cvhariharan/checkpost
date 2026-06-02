@@ -123,6 +123,29 @@ func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Polic
 	return i, err
 }
 
+const getPolicyByName = `-- name: GetPolicyByName :one
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE name = $1
+`
+
+func (q *Queries) GetPolicyByName(ctx context.Context, name string) (Policy, error) {
+	row := q.db.QueryRowContext(ctx, getPolicyByName, name)
+	var i Policy
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.Name,
+		&i.Query,
+		&i.Description,
+		&i.Resolution,
+		&i.Platform,
+		&i.Enabled,
+		&i.IsSystem,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listEnabledPoliciesForNode = `-- name: ListEnabledPoliciesForNode :many
 SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
 FROM policies
