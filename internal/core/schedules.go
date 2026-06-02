@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
-	"github.com/cvhariharan/watcher/internal/resultquery"
-	"github.com/cvhariharan/watcher/internal/results"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/resultquery"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 )
 

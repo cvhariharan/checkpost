@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/google/uuid"
 	"github.com/invopop/jsonschema"
 )

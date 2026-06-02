@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/results"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/invopop/jsonschema"
 )
 

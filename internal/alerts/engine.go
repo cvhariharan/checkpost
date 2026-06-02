@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/repo"
 )
 
 const tickInterval = 30 * time.Second

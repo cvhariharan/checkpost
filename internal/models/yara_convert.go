@@ -1,6 +1,6 @@
 package models
 
-import "github.com/cvhariharan/watcher/internal/repo"
+import "github.com/cvhariharan/checkpost/internal/repo"
 
 func YaraSignatureSourceFromRow(row repo.ListYaraSignatureSourcesRow) YaraSignatureSource {
 	out := YaraSignatureSource{

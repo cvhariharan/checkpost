@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/resultquery"
+	"github.com/cvhariharan/checkpost/internal/resultquery"
 	"github.com/google/uuid"
 	_ "github.com/marcboeker/go-duckdb/v2"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
 

@@ -21,7 +21,7 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print version information",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Printf("watcher %s (commit %s, built %s)\n", version, commit, date)
+			fmt.Printf("checkpost %s (commit %s, built %s)\n", version, commit, date)
 			return nil
 		},
 	}

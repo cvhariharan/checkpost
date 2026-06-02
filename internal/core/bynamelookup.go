@@ -2,7 +2,7 @@ package core
 
 import "context"
 
-// LookupResult is the minimal by-name lookup payload used by `watcher apply` to
+// LookupResult is the minimal by-name lookup payload used by `checkpost apply` to
 // decide create vs update. It deliberately carries only the natural key and the
 // UUID needed to address the resource on update.
 type LookupResult struct {

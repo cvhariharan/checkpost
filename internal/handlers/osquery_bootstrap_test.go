@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cvhariharan/watcher/internal/config"
+	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/labstack/echo/v4"
 )
 
 func TestOsqueryBootstrapProfileReady(t *testing.T) {
-	h := &Handler{cfg: testBootstrapConfig("https://watcher.example.com")}
+	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com")}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
@@ -31,7 +31,7 @@ func TestOsqueryBootstrapProfileReady(t *testing.T) {
 	if !resp.Ready {
 		t.Fatalf("Ready = false, warnings = %v", resp.Warnings)
 	}
-	if resp.TLSHostname != "watcher.example.com" {
+	if resp.TLSHostname != "checkpost.example.com" {
 		t.Fatalf("TLSHostname = %q", resp.TLSHostname)
 	}
 	if len(resp.Platforms) != 3 {
@@ -71,7 +71,7 @@ func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 }
 
 func TestOsqueryBootstrapScript(t *testing.T) {
-	h := &Handler{cfg: testBootstrapConfig("https://watcher.example.com")}
+	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com")}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap/linux.sh", nil)
 	rec := httptest.NewRecorder()
@@ -84,7 +84,7 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, want := range []string{
-		"TLS_HOSTNAME='watcher.example.com'",
+		"TLS_HOSTNAME='checkpost.example.com'",
 		"ENROLL_SECRET='enroll-secret'",
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"install_osquery_if_missing",

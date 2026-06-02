@@ -10,7 +10,7 @@ import (
 // rootFlags holds the persistent flags shared by the client subcommands
 // (apply). They are distinct from the server's koanf TOML config: --config
 // here points at the CLI YAML config file for client commands, and at the
-// server TOML for `watcher server`.
+// server TOML for `checkpost server`.
 type rootFlags struct {
 	server   string
 	token    string
@@ -24,11 +24,11 @@ func newRootCmd() *cobra.Command {
 	serverCmd := newServerCmd(flags)
 
 	root := &cobra.Command{
-		Use:   "watcher",
-		Short: "Watcher detection platform server and GitOps CLI",
-		Long: "Watcher is an osquery-based detection platform.\n\n" +
-			"Run `watcher server` to start the HTTP server (the default when no\n" +
-			"subcommand is given), or `watcher apply` to push YAML-defined detection\n" +
+		Use:   "checkpost",
+		Short: "Checkpost detection platform server and GitOps CLI",
+		Long: "Checkpost is an osquery-based detection platform.\n\n" +
+			"Run `checkpost server` to start the HTTP server (the default when no\n" +
+			"subcommand is given), or `checkpost apply` to push YAML-defined detection\n" +
 			"content to a running server using an API token.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -36,8 +36,8 @@ func newRootCmd() *cobra.Command {
 		RunE: serverCmd.RunE,
 	}
 
-	root.PersistentFlags().StringVar(&flags.server, "server", "", "Watcher server base URL (client commands; env WATCHER_SERVER)")
-	root.PersistentFlags().StringVar(&flags.token, "token", "", "API token for client commands (env WATCHER_TOKEN)")
+	root.PersistentFlags().StringVar(&flags.server, "server", "", "Checkpost server base URL (client commands; env CHECKPOST_SERVER)")
+	root.PersistentFlags().StringVar(&flags.token, "token", "", "API token for client commands (env CHECKPOST_TOKEN)")
 	root.PersistentFlags().StringVar(&flags.config, "config", "", "Path to the config file (server TOML, or CLI YAML for client commands)")
 	root.PersistentFlags().BoolVar(&flags.insecure, "insecure", false, "Skip TLS certificate verification and allow sending the token to a non-loopback plain-http host")
 

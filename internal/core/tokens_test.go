@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
 
@@ -174,7 +174,7 @@ func TestAuthenticateToken(t *testing.T) {
 
 	t.Run("malformed prefix", func(t *testing.T) {
 		store := newFakeTokenStore()
-		_, err := testCore(store).AuthenticateToken(context.Background(), "not-a-watcher-token")
+		_, err := testCore(store).AuthenticateToken(context.Background(), "not-a-checkpost-token")
 		if !errors.Is(err, ErrInvalidToken) {
 			t.Fatalf("err = %v, want ErrInvalidToken", err)
 		}

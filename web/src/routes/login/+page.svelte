@@ -48,7 +48,7 @@
 <main class="login-main">
   <div class="login-card card">
     <header class="vstack gap-1 mb-4">
-      <h1 class="mb-0">Watcher</h1>
+      <h1 class="mb-0">Checkpost</h1>
       <p class="text-light mb-0">Sign in to continue</p>
     </header>
 

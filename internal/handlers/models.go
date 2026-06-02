@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/checkpost/internal/models"
 )
 
 // ALERTING ----------------------------------------------------------------
@@ -458,7 +458,7 @@ type DistributedWriteRequest struct {
 
 type OsqueryBootstrapResponse struct {
 	Ready       bool                       `json:"ready"`
-	WatcherURL  string                     `json:"watcher_url"`
+	CheckpostURL  string                     `json:"checkpost_url"`
 	TLSHostname string                     `json:"tls_hostname"`
 	Warnings    []string                   `json:"warnings"`
 	Platforms   []OsqueryBootstrapPlatform `json:"platforms"`

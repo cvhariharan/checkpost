@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/cvhariharan/watcher/internal/config"
-	"github.com/cvhariharan/watcher/internal/core"
+	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/zerodha/simplesessions/stores/postgres/v3"
@@ -60,7 +60,7 @@ func NewHandler(logger *slog.Logger, db *sql.DB, cfg config.Config, c *core.Core
 	sessMgr := simplesessions.New(simplesessions.Options{
 		EnableAutoCreate: false,
 		Cookie: simplesessions.CookieOptions{
-			Name:       "watcher_session",
+			Name:       "checkpost_session",
 			IsHTTPOnly: true,
 			IsSecure:   cfg.AppConfig.UseTLS,
 			SameSite:   http.SameSiteLaxMode,

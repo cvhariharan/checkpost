@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/casbin/casbin/v2"
-	"github.com/cvhariharan/watcher/internal/config"
-	"github.com/cvhariharan/watcher/internal/repo"
-	"github.com/cvhariharan/watcher/internal/results"
+	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/results"
 )
 
 var (

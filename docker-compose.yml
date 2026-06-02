@@ -1,5 +1,5 @@
 services:
-  watcher:
+  checkpost:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,32 +7,32 @@ services:
     ports:
       - "1323:1323"
     environment:
-      - WATCHER_APP__ROOT_URL=https://localhost:1323
-      - WATCHER_APP__USE_TLS=true
-      - WATCHER_APP__HTTP_TLS_CERT=/etc/watcher/tls/server_cert.pem
-      - WATCHER_APP__HTTP_TLS_KEY=/etc/watcher/tls/server_key.pem
-      - WATCHER_APP__ENROLLMENT_KEY=secret-key
-      - WATCHER_DB__HOST=postgres
-      - WATCHER_DB__PORT=5432
-      - WATCHER_DB__USER=watcher
-      - WATCHER_DB__PASSWORD=watcher
-      - WATCHER_DB__DBNAME=watcher
+      - CHECKPOST_APP__ROOT_URL=https://localhost:1323
+      - CHECKPOST_APP__USE_TLS=true
+      - CHECKPOST_APP__HTTP_TLS_CERT=/etc/checkpost/tls/server_cert.pem
+      - CHECKPOST_APP__HTTP_TLS_KEY=/etc/checkpost/tls/server_key.pem
+      - CHECKPOST_APP__ENROLLMENT_KEY=secret-key
+      - CHECKPOST_DB__HOST=postgres
+      - CHECKPOST_DB__PORT=5432
+      - CHECKPOST_DB__USER=checkpost
+      - CHECKPOST_DB__PASSWORD=checkpost
+      - CHECKPOST_DB__DBNAME=checkpost
       # osquery agent install packages served by /bootstrap.
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_AMD64__URL=https://pkg.osquery.io/deb/osquery_5.23.0-1.linux_amd64.deb
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_AMD64__SHA256=8938e83d71c6e668f24648b4fb612581db30f95cd31bf76a86c3ba4a6680a7dc
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_ARM64__URL=https://pkg.osquery.io/deb/osquery_5.23.0-1.linux_arm64.deb
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__DEB_ARM64__SHA256=c3442880a2fff324fea26a7bc4b2c6b1bc816e5f22f1016f0141d6381eec12e2
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__RPM_AMD64__URL=https://pkg.osquery.io/rpm/osquery-5.23.0-1.linux.x86_64.rpm
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__RPM_AMD64__SHA256=93797324a340ea83c2a4cb6f0cac20055acb53ba9a3bda44b993791c6e975f1e
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__RPM_ARM64__URL=https://pkg.osquery.io/rpm/osquery-5.23.0-1.linux.aarch64.rpm
-      - WATCHER_OSQUERY_BOOTSTRAP__LINUX__RPM_ARM64__SHA256=a46318a88aaa74420b46e5e01213d33e0c4122788a02014c2c67dc9ba235d2c1
-      - WATCHER_OSQUERY_BOOTSTRAP__MACOS__PKG_UNIVERSAL__URL=https://pkg.osquery.io/darwin/osquery-5.23.0.pkg
-      - WATCHER_OSQUERY_BOOTSTRAP__MACOS__PKG_UNIVERSAL__SHA256=2621179c334a6482fa822732f121409bbccc36784db18f576e2965dfc4f1845d
-      - WATCHER_OSQUERY_BOOTSTRAP__WINDOWS__MSI_AMD64__URL=https://pkg.osquery.io/windows/osquery-5.23.0.msi
-      - WATCHER_OSQUERY_BOOTSTRAP__WINDOWS__MSI_AMD64__SHA256=5060c7cc21bc00258b5d7822a769cb619ff432c02ba89f6c1b6cbfa127d59b40
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__DEB_AMD64__URL=https://pkg.osquery.io/deb/osquery_5.23.0-1.linux_amd64.deb
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__DEB_AMD64__SHA256=8938e83d71c6e668f24648b4fb612581db30f95cd31bf76a86c3ba4a6680a7dc
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__DEB_ARM64__URL=https://pkg.osquery.io/deb/osquery_5.23.0-1.linux_arm64.deb
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__DEB_ARM64__SHA256=c3442880a2fff324fea26a7bc4b2c6b1bc816e5f22f1016f0141d6381eec12e2
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__RPM_AMD64__URL=https://pkg.osquery.io/rpm/osquery-5.23.0-1.linux.x86_64.rpm
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__RPM_AMD64__SHA256=93797324a340ea83c2a4cb6f0cac20055acb53ba9a3bda44b993791c6e975f1e
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__RPM_ARM64__URL=https://pkg.osquery.io/rpm/osquery-5.23.0-1.linux.aarch64.rpm
+      - CHECKPOST_OSQUERY_BOOTSTRAP__LINUX__RPM_ARM64__SHA256=a46318a88aaa74420b46e5e01213d33e0c4122788a02014c2c67dc9ba235d2c1
+      - CHECKPOST_OSQUERY_BOOTSTRAP__MACOS__PKG_UNIVERSAL__URL=https://pkg.osquery.io/darwin/osquery-5.23.0.pkg
+      - CHECKPOST_OSQUERY_BOOTSTRAP__MACOS__PKG_UNIVERSAL__SHA256=2621179c334a6482fa822732f121409bbccc36784db18f576e2965dfc4f1845d
+      - CHECKPOST_OSQUERY_BOOTSTRAP__WINDOWS__MSI_AMD64__URL=https://pkg.osquery.io/windows/osquery-5.23.0.msi
+      - CHECKPOST_OSQUERY_BOOTSTRAP__WINDOWS__MSI_AMD64__SHA256=5060c7cc21bc00258b5d7822a769cb619ff432c02ba89f6c1b6cbfa127d59b40
     volumes:
-      - "./testdata/server_cert.pem:/etc/watcher/tls/server_cert.pem:ro,z"
-      - "./testdata/server_key.pem:/etc/watcher/tls/server_key.pem:ro,z"
+      - "./testdata/server_cert.pem:/etc/checkpost/tls/server_cert.pem:ro,z"
+      - "./testdata/server_key.pem:/etc/checkpost/tls/server_key.pem:ro,z"
       - "./data:/app/data:z"
     depends_on:
       postgres:
@@ -40,7 +40,7 @@ services:
     networks:
       default:
         aliases:
-          - watcher
+          - checkpost
 
   postgres:
     image: postgres:18-alpine
@@ -48,18 +48,18 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_PASSWORD=watcher
-      - POSTGRES_USER=watcher
-      - POSTGRES_DB=watcher
+      - POSTGRES_PASSWORD=checkpost
+      - POSTGRES_USER=checkpost
+      - POSTGRES_DB=checkpost
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U watcher"]
+      test: ["CMD-SHELL", "pg_isready -U checkpost"]
       interval: 10s
       timeout: 5s
       retries: 6
     volumes:
       - type: volume
-        source: watcher-db-data
+        source: checkpost-db-data
         target: /var/lib/postgresql
 
 volumes:
-  watcher-db-data:
+  checkpost-db-data:

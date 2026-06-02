@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
 

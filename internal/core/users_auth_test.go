@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"golang.org/x/crypto/bcrypt"
 )
 

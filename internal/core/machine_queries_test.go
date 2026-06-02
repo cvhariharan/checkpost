@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
@@ -58,7 +58,7 @@ func TestListMachineQueriesReturnsPersistedHistory(t *testing.T) {
 				NodeID:      7,
 				Query:       "SELECT name FROM processes LIMIT 1",
 				Status:      "complete",
-				Results:     pqtype.NullRawMessage{RawMessage: []byte(`[{"name":"watcher"}]`), Valid: true},
+				Results:     pqtype.NullRawMessage{RawMessage: []byte(`[{"name":"checkpost"}]`), Valid: true},
 				CompletedAt: sql.NullTime{Time: completedAt, Valid: true},
 				CreatedAt:   completedAt.Add(-time.Minute),
 				UpdatedAt:   completedAt,
@@ -98,7 +98,7 @@ func TestListMachineQueriesReturnsPersistedHistory(t *testing.T) {
 		t.Fatalf("expected decoded JSON rows, got %#v", results[0].Results)
 	}
 	row, ok := rows[0].(map[string]interface{})
-	if !ok || row["name"] != "watcher" {
+	if !ok || row["name"] != "checkpost" {
 		t.Fatalf("expected decoded row, got %#v", rows[0])
 	}
 }

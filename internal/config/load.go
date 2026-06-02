@@ -17,7 +17,7 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
-const envPrefix = "WATCHER_"
+const envPrefix = "CHECKPOST_"
 
 var (
 	defaultPolicyUpdateInterval = time.Hour
@@ -363,8 +363,8 @@ func loadDefaults(k *koanf.Koanf) error {
 	}
 
 	return k.Load(confmap.Provider(map[string]any{
-		"app.admin_username":                           "watcher_admin",
-		"app.admin_password":                           "watcher_password",
+		"app.admin_username":                           "checkpost_admin",
+		"app.admin_password":                           "checkpost_password",
 		"app.http_tls_cert":                            "server_cert.pem",
 		"app.http_tls_key":                             "server_key.pem",
 		"app.use_tls":                                  false,
@@ -386,11 +386,11 @@ func loadDefaults(k *koanf.Koanf) error {
 		"app.oidc.auto_create_users":                   true,
 		"app.oidc.default_role":                        "",
 		"app.session.ttl":                              "8h",
-		"db.dbname":                                    "watcher",
+		"db.dbname":                                    "checkpost",
 		"db.host":                                      "localhost",
 		"db.port":                                      5432,
-		"db.password":                                  "watcher",
-		"db.user":                                      "watcher",
+		"db.password":                                  "checkpost",
+		"db.user":                                      "checkpost",
 		"data.parquet_root":                            "./data/results",
 		"data.duckdb_path":                             "",
 		"alerts.enabled":                               false,
@@ -398,7 +398,7 @@ func loadDefaults(k *koanf.Koanf) error {
 		"alerts.smtp.port":                             587,
 		"alerts.smtp.username":                         "",
 		"alerts.smtp.password":                         "",
-		"alerts.smtp.from":                             "watcher@example.com",
+		"alerts.smtp.from":                             "checkpost@example.com",
 		"alerts.smtp.tls":                              "starttls",
 		"osquery_bootstrap.enabled":                    true,
 		"osquery_bootstrap.linux.deb_amd64.url":        "",

@@ -11,14 +11,14 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/alerts"
-	"github.com/cvhariharan/watcher/internal/config"
-	"github.com/cvhariharan/watcher/internal/core"
-	"github.com/cvhariharan/watcher/internal/handlers"
-	"github.com/cvhariharan/watcher/internal/repo"
-	"github.com/cvhariharan/watcher/internal/results"
-	"github.com/cvhariharan/watcher/migrations"
-	webassets "github.com/cvhariharan/watcher/web"
+	"github.com/cvhariharan/checkpost/internal/alerts"
+	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/core"
+	"github.com/cvhariharan/checkpost/internal/handlers"
+	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/results"
+	"github.com/cvhariharan/checkpost/migrations"
+	webassets "github.com/cvhariharan/checkpost/web"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -30,7 +30,7 @@ import (
 func newServerCmd(flags *rootFlags) *cobra.Command {
 	return &cobra.Command{
 		Use:   "server",
-		Short: "Start the Watcher HTTP server",
+		Short: "Start the Checkpost HTTP server",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServer(flags)

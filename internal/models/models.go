@@ -127,7 +127,7 @@ type OsqueryInfo struct {
 	PID           string `json:"pid"`
 	StartTime     string `json:"start_time"`
 	Version       string `json:"version"`
-	Watcher       string `json:"watcher"`
+	Checkpost       string `json:"checkpost"`
 	NodeFK        int    `json:"-"`
 }
 
@@ -540,7 +540,7 @@ type UpdateUser struct {
 	Disabled bool
 }
 
-// OIDCClaims are the ID-token claims watcher reads on SSO login.
+// OIDCClaims are the ID-token claims checkpost reads on SSO login.
 type OIDCClaims struct {
 	Email  string
 	Name   string

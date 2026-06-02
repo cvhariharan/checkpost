@@ -38,8 +38,8 @@ func TestLoadAppliesEnvironmentOverrides(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	t.Setenv("WATCHER_DB__HOST", "db.internal")
-	t.Setenv("WATCHER_APP__POLICY_STALE_AFTER", "45m")
+	t.Setenv("CHECKPOST_DB__HOST", "db.internal")
+	t.Setenv("CHECKPOST_APP__POLICY_STALE_AFTER", "45m")
 
 	cfg, err := Load(configPath)
 	if err != nil {

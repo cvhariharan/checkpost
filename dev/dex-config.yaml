@@ -11,10 +11,10 @@ web:
   http: 0.0.0.0:5556
 
 staticClients:
-  - id: watcher
+  - id: checkpost
     redirectURIs:
       - "https://localhost:1323/auth/callback"
-    name: watcher
+    name: checkpost
     secret: secret
 
 oauth2:
@@ -23,8 +23,8 @@ oauth2:
 enablePasswordDB: true
 
 staticPasswords:
-  - email: "user@watcher.internal"
-    # Password: watcher
+  - email: "user@checkpost.internal"
+    # Password: checkpost
     hash: "$2a$10$OsKBctWYwSczSpMx4vvEsOcOomBuJImEV8fqwjt5fWDMyXDj5PKjS"
     username: "user"
     userID: "5f8d3c2a-1b4e-4d7a-9c6f-2e3a4b5c6d7e"

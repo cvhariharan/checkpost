@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/repo"
 )
 
 type fakeSyncStore struct {

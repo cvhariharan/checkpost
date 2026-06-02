@@ -40,23 +40,23 @@ verify_sha256() {
 
 install_osquery_if_missing() {
   if command -v osqueryd >/dev/null 2>&1; then
-    echo "osquery is already installed; reconfiguring Watcher enrollment."
+    echo "osquery is already installed; reconfiguring Checkpost enrollment."
     return
   fi
   if [[ -z "${PACKAGE_URL}" || -z "${PACKAGE_SHA256}" ]]; then
-    echo "Watcher is missing macOS osquery package URL or SHA256."
+    echo "Checkpost is missing macOS osquery package URL or SHA256."
     exit 1
   fi
 
   local package_path
-  package_path="$(mktemp "/tmp/watcher-osquery.XXXXXX.pkg")"
+  package_path="$(mktemp "/tmp/checkpost-osquery.XXXXXX.pkg")"
   trap 'rm -f "${package_path}"' EXIT
   download_file "${PACKAGE_URL}" "${package_path}"
   verify_sha256 "${package_path}"
   installer -pkg "${package_path}" -target /
 }
 
-write_watcher_config() {
+write_checkpost_config() {
   mkdir -p /etc/osquery /private/var/osquery
   printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
   chmod 600 "${SECRET_PATH}"
@@ -94,8 +94,8 @@ restart_osquery() {
 
 require_root
 install_osquery_if_missing
-write_watcher_config
+write_checkpost_config
 restart_osquery
 
-echo "osquery configured for Watcher."
+echo "osquery configured for Checkpost."
 echo "Verify with: sudo launchctl print system/io.osquery.agent || sudo launchctl print system/com.facebook.osqueryd"

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/resultquery"
+	"github.com/cvhariharan/checkpost/internal/resultquery"
 	"github.com/google/uuid"
 )
 

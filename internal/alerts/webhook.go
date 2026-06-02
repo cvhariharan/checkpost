@@ -99,7 +99,7 @@ func (w *WebhookNotifier) Send(ctx context.Context, kind EventKind, target Targe
 		return fmt.Errorf("create webhook request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "watcher-alerts")
+	req.Header.Set("User-Agent", "checkpost-alerts")
 
 	resp, err := w.client.Do(req)
 	if err != nil {

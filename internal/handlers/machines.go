@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/labstack/echo/v4"
 )
 

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/alerts"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/alerts"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 	"github.com/invopop/jsonschema"
 )

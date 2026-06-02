@@ -88,7 +88,7 @@
           <path d="M9 3v18" />
         </svg>
       </button>
-      <a href="/inventory" class="unstyled"><strong>Watcher</strong></a>
+      <a href="/inventory" class="unstyled"><strong>Checkpost</strong></a>
     </nav>
 
     <aside data-sidebar>

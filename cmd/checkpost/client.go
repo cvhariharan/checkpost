@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// apiClient is the thin bearer-auth REST client used by `watcher apply`. It
+// apiClient is the thin bearer-auth REST client used by `checkpost apply`. It
 // targets <server>/api/v1/... and refuses to send the token over plain http to
 // a non-loopback host unless insecure is set.
 type apiClient struct {

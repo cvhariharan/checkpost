@@ -1,4 +1,4 @@
-module github.com/cvhariharan/watcher
+module github.com/cvhariharan/checkpost
 
 go 1.25.0
 

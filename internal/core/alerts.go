@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/alerts"
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/alerts"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
 
@@ -141,7 +141,7 @@ func (c *Core) TestTarget(ctx context.Context, req models.ResourceID) error {
 	sample := []alerts.Alert{{
 		Key:         "test:sample",
 		Labels:      map[string]string{"host": "test-host", "hostname": "test-host"},
-		Annotations: map[string]string{"summary": "This is a test alert from Watcher."},
+		Annotations: map[string]string{"summary": "This is a test alert from Checkpost."},
 	}}
 	rule := alerts.Rule{Name: "Test alert", Severity: "info", Source: target.Type}
 	return notifier.Send(ctx, alerts.EventFiring, alerts.Target{

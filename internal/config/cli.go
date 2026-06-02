@@ -12,18 +12,18 @@ import (
 )
 
 // Environment variables read by the client subcommands. These are distinct
-// from the server's koanf config keys (WATCHER_APP__*, WATCHER_DB__*, ...): the
+// from the server's koanf config keys (CHECKPOST_APP__*, CHECKPOST_DB__*, ...): the
 // CLI client never reads the server TOML.
 const (
-	EnvCLIServer = "WATCHER_SERVER"
-	EnvCLIToken  = "WATCHER_TOKEN"
-	EnvCLIConfig = "WATCHER_CONFIG"
+	EnvCLIServer = "CHECKPOST_SERVER"
+	EnvCLIToken  = "CHECKPOST_TOKEN"
+	EnvCLIConfig = "CHECKPOST_CONFIG"
 )
 
-// CLIConfig is the client-side configuration for `watcher apply`: the server to
+// CLIConfig is the client-side configuration for `checkpost apply`: the server to
 // talk to, the API token to authenticate with, and client preferences. It is
 // authored by hand (the CLI only reads it) and stored as YAML at
-// $XDG_CONFIG_HOME/watcher/config.yaml.
+// $XDG_CONFIG_HOME/checkpost/config.yaml.
 type CLIConfig struct {
 	Server   string `yaml:"server"`
 	Token    string `yaml:"token"`
@@ -38,19 +38,19 @@ type CLIFlags struct {
 	Insecure   bool
 }
 
-// DefaultCLIConfigPath returns $XDG_CONFIG_HOME/watcher/config.yaml, falling
-// back to ~/.config/watcher/config.yaml.
+// DefaultCLIConfigPath returns $XDG_CONFIG_HOME/checkpost/config.yaml, falling
+// back to ~/.config/checkpost/config.yaml.
 func DefaultCLIConfigPath() string {
 	base := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME"))
 	if base == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
 			// Last resort: a relative path. Resolution will simply find no file.
-			return filepath.Join(".config", "watcher", "config.yaml")
+			return filepath.Join(".config", "checkpost", "config.yaml")
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "watcher", "config.yaml")
+	return filepath.Join(base, "checkpost", "config.yaml")
 }
 
 // LoadCLIConfig reads and decodes the CLI config file. A missing file is not an

@@ -90,7 +90,7 @@
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `watcher-osquery-${platform.key}.${extension}`;
+        link.download = `checkpost-osquery-${platform.key}.${extension}`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -124,7 +124,7 @@
         <div>
             <h2>Install osquery</h2>
             <p>
-                Run this command to install and enroll osquery into this Watcher
+                Run this command to install and enroll osquery into this Checkpost
                 instance.
             </p>
         </div>
@@ -163,7 +163,7 @@
                                         <h3>Automated Install</h3>
                                         <p class="text-light">
                                             Installs osquery when missing, then
-                                            writes Watcher enrollment config.
+                                            writes Checkpost enrollment config.
                                         </p>
                                     </div>
                                     <button
@@ -192,7 +192,7 @@
                                         Verifies package checksums before
                                         install.
                                     </li>
-                                    <li>Writes Watcher enrollment config.</li>
+                                    <li>Writes Checkpost enrollment config.</li>
                                     <li>
                                         Starts or restarts the osquery service.
                                     </li>

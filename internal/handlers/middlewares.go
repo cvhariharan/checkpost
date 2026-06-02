@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/labstack/echo/v4"
 	"github.com/zerodha/simplesessions/v3"
 )

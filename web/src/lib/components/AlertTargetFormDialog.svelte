@@ -119,7 +119,7 @@
       {#if targetType === 'webhook'}
         <label data-field>
           Webhook URL
-          <input bind:value={webhookUrl} required type="url" placeholder="https://example.com/watcher-alerts" />
+          <input bind:value={webhookUrl} required type="url" placeholder="https://example.com/checkpost-alerts" />
         </label>
       {:else}
         <label data-field>

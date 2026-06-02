@@ -6,7 +6,7 @@ import (
 
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
 

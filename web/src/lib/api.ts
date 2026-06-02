@@ -220,7 +220,7 @@ export type OsqueryBootstrapPlatform = {
 
 export type OsqueryBootstrapProfile = {
   ready: boolean
-  watcher_url: string
+  checkpost_url: string
   tls_hostname: string
   warnings?: string[]
   platforms?: OsqueryBootstrapPlatform[]

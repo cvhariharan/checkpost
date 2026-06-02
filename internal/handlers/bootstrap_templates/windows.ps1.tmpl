@@ -4,7 +4,7 @@ $TlsHostname = {{ ps .TLSHostname }}
 $EnrollSecret = {{ ps .EnrollmentKey }}
 $PackageUrl = {{ ps .WindowsMSIAMD64URL }}
 $PackageSha256 = {{ ps .WindowsMSIAMD64SHA256 }}
-$BaseDir = "C:\ProgramData\Watcher\osquery"
+$BaseDir = "C:\ProgramData\Checkpost\osquery"
 $FlagsPath = Join-Path $BaseDir "osquery.flags"
 $SecretPath = Join-Path $BaseDir "enroll_secret"
 $DefaultOsqueryExe = "C:\Program Files\osquery\osqueryd\osqueryd.exe"
@@ -30,15 +30,15 @@ function Get-OsqueryExe {
 function Install-OsqueryIfMissing {
   $existing = Get-OsqueryExe
   if ($existing) {
-    Write-Host "osquery is already installed; reconfiguring Watcher enrollment."
+    Write-Host "osquery is already installed; reconfiguring Checkpost enrollment."
     return $existing
   }
 
   if ([string]::IsNullOrWhiteSpace($PackageUrl) -or [string]::IsNullOrWhiteSpace($PackageSha256)) {
-    throw "Watcher is missing Windows osquery package URL or SHA256."
+    throw "Checkpost is missing Windows osquery package URL or SHA256."
   }
 
-  $packagePath = Join-Path $env:TEMP ("watcher-osquery-" + [guid]::NewGuid().ToString() + ".msi")
+  $packagePath = Join-Path $env:TEMP ("checkpost-osquery-" + [guid]::NewGuid().ToString() + ".msi")
   Invoke-WebRequest -Uri $PackageUrl -OutFile $packagePath
   $actual = (Get-FileHash -Path $packagePath -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $PackageSha256.ToLowerInvariant()) {
@@ -58,7 +58,7 @@ function Install-OsqueryIfMissing {
   return $installed
 }
 
-function Write-WatcherConfig {
+function Write-CheckpostConfig {
   New-Item -ItemType Directory -Force -Path $BaseDir | Out-Null
   icacls $BaseDir /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" | Out-Null
   Set-Content -Path $SecretPath -Value $EnrollSecret -NoNewline
@@ -92,8 +92,8 @@ function Restart-Osquery {
 
 Assert-Administrator
 $osqueryExe = Install-OsqueryIfMissing
-Write-WatcherConfig
+Write-CheckpostConfig
 Restart-Osquery -OsqueryExe $osqueryExe
 
-Write-Host "osquery configured for Watcher."
+Write-Host "osquery configured for Checkpost."
 Write-Host "Verify with: Get-Service osqueryd"

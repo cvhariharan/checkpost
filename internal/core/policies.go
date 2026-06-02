@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
 
 const (
-	policyQueryPrefix = "watcher_policy_"
+	policyQueryPrefix = "checkpost_policy_"
 	policyQueryFormat = policyQueryPrefix + "%s"
-	noPoliciesQueryID = "watcher_no_policies"
+	noPoliciesQueryID = "checkpost_no_policies"
 )
 
 func (c *Core) CreatePolicy(ctx context.Context, req models.CreatePolicy) (models.Policy, error) {

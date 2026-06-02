@@ -99,7 +99,7 @@ select_package() {
   esac
 
   if [[ -z "${PACKAGE_URL}" || -z "${PACKAGE_SHA256}" ]]; then
-    echo "Watcher is missing osquery package URL or SHA256 for ${family}/${arch}."
+    echo "Checkpost is missing osquery package URL or SHA256 for ${family}/${arch}."
     exit 1
   fi
 }
@@ -129,7 +129,7 @@ install_rpm() {
 
 install_osquery_if_missing() {
   if command -v osqueryd >/dev/null 2>&1; then
-    echo "osquery is already installed; reconfiguring Watcher enrollment."
+    echo "osquery is already installed; reconfiguring Checkpost enrollment."
     return
   fi
 
@@ -139,7 +139,7 @@ install_osquery_if_missing() {
   arch="$(arch_key)"
   select_package "${family}" "${arch}"
 
-  PACKAGE_PATH="$(mktemp "/tmp/watcher-osquery.XXXXXX.${PACKAGE_EXT}")"
+  PACKAGE_PATH="$(mktemp "/tmp/checkpost-osquery.XXXXXX.${PACKAGE_EXT}")"
   trap cleanup_package EXIT
   download_file "${PACKAGE_URL}" "${PACKAGE_PATH}"
   verify_sha256 "${PACKAGE_PATH}" "${PACKAGE_SHA256}"
@@ -151,7 +151,7 @@ install_osquery_if_missing() {
   fi
 }
 
-write_watcher_config() {
+write_checkpost_config() {
   mkdir -p /etc/osquery
   printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
   chmod 600 "${SECRET_PATH}"
@@ -191,8 +191,8 @@ restart_osquery() {
 
 require_root
 install_osquery_if_missing
-write_watcher_config
+write_checkpost_config
 restart_osquery
 
-echo "osquery configured for Watcher."
+echo "osquery configured for Checkpost."
 echo "Verify with: systemctl status osqueryd --no-pager"

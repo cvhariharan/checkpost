@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/config"
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )

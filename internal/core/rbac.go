@@ -10,8 +10,8 @@ import (
 
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
-	"github.com/cvhariharan/watcher/internal/models"
-	"github.com/cvhariharan/watcher/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	sqlxadapter "github.com/memwey/casbin-sqlx-adapter"
@@ -28,7 +28,7 @@ const (
 	RoleViewer   = "viewer"
 )
 
-// Resources (map 1:1 to watcher domains).
+// Resources (map 1:1 to checkpost domains).
 const (
 	ResourceMachine      = "machine"
 	ResourceMachineGroup = "machine_group"

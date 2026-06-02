@@ -1,6 +1,6 @@
-# Watcher developer tasks. Run `make` (or `make help`) to list targets.
+# Checkpost developer tasks. Run `make` (or `make help`) to list targets.
 
-BINARY      := watcher
+BINARY      := checkpost
 COMPOSE_DEV := docker compose -f dev/docker-compose.yml
 
 # Inputs that, when changed, should trigger a rebuild.
@@ -11,12 +11,12 @@ GO_SRC      := $(shell find . -type f -name '*.go' -not -path './web/node_module
 
 .PHONY: build build-go web dev dev-down up down clean
 
-build: $(BINARY) ## Build the frontend + watcher binary (needs CGO toolchain; see dev/README.md)
+build: $(BINARY) ## Build the frontend + checkpost binary (needs CGO toolchain; see dev/README.md)
 
 web: $(WEB_DIST) ## Build the frontend bundle (embedded into the binary)
 
 build-go: ## Force-build only the Go binary (assumes web/dist already built)
-	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/watcher
+	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/checkpost
 
 # Install node deps only when the manifest/lockfile change.
 $(WEB_STAMP): web/package.json web/package-lock.json
@@ -29,15 +29,15 @@ $(WEB_DIST): $(WEB_SRC) $(WEB_STAMP)
 
 # Rebuild the binary only when Go sources, modules, or the embedded bundle change.
 $(BINARY): $(GO_SRC) go.mod go.sum $(WEB_DIST)
-	CGO_ENABLED=1 go build -o $@ ./cmd/watcher
+	CGO_ENABLED=1 go build -o $@ ./cmd/checkpost
 
-dev: ## Start the full dev stack (watcher, postgres, dex, mailhog, osquery agents)
+dev: ## Start the full dev stack (checkpost, postgres, dex, mailhog, osquery agents)
 	$(COMPOSE_DEV) up --build -d
 
 dev-down: ## Stop the dev stack and remove its volumes
 	$(COMPOSE_DEV) down -v
 
-up: ## Quick start: watcher + postgres over HTTPS
+up: ## Quick start: checkpost + postgres over HTTPS
 	docker compose up --build
 
 down: ## Stop the quick-start stack

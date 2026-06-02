@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/core"
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/labstack/echo/v4"
 )
 
 // ByNameResponse is the payload of the view-gated by-name lookup endpoints used
-// by `watcher apply` to resolve a natural-key name to its UUID.
+// by `checkpost apply` to resolve a natural-key name to its UUID.
 type ByNameResponse struct {
 	UUID string `json:"uuid"`
 	Name string `json:"name"`

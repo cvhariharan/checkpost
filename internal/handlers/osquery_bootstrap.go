@@ -10,7 +10,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/cvhariharan/watcher/internal/config"
+	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/labstack/echo/v4"
 )
 
@@ -22,8 +22,8 @@ const (
 	linuxSecretPath     = "/etc/osquery/enroll_secret"
 	macOSFlagfilePath   = "/etc/osquery/osquery.flags"
 	macOSSecretPath     = "/private/var/osquery/enroll_secret"
-	windowsFlagfilePath = `C:\ProgramData\Watcher\osquery\osquery.flags`
-	windowsSecretPath   = `C:\ProgramData\Watcher\osquery\enroll_secret`
+	windowsFlagfilePath = `C:\ProgramData\Checkpost\osquery\osquery.flags`
+	windowsSecretPath   = `C:\ProgramData\Checkpost\osquery\enroll_secret`
 )
 
 type bootstrapTemplateData struct {
@@ -63,7 +63,7 @@ func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 }
 
 func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
-	watcherURL, tlsHostname, warnings := bootstrapURLState(h.cfg.RootURL)
+	checkpostURL, tlsHostname, warnings := bootstrapURLState(h.cfg.RootURL)
 	packages := h.bootstrapPackages()
 	warnings = append(warnings, packageWarnings(h.cfg.OsqueryBootstrap, packages)...)
 
@@ -80,8 +80,8 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		{
 			Key:               "linux",
 			Label:             "Linux",
-			Command:           bootstrapCommand(watcherURL, "linux"),
-			ScriptURL:         bootstrapScriptURL(watcherURL, "linux.sh"),
+			Command:           bootstrapCommand(checkpostURL, "linux"),
+			ScriptURL:         bootstrapScriptURL(checkpostURL, "linux.sh"),
 			VerifyCommand:     "systemctl status osqueryd --no-pager",
 			RestartCommand:    "systemctl restart osqueryd && systemctl enable osqueryd",
 			Package:           firstPackage(packages["linux"]),
@@ -98,8 +98,8 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		{
 			Key:               "macos",
 			Label:             "macOS",
-			Command:           bootstrapCommand(watcherURL, "macos"),
-			ScriptURL:         bootstrapScriptURL(watcherURL, "macos.sh"),
+			Command:           bootstrapCommand(checkpostURL, "macos"),
+			ScriptURL:         bootstrapScriptURL(checkpostURL, "macos.sh"),
 			VerifyCommand:     "sudo launchctl print system/io.osquery.agent || sudo launchctl print system/com.facebook.osqueryd",
 			RestartCommand:    "sudo osqueryctl restart",
 			Package:           firstPackage(packages["macos"]),
@@ -116,8 +116,8 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		{
 			Key:               "windows",
 			Label:             "Windows",
-			Command:           bootstrapCommand(watcherURL, "windows"),
-			ScriptURL:         bootstrapScriptURL(watcherURL, "windows.ps1"),
+			Command:           bootstrapCommand(checkpostURL, "windows"),
+			ScriptURL:         bootstrapScriptURL(checkpostURL, "windows.ps1"),
 			VerifyCommand:     "Get-Service osqueryd",
 			RestartCommand:    "Restart-Service osqueryd",
 			Package:           firstPackage(packages["windows"]),
@@ -135,7 +135,7 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 
 	return OsqueryBootstrapResponse{
 		Ready:       h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
-		WatcherURL:  watcherURL,
+		CheckpostURL:  checkpostURL,
 		TLSHostname: tlsHostname,
 		Warnings:    warnings,
 		Platforms:   platforms,
@@ -282,21 +282,21 @@ func firstPackage(packages []OsqueryBootstrapPackage) OsqueryBootstrapPackage {
 	return packages[0]
 }
 
-func bootstrapScriptURL(watcherURL, script string) string {
-	if watcherURL == "" {
+func bootstrapScriptURL(checkpostURL, script string) string {
+	if checkpostURL == "" {
 		return "/bootstrap/" + script
 	}
-	return strings.TrimRight(watcherURL, "/") + "/bootstrap/" + script
+	return strings.TrimRight(checkpostURL, "/") + "/bootstrap/" + script
 }
 
-func bootstrapCommand(watcherURL, platform string) string {
+func bootstrapCommand(checkpostURL, platform string) string {
 	switch platform {
 	case "linux":
-		return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(watcherURL, "linux.sh"))
+		return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(checkpostURL, "linux.sh"))
 	case "macos":
-		return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(watcherURL, "macos.sh"))
+		return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(checkpostURL, "macos.sh"))
 	case "windows":
-		return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -useb %s | iex\"", bootstrapScriptURL(watcherURL, "windows.ps1"))
+		return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -useb %s | iex\"", bootstrapScriptURL(checkpostURL, "windows.ps1"))
 	default:
 		return ""
 	}

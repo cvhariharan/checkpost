@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/cvhariharan/watcher/internal/core"
-	"github.com/cvhariharan/watcher/internal/models"
+	"github.com/cvhariharan/checkpost/internal/core"
+	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/labstack/echo/v4"
 )
 

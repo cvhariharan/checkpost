@@ -36,7 +36,7 @@ basicConstraints = critical, CA:FALSE
 
 [alt_names]
 DNS.1 = localhost
-DNS.2 = watcher
+DNS.2 = checkpost
 IP.1 = 127.0.0.1
 EOF
 
@@ -54,4 +54,4 @@ echo "  ${cert_path}"
 echo "  ${key_path}"
 echo
 echo "Certificate subject CN: localhost"
-echo "Subject alternative names: localhost, watcher, 127.0.0.1"
+echo "Subject alternative names: localhost, checkpost, 127.0.0.1"

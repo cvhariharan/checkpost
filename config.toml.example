@@ -1,6 +1,6 @@
 [app]
-admin_password = 'watcher_password'
-admin_username = 'watcher_admin'
+admin_password = 'checkpost_password'
+admin_username = 'checkpost_admin'
 http_tls_cert = 'testdata/server_cert.pem'
 http_tls_key = 'testdata/server_key.pem'
 root_url = 'http://localhost:1323'
@@ -67,11 +67,11 @@ url = ''
 sha256 = ''
 
 [db]
-dbname = 'watcher'
+dbname = 'checkpost'
 host = '127.0.0.1'
-password = 'watcher'
+password = 'checkpost'
 port = 5432
-user = 'watcher'
+user = 'checkpost'
 
 [data]
 # Root directory where scheduled-query Parquet files are written.
@@ -90,8 +90,8 @@ enabled = false
 host = ''
 port = 587
 username = ''
-# Prefer the WATCHER_ALERTS__SMTP__PASSWORD env var over storing this here.
+# Prefer the CHECKPOST_ALERTS__SMTP__PASSWORD env var over storing this here.
 password = ''
-from = 'watcher@example.com'
+from = 'checkpost@example.com'
 # starttls | implicit | none (none is discouraged; dev/trusted networks only)
 tls = 'starttls'

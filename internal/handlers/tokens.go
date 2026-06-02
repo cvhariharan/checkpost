@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cvhariharan/watcher/internal/core"
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/labstack/echo/v4"
 )
 

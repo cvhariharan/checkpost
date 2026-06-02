@@ -12,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cvhariharan/watcher/internal/config"
+	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/spf13/cobra"
 	yaml "go.yaml.in/yaml/v4"
 )
@@ -41,13 +41,13 @@ func newApplyCmd(flags *rootFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "apply",
-		Short: "Apply YAML resource definitions to a Watcher server",
+		Short: "Apply YAML resource definitions to a Checkpost server",
 		Long: "Apply creates or updates detection content (policies, schedules,\n" +
-			"alert rules/targets, YARA signature sources) on a Watcher server from\n" +
+			"alert rules/targets, YARA signature sources) on a Checkpost server from\n" +
 			"flat YAML documents. It is idempotent and keyed on each resource's name,\n" +
 			"so it is safe to re-run from CI.\n\n" +
 			"Authentication uses an API token minted in the UI (Settings → API\n" +
-			"Tokens), supplied via --token, WATCHER_TOKEN, or the CLI config file.",
+			"Tokens), supplied via --token, CHECKPOST_TOKEN, or the CLI config file.",
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
