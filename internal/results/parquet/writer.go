@@ -1,4 +1,4 @@
-package results
+package parquet
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 	"github.com/oklog/ulid/v2"
 	"github.com/parquet-go/parquet-go"
@@ -42,12 +43,12 @@ type Writer struct {
 
 type submission struct {
 	key PartitionKey
-	row Row
+	row results.Row
 }
 
 type partitionWorker struct {
 	key  PartitionKey
-	in   chan Row
+	in   chan results.Row
 	done chan struct{}
 }
 
@@ -71,7 +72,7 @@ func NewWriter(root string, store SchemaStore, logger *slog.Logger) (*Writer, er
 	return w, nil
 }
 
-func (w *Writer) Submit(scheduleUUID uuid.UUID, sqlVersion int32, rows []Row) error {
+func (w *Writer) Submit(scheduleUUID uuid.UUID, sqlVersion int32, rows []results.Row) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -97,7 +98,7 @@ func (w *Writer) Submit(scheduleUUID uuid.UUID, sqlVersion int32, rows []Row) er
 			case w.overflow <- submission{key: key, row: row}:
 			default:
 				w.mu.Unlock()
-				return ErrBackpressure
+				return results.ErrBackpressure
 			}
 		}
 		w.mu.Unlock()
@@ -169,7 +170,7 @@ func (w *Writer) workerForLocked(key PartitionKey) *partitionWorker {
 	}
 	pw := &partitionWorker{
 		key:  key,
-		in:   make(chan Row, partitionQueueSize),
+		in:   make(chan results.Row, partitionQueueSize),
 		done: make(chan struct{}),
 	}
 	w.workers[key] = pw
@@ -200,7 +201,7 @@ func (w *Writer) runPartition(pw *partitionWorker) {
 	defer close(pw.done)
 	defer w.partitionWG.Done()
 
-	var buffer []Row
+	var buffer []results.Row
 	timer := time.NewTimer(flushInterval)
 	defer timer.Stop()
 
@@ -243,7 +244,7 @@ func (w *Writer) runPartition(pw *partitionWorker) {
 	}
 }
 
-func (w *Writer) writeChunk(key PartitionKey, rows []Row) error {
+func (w *Writer) writeChunk(key PartitionKey, rows []results.Row) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -289,7 +290,7 @@ func (w *Writer) writeChunk(key PartitionKey, rows []Row) error {
 	return nil
 }
 
-func (w *Writer) resolveColumns(ctx context.Context, key PartitionKey, rows []Row) ([]string, error) {
+func (w *Writer) resolveColumns(ctx context.Context, key PartitionKey, rows []results.Row) ([]string, error) {
 	seen := make(map[string]struct{})
 	observed := make([]string, 0, 8)
 	for _, row := range rows {
@@ -313,7 +314,7 @@ func (w *Writer) resolveColumns(ctx context.Context, key PartitionKey, rows []Ro
 	return final, nil
 }
 
-func encodeRows(f *os.File, rows []Row, queryColumns []string) error {
+func encodeRows(f *os.File, rows []results.Row, queryColumns []string) error {
 	schema, columnIndex := buildSchema(queryColumns)
 	writer := parquet.NewWriter(f, schema, parquet.Compression(&zstd.Codec{}))
 

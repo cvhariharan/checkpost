@@ -24,8 +24,8 @@ type Core struct {
 	adminUsername string
 	enforcer      *casbin.Enforcer
 
-	results       *results.Writer
-	resultsReader *results.Reader
+	sink   results.Sink
+	reader results.Reader
 
 	systemMetrics *SystemMetricsRegistry
 
@@ -33,15 +33,15 @@ type Core struct {
 	policyStaleAfter     time.Duration
 }
 
-func NewCore(logger *slog.Logger, store repo.Store, writer *results.Writer, reader *results.Reader, enforcer *casbin.Enforcer, cfg config.AppConfig) (*Core, error) {
+func NewCore(logger *slog.Logger, store repo.Store, sink results.Sink, reader results.Reader, enforcer *casbin.Enforcer, cfg config.AppConfig) (*Core, error) {
 	return &Core{
 		store:                store,
 		logger:               logger.WithGroup("core"),
 		rootURL:              cfg.RootURL,
 		adminUsername:        cfg.AdminUsername,
 		enforcer:             enforcer,
-		results:              writer,
-		resultsReader:        reader,
+		sink:                 sink,
+		reader:               reader,
 		systemMetrics:        DefaultSystemMetrics(),
 		policyUpdateInterval: cfg.PolicyUpdateInterval,
 		policyStaleAfter:     cfg.PolicyStaleAfter,

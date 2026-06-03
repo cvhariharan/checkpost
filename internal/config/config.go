@@ -7,7 +7,7 @@ type Config struct {
 	OIDCConfig    OIDCConfig
 	SessionConfig SessionConfig
 	DBConfig      DBConfig
-	DataConfig    DataConfig
+	ResultsConfig ResultsConfig
 	AlertsConfig  AlertsConfig
 }
 
@@ -72,9 +72,35 @@ type DBConfig struct {
 	Password string
 }
 
-type DataConfig struct {
-	ParquetRoot string `validate:"required"`
-	DuckDBPath  string
+// ResultsConfig selects which backends receive scheduled-query results.
+type ResultsConfig struct {
+	Parquet    ParquetConfig
+	NDJSON     NDJSONConfig
+	ClickHouse ClickHouseConfig
+}
+
+// ParquetConfig is the local Parquet+DuckDB backend that powers the frontend
+// results browser. Disable it for external-only logging.
+type ParquetConfig struct {
+	Enabled    bool
+	Root       string
+	DuckDBPath string
+}
+
+// NDJSONConfig ships rows as newline-delimited JSON to a file or stdout.
+type NDJSONConfig struct {
+	Enabled  bool
+	Path     string
+	Required bool
+}
+
+// ClickHouseConfig inserts rows into a ClickHouse table.
+type ClickHouseConfig struct {
+	Enabled  bool
+	DSN      string
+	Table    string
+	TTLDays  int
+	Required bool
 }
 
 type OsqueryBootstrapConfig struct {

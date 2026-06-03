@@ -213,8 +213,8 @@ func (c *Core) parseResultLogs(logs []map[string]interface{}) []resultLog {
 }
 
 func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []resultLog) error {
-	if c.results == nil {
-		return errors.New("results writer not configured")
+	if c.sink == nil {
+		return errors.New("results sink not configured")
 	}
 	if len(logs) == 0 {
 		return nil
@@ -250,7 +250,13 @@ func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []result
 		if len(rows) == 0 {
 			continue
 		}
-		if err := c.results.Submit(sched.Uuid, log.sqlVersion, rows); err != nil {
+		if err := c.sink.Submit(ctx, results.Batch{
+			ScheduleUUID: sched.Uuid,
+			SQLVersion:   log.sqlVersion,
+			ScheduleName: sched.Name,
+			Snapshot:     sched.Snapshot,
+			Rows:         rows,
+		}); err != nil {
 			return fmt.Errorf("submit results for %s: %w", log.versionedName, err)
 		}
 		if sched.IsSystem && sched.Snapshot {

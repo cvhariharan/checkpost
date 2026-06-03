@@ -1,41 +1,21 @@
-// Package results manages on-disk storage and querying of scheduled-query
-// results. Results are written as Hive-partitioned Parquet files under a
-// single root directory and queried through an embedded DuckDB engine.
-//
-// Layout:
-//
-//	{root}/
-//	  query={schedule_uuid}/
-//	    v={sql_version}/
-//	      host={node_id}/
-//	        chunk-{ulid}.parquet
+// Package results defines the generic Sink/Reader interfaces and shared types
+// for delivering scheduled-query results. Concrete backends live in subpackages
+// (e.g. internal/results/parquet).
 package results
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"path/filepath"
 	"time"
 
+	"github.com/cvhariharan/checkpost/internal/resultquery"
 	"github.com/google/uuid"
 )
 
-// Standard parquet column names that precede the auto-resolved query columns.
-const (
-	ColNodeID       = "node_id"
-	ColUnixTime     = "unix_time"
-	ColCalendarTime = "calendar_time"
-	ColAction       = "action"
-	ColRowHash      = "row_hash"
-	ColIngestedAt   = "ingested_at"
-)
-
-// ErrBackpressure is returned by Writer.Submit when both the per-partition
-// channel and the global overflow buffer are full. Callers should propagate
-// HTTP 503 to osquery so that it retries on the next interval.
-var ErrBackpressure = errors.New("results: writer overflow buffer full")
+// ErrBackpressure is returned by Submit when a required backend's buffer is
+// full. Callers should propagate HTTP 503 to osquery so that it retries on the
+// next interval.
+var ErrBackpressure = errors.New("results: backend overflow buffer full")
 
 // Row is a single result row received from osquery for one schedule.
 type Row struct {
@@ -47,67 +27,54 @@ type Row struct {
 	Columns      map[string]string
 }
 
-// PartitionKey identifies a single (schedule, version, host) partition.
-type PartitionKey struct {
+// Batch is the rows osquery reported for one (schedule, sql_version) in a
+// single ingest call, plus schedule metadata for external backends to tag.
+type Batch struct {
 	ScheduleUUID uuid.UUID
 	SQLVersion   int32
-	NodeID       int64
+	ScheduleName string
+	Snapshot     bool
+	Rows         []Row
 }
 
-// SchemaStore is the minimum surface from the metadata DB needed to resolve
-// and persist column lists per (schedule_uuid, sql_version).
-//
-// MergeColumns atomically unions observed with the persisted list and
-// returns the resulting authoritative column order (existing columns
-// retain their position; new columns are appended in observed order).
-// Doing the merge SQL-side is what makes concurrent partition writers
-// safe — a read-modify-write split between Get and Upsert would let two
-// workers each observe a different new column and clobber each other.
-type SchemaStore interface {
-	MergeColumns(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, observed []string) ([]string, error)
+// Sink is the generic write/push target for scheduled-query results.
+type Sink interface {
+	Name() string
+	// Submit enqueues a batch. It returns ErrBackpressure when the backend's
+	// buffer is full; best-effort backends never return ErrBackpressure.
+	Submit(ctx context.Context, batch Batch) error
+	DeleteSchedule(ctx context.Context, scheduleUUID uuid.UUID) error
+	Close() error
 }
 
-// partitionDir returns the directory holding chunk files for one partition.
-func partitionDir(root string, key PartitionKey) string {
-	return filepath.Join(
-		root,
-		fmt.Sprintf("query=%s", key.ScheduleUUID.String()),
-		fmt.Sprintf("v=%d", key.SQLVersion),
-		fmt.Sprintf("host=%d", key.NodeID),
-	)
+// Reader is the frontend query surface. May be nil when no reader-capable
+// backend is enabled (browsing disabled).
+type Reader interface {
+	Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, columns []string, opts ReadOptions) (Result, error)
+	Close() error
 }
 
-// versionDir returns the directory holding all hosts for one (schedule, version).
-func versionDir(root string, scheduleUUID uuid.UUID, sqlVersion int32) string {
-	return filepath.Join(
-		root,
-		fmt.Sprintf("query=%s", scheduleUUID.String()),
-		fmt.Sprintf("v=%d", sqlVersion),
-	)
+// ReadOptions controls a single Reader.Read call.
+type ReadOptions struct {
+	NodeID   int64
+	NodeIDs  []int64
+	Snapshot bool
+	Limit    int
+	Offset   int
+	Filters  []resultquery.Term
 }
 
-// queryDir returns the directory holding all versions for one schedule.
-func queryDir(root string, scheduleUUID uuid.UUID) string {
-	return filepath.Join(root, fmt.Sprintf("query=%s", scheduleUUID.String()))
+// Result is one page of read rows plus the total matching count.
+type Result struct {
+	Columns []string
+	Rows    []ResultRow
+	Total   int
 }
 
-// marshalColumns encodes a column list as the JSON representation stored in
-// query_schemas.columns.
-func marshalColumns(cols []string) (json.RawMessage, error) {
-	if cols == nil {
-		cols = []string{}
-	}
-	return json.Marshal(cols)
-}
-
-// unmarshalColumns decodes a query_schemas.columns blob into an ordered slice.
-func unmarshalColumns(raw json.RawMessage) ([]string, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var cols []string
-	if err := json.Unmarshal(raw, &cols); err != nil {
-		return nil, err
-	}
-	return cols, nil
+// ResultRow is a single row returned to the frontend.
+type ResultRow struct {
+	NodeID   int64
+	UnixTime time.Time
+	Action   string
+	Values   map[string]string
 }

@@ -23,6 +23,7 @@
   let loading = $state(true)
   let resultsLoading = $state(false)
   let error = $state('')
+  let browsingDisabled = $state(false)
   const countPerPage = 500
 
   const scheduleId = $derived(page.params.id as string)
@@ -47,6 +48,7 @@
     error = ''
     try {
       const data = await fetchScheduleResults(scheduleId, { page: targetPage, countPerPage, query: q })
+      browsingDisabled = data.browsing_disabled || false
       columns = data.columns || []
       rows = data.rows || []
       total = data.total || 0
@@ -83,6 +85,11 @@
 {#if loading}
   <Spinner />
 {:else if schedule}
+  {#if browsingDisabled}
+    <div role="alert" data-variant="warning">
+      <p>Result browsing is disabled on this server. Contact an administrator.</p>
+    </div>
+  {/if}
   <ScheduleResultsTable
     {schedule}
     {columns}

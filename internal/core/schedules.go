@@ -83,8 +83,9 @@ func validateQuery(query string) error {
 }
 
 func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResultsRequest) (models.ScheduleResults, error) {
-	if c.resultsReader == nil {
-		return models.ScheduleResults{}, errors.New("results reader not configured")
+	if c.reader == nil {
+		// Disable frontend browsing, no reader available
+		return models.ScheduleResults{BrowsingDisabled: true}, nil
 	}
 
 	scheduleID, err := uuid.Parse(req.ScheduleUUID)
@@ -116,7 +117,7 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 		return models.ScheduleResults{}, err
 	}
 
-	res, err := c.resultsReader.Read(ctx, sched.Uuid, sched.SqlVersion, columns, results.ReadOptions{
+	res, err := c.reader.Read(ctx, sched.Uuid, sched.SqlVersion, columns, results.ReadOptions{
 		Snapshot: sched.Snapshot,
 		Limit:    count,
 		Offset:   page * count,
@@ -365,8 +366,8 @@ func (c *Core) DeleteSchedule(ctx context.Context, req models.ResourceID) error 
 	// Clean up parquet partitions and query_schemas entries for this schedule.
 	// Errors are logged, not returned: the schedule row is gone either way and
 	// orphaned files will be swept by the schema GC.
-	if c.results != nil {
-		if err := c.results.DeleteSchedule(id); err != nil {
+	if c.sink != nil {
+		if err := c.sink.DeleteSchedule(ctx, id); err != nil {
 			c.logger.Error("remove schedule partitions", "schedule_uuid", id, "error", err)
 		}
 	}

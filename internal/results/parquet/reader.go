@@ -1,4 +1,4 @@
-package results
+package parquet
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/resultquery"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 	_ "github.com/marcboeker/go-duckdb/v2"
 )
@@ -39,29 +40,7 @@ func (r *Reader) Close() error {
 	return r.db.Close()
 }
 
-type ReadOptions struct {
-	NodeID   int64
-	NodeIDs  []int64
-	Snapshot bool
-	Limit    int
-	Offset   int
-	Filters  []resultquery.Term
-}
-
-type Result struct {
-	Columns []string
-	Rows    []ResultRow
-	Total   int
-}
-
-type ResultRow struct {
-	NodeID   int64
-	UnixTime time.Time
-	Action   string
-	Values   map[string]string
-}
-
-func (r *Reader) Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, columns []string, opts ReadOptions) (Result, error) {
+func (r *Reader) Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, columns []string, opts results.ReadOptions) (results.Result, error) {
 	if opts.Limit <= 0 {
 		opts.Limit = 1000
 	}
@@ -70,10 +49,10 @@ func (r *Reader) Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion in
 
 	matches, err := filepath.Glob(glob)
 	if err != nil {
-		return Result{}, fmt.Errorf("glob partition: %w", err)
+		return results.Result{}, fmt.Errorf("glob partition: %w", err)
 	}
 	if len(matches) == 0 {
-		return Result{Columns: columns}, nil
+		return results.Result{Columns: columns}, nil
 	}
 
 	selectCols := buildSelectList(columns)
@@ -86,7 +65,7 @@ func (r *Reader) Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion in
 	}
 	filterSQL, filterArgs, err := buildFilterSQL(columns, opts.Filters, opts.NodeIDs, nodeIDColumn)
 	if err != nil {
-		return Result{}, err
+		return results.Result{}, err
 	}
 	var query string
 	if opts.Snapshot {
@@ -125,11 +104,11 @@ LIMIT %d OFFSET %d`, selectCols, filterSQL, opts.Limit, opts.Offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return Result{}, fmt.Errorf("duckdb read: %w", err)
+		return results.Result{}, fmt.Errorf("duckdb read: %w", err)
 	}
 	defer rows.Close()
 
-	out := make([]ResultRow, 0, opts.Limit)
+	out := make([]results.ResultRow, 0, opts.Limit)
 	values := make([]any, 3+len(columns))
 	scanInto := make([]any, len(values))
 	for i := range values {
@@ -148,7 +127,7 @@ LIMIT %d OFFSET %d`, selectCols, filterSQL, opts.Limit, opts.Offset)
 			*s = sql.NullString{}
 		}
 		if err := rows.Scan(scanInto...); err != nil {
-			return Result{}, fmt.Errorf("scan row: %w", err)
+			return results.Result{}, fmt.Errorf("scan row: %w", err)
 		}
 		valMap := make(map[string]string, len(columns))
 		for i, col := range columns {
@@ -157,7 +136,7 @@ LIMIT %d OFFSET %d`, selectCols, filterSQL, opts.Limit, opts.Offset)
 				valMap[col] = s.String
 			}
 		}
-		out = append(out, ResultRow{
+		out = append(out, results.ResultRow{
 			NodeID:   nodeID.Int64,
 			UnixTime: unixTime.Time,
 			Action:   action.String,
@@ -165,15 +144,15 @@ LIMIT %d OFFSET %d`, selectCols, filterSQL, opts.Limit, opts.Offset)
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return Result{}, fmt.Errorf("iterate rows: %w", err)
+		return results.Result{}, fmt.Errorf("iterate rows: %w", err)
 	}
 
 	total, err := r.count(ctx, glob, opts.Snapshot, columns, filterSQL, filterArgs)
 	if err != nil {
-		return Result{}, err
+		return results.Result{}, err
 	}
 
-	return Result{Columns: columns, Rows: out, Total: total}, nil
+	return results.Result{Columns: columns, Rows: out, Total: total}, nil
 }
 
 func (r *Reader) count(ctx context.Context, glob string, snapshot bool, columns []string, filterSQL string, filterArgs []any) (int, error) {

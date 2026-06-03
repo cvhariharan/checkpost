@@ -73,13 +73,36 @@ password = 'checkpost'
 port = 5432
 user = 'checkpost'
 
-[data]
+[results.parquet]
+# Local Parquet+DuckDB backend. Powers the in-app results browser. Disable for
+# external-only logging (the browser then reports browsing as unavailable).
+enabled = true
 # Root directory where scheduled-query Parquet files are written.
 # An absolute path is recommended in production.
-parquet_root = './data/results'
+root = './data/results'
 # Path to a persistent DuckDB catalog file. Empty = in-memory (re-scans
 # Parquet metadata on cold start). Set a path to persist catalogs/indexes.
 duckdb_path = ''
+
+[results.ndjson]
+# Ship rows as newline-delimited JSON to a file or stdout for an external agent
+# (Vector, Fluent Bit, ...) to tail. Rotation is handled by the host/agent.
+enabled = false
+path = 'stdout'
+# required = true makes overflow fail ingest with 503 (default best-effort).
+required = false
+
+[results.clickhouse]
+# Insert rows into a ClickHouse table. The table is created on startup.
+enabled = false
+# DSN is a secret; prefer an env var (CHECKPOST_RESULTS__CLICKHOUSE__DSN) and
+# use secure=true for remote servers.
+dsn = 'clickhouse://user:pass@host:9000/checkpost?secure=true'
+table = 'query_results'
+# Coarse global retention. 0 = no TTL.
+ttl_days = 0
+# required = true makes errors/overflow fail ingest with 503 (default best-effort).
+required = false
 
 [alerts]
 # Master switch for the alerting engine. When false, no rules are evaluated.

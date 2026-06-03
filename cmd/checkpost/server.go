@@ -17,6 +17,9 @@ import (
 	"github.com/cvhariharan/checkpost/internal/handlers"
 	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/cvhariharan/checkpost/internal/results"
+	"github.com/cvhariharan/checkpost/internal/results/clickhouse"
+	"github.com/cvhariharan/checkpost/internal/results/ndjson"
+	"github.com/cvhariharan/checkpost/internal/results/parquet"
 	"github.com/cvhariharan/checkpost/migrations"
 	webassets "github.com/cvhariharan/checkpost/web"
 	"github.com/golang-migrate/migrate/v4"
@@ -77,28 +80,18 @@ func runServer(flags *rootFlags) error {
 
 	store := repo.NewPostgresStore(db)
 
-	resultsWriter, err := results.NewWriter(cfg.DataConfig.ParquetRoot, results.NewQueryStore(store), logger)
+	resultsSink, resultsReader, err := buildResultsSink(cfg.ResultsConfig, store, logger)
 	if err != nil {
-		return fmt.Errorf("could not initialize results writer: %w", err)
+		return err
 	}
-	defer resultsWriter.Close()
-
-	resultsReader, err := results.NewReader(cfg.DataConfig.ParquetRoot, cfg.DataConfig.DuckDBPath)
-	if err != nil {
-		return fmt.Errorf("could not initialize results reader: %w", err)
-	}
-	defer resultsReader.Close()
-
-	resultsWorkers := results.NewWorkers(cfg.DataConfig.ParquetRoot, store, resultsReader, logger)
-	resultsWorkers.Start()
-	defer resultsWorkers.Close()
+	defer resultsSink.Close()
 
 	enforcer, err := core.NewEnforcer(db)
 	if err != nil {
 		return fmt.Errorf("could not initialize casbin enforcer: %w", err)
 	}
 
-	c, err := core.NewCore(logger, store, resultsWriter, resultsReader, enforcer, cfg.AppConfig)
+	c, err := core.NewCore(logger, store, resultsSink, resultsReader, enforcer, cfg.AppConfig)
 	if err != nil {
 		return fmt.Errorf("could not initialize core: %w", err)
 	}
@@ -291,6 +284,41 @@ func runServer(flags *rootFlags) error {
 		return e.StartTLS(":1323", cfg.AppConfig.TLSCertPath, cfg.AppConfig.TLSKeyPath)
 	}
 	return e.Start(":1323")
+}
+
+// buildResultsSink fans the configured backends into a MultiSink and returns
+// the frontend reader (the parquet backend, or nil when it's disabled). The
+// parquet backend is required; external backends default to best-effort.
+func buildResultsSink(rc config.ResultsConfig, store repo.Store, logger *slog.Logger) (results.Sink, results.Reader, error) {
+	sink := results.NewMultiSink(logger)
+	var reader results.Reader
+
+	if rc.Parquet.Enabled {
+		backend, err := parquet.New(rc.Parquet.Root, rc.Parquet.DuckDBPath, store, logger)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not initialize parquet backend: %w", err)
+		}
+		sink.Add(backend, true)
+		reader = backend
+	}
+	if rc.NDJSON.Enabled {
+		s, err := ndjson.New(rc.NDJSON.Path, logger)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not initialize ndjson backend: %w", err)
+		}
+		sink.Add(s, rc.NDJSON.Required)
+	}
+	if rc.ClickHouse.Enabled {
+		s, err := clickhouse.New(rc.ClickHouse.DSN, rc.ClickHouse.Table, rc.ClickHouse.TTLDays, logger)
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not initialize clickhouse backend: %w", err)
+		}
+		sink.Add(s, rc.ClickHouse.Required)
+	}
+	if sink.Len() == 0 {
+		logger.Warn("no result backends configured; scheduled-query results will be discarded")
+	}
+	return sink, reader, nil
 }
 
 func runDBMigration(db *sql.DB) error {

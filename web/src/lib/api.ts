@@ -172,6 +172,7 @@ export type ScheduleResultsPayload = {
   total: number
   page: number
   page_count: number
+  browsing_disabled?: boolean
 }
 
 export type NodeMetric = {

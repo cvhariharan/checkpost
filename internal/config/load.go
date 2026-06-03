@@ -31,7 +31,7 @@ type rawConfig struct {
 	OIDCConfig             rawOIDCConfig             `koanf:",squash"`
 	SessionConfig          rawSessionConfig          `koanf:",squash"`
 	DBConfig               rawDBConfig               `koanf:",squash"`
-	DataConfig             rawDataConfig             `koanf:",squash"`
+	ResultsConfig          rawResultsConfig          `koanf:",squash"`
 	OsqueryBootstrapConfig rawOsqueryBootstrapConfig `koanf:",squash"`
 	AlertsConfig           rawAlertsConfig           `koanf:",squash"`
 }
@@ -86,9 +86,20 @@ type rawDBConfig struct {
 	Password string `koanf:"db.password"`
 }
 
-type rawDataConfig struct {
-	ParquetRoot string `koanf:"data.parquet_root"`
-	DuckDBPath  string `koanf:"data.duckdb_path"`
+type rawResultsConfig struct {
+	ParquetEnabled    bool   `koanf:"results.parquet.enabled"`
+	ParquetRoot       string `koanf:"results.parquet.root"`
+	ParquetDuckDBPath string `koanf:"results.parquet.duckdb_path"`
+
+	NDJSONEnabled  bool   `koanf:"results.ndjson.enabled"`
+	NDJSONPath     string `koanf:"results.ndjson.path"`
+	NDJSONRequired bool   `koanf:"results.ndjson.required"`
+
+	ClickHouseEnabled  bool   `koanf:"results.clickhouse.enabled"`
+	ClickHouseDSN      string `koanf:"results.clickhouse.dsn"`
+	ClickHouseTable    string `koanf:"results.clickhouse.table"`
+	ClickHouseTTLDays  int    `koanf:"results.clickhouse.ttl_days"`
+	ClickHouseRequired bool   `koanf:"results.clickhouse.required"`
 }
 
 type rawOsqueryBootstrapConfig struct {
@@ -198,9 +209,24 @@ func (r rawConfig) toConfig() (Config, error) {
 			User:     r.DBConfig.User,
 			Password: r.DBConfig.Password,
 		},
-		DataConfig: DataConfig{
-			ParquetRoot: r.DataConfig.ParquetRoot,
-			DuckDBPath:  r.DataConfig.DuckDBPath,
+		ResultsConfig: ResultsConfig{
+			Parquet: ParquetConfig{
+				Enabled:    r.ResultsConfig.ParquetEnabled,
+				Root:       r.ResultsConfig.ParquetRoot,
+				DuckDBPath: r.ResultsConfig.ParquetDuckDBPath,
+			},
+			NDJSON: NDJSONConfig{
+				Enabled:  r.ResultsConfig.NDJSONEnabled,
+				Path:     r.ResultsConfig.NDJSONPath,
+				Required: r.ResultsConfig.NDJSONRequired,
+			},
+			ClickHouse: ClickHouseConfig{
+				Enabled:  r.ResultsConfig.ClickHouseEnabled,
+				DSN:      strings.TrimSpace(r.ResultsConfig.ClickHouseDSN),
+				Table:    strings.TrimSpace(r.ResultsConfig.ClickHouseTable),
+				TTLDays:  r.ResultsConfig.ClickHouseTTLDays,
+				Required: r.ResultsConfig.ClickHouseRequired,
+			},
 		},
 		AlertsConfig: AlertsConfig{
 			Enabled: r.AlertsConfig.Enabled,
@@ -231,7 +257,6 @@ func (c Config) Validate() error {
 		{name: "app", value: c.AppConfig},
 		{name: "session", value: c.SessionConfig},
 		{name: "db", value: c.DBConfig},
-		{name: "data", value: c.DataConfig},
 	} {
 		if err := validateSection(section.name, section.value); err != nil {
 			problems = append(problems, err.Error())
@@ -391,8 +416,17 @@ func loadDefaults(k *koanf.Koanf) error {
 		"db.port":                                      5432,
 		"db.password":                                  "checkpost",
 		"db.user":                                      "checkpost",
-		"data.parquet_root":                            "./data/results",
-		"data.duckdb_path":                             "",
+		"results.parquet.enabled":                      true,
+		"results.parquet.root":                         "./data/results",
+		"results.parquet.duckdb_path":                  "",
+		"results.ndjson.enabled":                       false,
+		"results.ndjson.path":                          "stdout",
+		"results.ndjson.required":                      false,
+		"results.clickhouse.enabled":                   false,
+		"results.clickhouse.dsn":                       "",
+		"results.clickhouse.table":                     "query_results",
+		"results.clickhouse.ttl_days":                  0,
+		"results.clickhouse.required":                  false,
 		"alerts.enabled":                               false,
 		"alerts.smtp.host":                             "",
 		"alerts.smtp.port":                             587,

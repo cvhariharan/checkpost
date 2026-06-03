@@ -241,6 +241,8 @@ type ScheduleResults struct {
 	Page         int                 `json:"page"`
 	CountPerPage int                 `json:"count_per_page"`
 	PageCount    int                 `json:"page_count"`
+	// BrowsingDisabled is set when no reader backend is enabled
+	BrowsingDisabled bool `json:"browsing_disabled,omitempty"`
 }
 
 type ScheduleResultsRequest struct {

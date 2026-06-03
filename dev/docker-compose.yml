@@ -33,6 +33,11 @@ services:
       - CHECKPOST_APP__HTTP_TLS_KEY=/etc/checkpost/tls/server_key.pem
       - CHECKPOST_APP__ENROLLMENT_KEY=secret-key
       - CHECKPOST_APP__POLICY_UPDATE_INTERVAL=5s
+      # Result backends: local parquet (powers the frontend browser) and NDJSON
+      # to stdout (visible via `docker compose logs checkpost`).
+      - CHECKPOST_RESULTS__PARQUET__ENABLED=false
+      - CHECKPOST_RESULTS__NDJSON__ENABLED=true
+      - CHECKPOST_RESULTS__NDJSON__PATH=stdout
       # SSO via dex. The canonical issuer/token host (dex:5556) is reachable from
       # the checkpost container; the browser-facing auth host is localhost:5556
       # (dex issuerRotation accepts both).
