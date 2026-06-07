@@ -3,6 +3,7 @@
   import { page } from '$app/state'
   import { fetchProviders, login, type Providers } from '$lib/api'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
+  import Logo from '$lib/components/Logo.svelte'
 
   let providers = $state<Providers>({ password: true, sso: { enabled: false, label: '' } })
   let username = $state('')
@@ -47,8 +48,8 @@
 
 <main class="login-main">
   <div class="login-card card">
-    <header class="vstack gap-1 mb-4">
-      <h1 class="mb-0">Checkpost</h1>
+    <header class="login-header mb-4">
+      <h1 class="login-title mb-0"><Logo size="lg" /></h1>
       <p class="text-light mb-0">Sign in to continue</p>
     </header>
 
@@ -93,6 +94,19 @@
   }
   .login-card {
     width: min(24rem, 100%);
+  }
+  .login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    text-align: center;
+  }
+  .login-title {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    line-height: 1;
   }
   .w-full {
     width: 100%;

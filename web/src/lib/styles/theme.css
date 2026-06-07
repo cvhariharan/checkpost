@@ -3,6 +3,7 @@
   :root {
     color-scheme: light;
 
+    --font-sans: 'Inter', system-ui, sans-serif;
     --background: #f4efe6;
     --foreground: #1a2e2a;
     --card: #fbf8f2;

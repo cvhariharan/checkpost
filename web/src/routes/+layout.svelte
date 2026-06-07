@@ -5,6 +5,7 @@
   import type { Snippet } from 'svelte'
   import { page } from '$app/state'
   import { goto } from '$app/navigation'
+  import Logo from '$lib/components/Logo.svelte'
   import ThemeToggle from '$lib/components/ThemeToggle.svelte'
   import { logout as apiLogout, type Me } from '$lib/api'
   import { canFrom, setMe } from '$lib/auth'
@@ -88,7 +89,9 @@
           <path d="M9 3v18" />
         </svg>
       </button>
-      <a href="/inventory" class="unstyled"><strong>Checkpost</strong></a>
+      <a href="/inventory" class="unstyled topnav-brand">
+        <Logo size="sm" />
+      </a>
     </nav>
 
     <aside data-sidebar>
@@ -177,6 +180,11 @@
 {/if}
 
 <style>
+  .topnav-brand {
+    display: inline-flex;
+    align-items: center;
+    color: var(--foreground);
+  }
   :global([data-sidebar] > footer.sidebar-footer) {
     border-top: 1px solid var(--border);
     padding-top: var(--space-2);
