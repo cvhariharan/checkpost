@@ -248,76 +248,19 @@ func (r rawConfig) toConfig() (Config, error) {
 }
 
 func (c Config) Validate() error {
-	var problems []string
-
-	for _, section := range []struct {
-		name  string
-		value interface{}
-	}{
-		{name: "app", value: c.AppConfig},
-		{name: "session", value: c.SessionConfig},
-		{name: "db", value: c.DBConfig},
-	} {
-		if err := validateSection(section.name, section.value); err != nil {
-			problems = append(problems, err.Error())
-		}
-	}
-
-	// OIDC is all-or-nothing: issuer, client_id and client_secret must be set
-	// together so SSO is either fully configured or absent.
-	oidcSet := 0
-	for _, v := range []string{c.OIDCConfig.Issuer, c.OIDCConfig.ClientID, c.OIDCConfig.ClientSecret} {
-		if strings.TrimSpace(v) != "" {
-			oidcSet++
-		}
-	}
-	if oidcSet != 0 && oidcSet != 3 {
-		problems = append(problems, "app.oidc requires issuer, client_id and client_secret to be set together")
-	}
-	if role := strings.TrimSpace(c.OIDCConfig.DefaultRole); role != "" && !isBuiltinRole(role) {
-		problems = append(problems, fmt.Sprintf("app.oidc.default_role must be one of admin|operator|analyst|viewer, got %q", role))
-	}
-
-	if c.AppConfig.UseTLS {
-		if strings.TrimSpace(c.AppConfig.TLSCertPath) == "" {
-			problems = append(problems, "app.http_tls_cert cannot be empty when app.use_tls is true")
-		}
-		if strings.TrimSpace(c.AppConfig.TLSKeyPath) == "" {
-			problems = append(problems, "app.http_tls_key cannot be empty when app.use_tls is true")
-		}
-	}
-
-	if len(problems) > 0 {
-		return fmt.Errorf("invalid config: %s", strings.Join(problems, "; "))
-	}
-	return nil
-}
-
-func validateSection(name string, value interface{}) error {
-	if err := configValidator.Struct(value); err != nil {
+	if err := configValidator.Struct(c); err != nil {
 		validationErrors, ok := err.(validator.ValidationErrors)
 		if !ok {
-			return fmt.Errorf("%s: %w", name, err)
+			return fmt.Errorf("invalid config: %w", err)
 		}
 
 		problems := make([]string, 0, len(validationErrors))
 		for _, validationError := range validationErrors {
-			problems = append(problems, fmt.Sprintf("%s.%s: %s", name, validationError.Field(), validationError.Tag()))
+			problems = append(problems, fmt.Sprintf("%s: %s", validationError.StructNamespace(), validationError.Tag()))
 		}
-		return fmt.Errorf("%s", strings.Join(problems, "; "))
+		return fmt.Errorf("invalid config: %s", strings.Join(problems, "; "))
 	}
 	return nil
-}
-
-// isBuiltinRole reports whether role is one of the fixed built-in role names.
-// Kept local to config to avoid importing core (which imports config).
-func isBuiltinRole(role string) bool {
-	switch role {
-	case "admin", "operator", "analyst", "viewer":
-		return true
-	default:
-		return false
-	}
 }
 
 func parsePositiveDuration(name, raw string, fallback time.Duration) (time.Duration, error) {

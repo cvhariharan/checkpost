@@ -1,6 +1,3 @@
-// Package alerts is a standalone, registry-based alerting subsystem: Sources
-// define what to alert on, Notifiers define where alerts go, and the Engine
-// edge-triggers deliveries by diffing successive Source evaluations.
 package alerts
 
 import (
@@ -9,7 +6,6 @@ import (
 	"sync"
 )
 
-// EventKind is the transition that triggered a delivery.
 type EventKind string
 
 const (
@@ -17,18 +13,14 @@ const (
 	EventResolved EventKind = "alert.resolved"
 )
 
-// Alert is a normalized match. Key is the stable identity used for edge
-// detection; the "host" label groups deliveries.
 type Alert struct {
 	Key         string            `json:"key"`
 	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
 }
 
-// Host returns the delivery-grouping key (the "host" label, or "" if absent).
 func (a Alert) Host() string { return a.Labels["host"] }
 
-// Rule is the engine-resolved rule handed to notifiers (read-only view).
 type Rule struct {
 	UUID        string
 	Name        string
@@ -38,7 +30,6 @@ type Rule struct {
 	Params      json.RawMessage
 }
 
-// Target is a resolved delivery target.
 type Target struct {
 	UUID   string
 	Name   string
@@ -46,7 +37,7 @@ type Target struct {
 	Config json.RawMessage
 }
 
-// Source: WHAT to alert on. Implemented once per feature, registered at startup.
+// Source: WHAT to alert on
 type Source interface {
 	Type() string
 	Schema() any
@@ -54,7 +45,7 @@ type Source interface {
 	Evaluate(ctx context.Context, params json.RawMessage) ([]Alert, error)
 }
 
-// Notifier: WHERE alerts go. Registered at startup.
+// Notifier: WHERE alerts go
 type Notifier interface {
 	Type() string
 	Schema() any
@@ -94,7 +85,6 @@ func LookupNotifier(t string) (Notifier, bool) {
 	return n, ok
 }
 
-// Sources returns the registered source types in a stable-enough map copy.
 func Sources() []Source {
 	registryMu.RLock()
 	defer registryMu.RUnlock()

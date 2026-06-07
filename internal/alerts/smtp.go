@@ -25,7 +25,6 @@ var (
 	textTmpl = texttemplate.Must(texttemplate.ParseFS(emailTemplates, "templates/email.text.tmpl"))
 )
 
-// emailData is the rendering context for the alert email templates.
 type emailData struct {
 	Title    string
 	Kind     string
@@ -42,7 +41,6 @@ var schemaReflector = &jsonschema.Reflector{ExpandedStruct: true, DoNotReference
 
 func reflectSchema(v any) *jsonschema.Schema { return schemaReflector.Reflect(v) }
 
-// SMTPRelay is the global relay configuration for all SMTP targets.
 type SMTPRelay struct {
 	Host     string
 	Port     int
@@ -61,15 +59,13 @@ type smtpConfig struct {
 // GroupEmailResolver resolves a user-group name to its members' emails.
 type GroupEmailResolver func(ctx context.Context, name string) ([]string, error)
 
-// SMTPNotifier sends one email per host group via a pooled global relay.
+// SMTPNotifier sends one email per host group
 type SMTPNotifier struct {
 	from         string
 	pool         *smtppool.Pool
 	resolveGroup GroupEmailResolver
 }
 
-// NewSMTPNotifier builds the notifier. The connection pool is created only when
-// the relay host is configured; otherwise Send reports the relay is inert.
 func NewSMTPNotifier(relay SMTPRelay, resolveGroup GroupEmailResolver) (*SMTPNotifier, error) {
 	n := &SMTPNotifier{from: relay.From, resolveGroup: resolveGroup}
 	if !relay.Enabled() {
@@ -214,7 +210,6 @@ func buildEmailData(kind EventKind, rule Rule, alerts []Alert) emailData {
 	return d
 }
 
-// executor is satisfied by both html/template and text/template.
 type executor interface {
 	Execute(wr io.Writer, data any) error
 }

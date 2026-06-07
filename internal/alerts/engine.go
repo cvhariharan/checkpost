@@ -23,7 +23,6 @@ type Store interface {
 	UpdateAlertRuleEvaluatedAt(ctx context.Context, id int64) error
 }
 
-// Engine is the edge-triggered background worker.
 type Engine struct {
 	store  Store
 	logger *slog.Logger
