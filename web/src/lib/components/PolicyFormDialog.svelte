@@ -3,6 +3,7 @@
   import ErrorMessage from './ErrorMessage.svelte'
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
   import SelectDropdown from './SelectDropdown.svelte'
+  import SqlEditor from './SqlEditor.svelte'
 
   let {
     open = false,
@@ -26,6 +27,7 @@
   ]
 
   let dialog = $state<HTMLDialogElement>()
+  let formEl = $state<HTMLFormElement>()
   let preparedFor = $state<string | null>(null)
   let title = $state('')
   let query = $state('')
@@ -84,6 +86,11 @@
     event.preventDefault()
     isSubmitting = true
     error = ''
+    if (!query.trim()) {
+      error = 'Query is required.'
+      isSubmitting = false
+      return
+    }
     try {
       const payload = { title, query, description, resolution, platform, enabled, group_ids: groupIds }
       if (policy?.uuid) await updatePolicy(policy.uuid, payload)
@@ -99,7 +106,7 @@
 </script>
 
 <dialog bind:this={dialog} onclose={handleClose} closedby="any">
-  <form onsubmit={savePolicy}>
+  <form bind:this={formEl} onsubmit={savePolicy}>
     <header>
       <h2>{policy ? 'Edit Policy' : 'Create Policy'}</h2>
     </header>
@@ -114,12 +121,13 @@
 
       <label data-field>
         Query
-        <textarea
+        <SqlEditor
           bind:value={query}
-          required
-          rows="7"
+          minLines={7}
           placeholder="SELECT 1 FROM disk_encryption WHERE encrypted = 1;"
-        ></textarea>
+          ariaLabel="Policy SQL query"
+          onsubmit={() => formEl?.requestSubmit()}
+        />
         <small data-hint
           >Return <code>1</code> when the host passes, <code>0</code> (or no rows) when it fails.</small
         >

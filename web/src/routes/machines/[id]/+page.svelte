@@ -30,6 +30,7 @@
   import Pagination from '$lib/components/Pagination.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
   import BadgeList from '$lib/components/BadgeList.svelte'
+  import SqlEditor from '$lib/components/SqlEditor.svelte'
   import { canFrom, me } from '$lib/auth'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
@@ -621,7 +622,14 @@
             <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
               <label data-field>
                 SQL Query
-                <textarea bind:value={queryText} rows="6" placeholder="SELECT * FROM processes LIMIT 10;"></textarea>
+                <SqlEditor
+                  bind:value={queryText}
+                  minLines={6}
+                  lineNumbers
+                  placeholder="SELECT * FROM processes LIMIT 10;"
+                  ariaLabel="Ad-hoc SQL query"
+                  onsubmit={() => { if (!executing && queryText.trim()) runQuery() }}
+                />
               </label>
               <footer class="hstack justify-end mt-4">
                 <button

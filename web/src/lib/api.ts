@@ -559,6 +559,35 @@ export function fetchMetricSchemas() {
   return fetch(`${BASE_URL}/metrics/schemas`).then((r) => handleResponse<MetricSchemas>(r))
 }
 
+// osquery schema — static asset under web/static/, not a /api/v1 endpoint.
+
+export type OsqueryColumn = { name: string; type: string; description: string }
+export type OsqueryTable = {
+  name: string
+  description: string
+  platforms: string[]
+  columns: OsqueryColumn[]
+}
+export type OsquerySchema = { version: string; tables: OsqueryTable[] }
+
+let osquerySchemaPromise: Promise<OsquerySchema> | null = null
+
+// Memoized so every SqlEditor shares one request per page load.
+export function fetchOsquerySchema(): Promise<OsquerySchema> {
+  if (!osquerySchemaPromise) {
+    osquerySchemaPromise = fetch('/osquery-schema.json')
+      .then((r) => {
+        if (!r.ok) throw new Error('failed to load osquery schema')
+        return r.json() as Promise<OsquerySchema>
+      })
+      .catch((err) => {
+        osquerySchemaPromise = null // retry on next mount
+        throw err
+      })
+  }
+  return osquerySchemaPromise
+}
+
 // Authentication & authorization ------------------------------------------
 
 export type SessionUser = {

@@ -9,6 +9,7 @@
   import ErrorMessage from './ErrorMessage.svelte'
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
   import SelectDropdown from './SelectDropdown.svelte'
+  import SqlEditor from './SqlEditor.svelte'
 
   const platformOptions = [
     { value: 'all', label: 'All' },
@@ -32,6 +33,7 @@
   } = $props()
 
   let dialog = $state<HTMLDialogElement>()
+  let formEl = $state<HTMLFormElement>()
   let preparedFor = $state<string | null>(null)
   let availableGroups = $state<Group[]>([])
   let query = $state('')
@@ -90,6 +92,11 @@
     event.preventDefault()
     isSubmitting = true
     error = ''
+    if (!query.trim()) {
+      error = 'Query is required.'
+      isSubmitting = false
+      return
+    }
     try {
       const payload = {
         query,
@@ -113,7 +120,7 @@
 </script>
 
 <dialog bind:this={dialog} onclose={handleClose} closedby="any">
-  <form onsubmit={saveSchedule}>
+  <form bind:this={formEl} onsubmit={saveSchedule}>
     <header>
       <h2>{schedule ? 'Edit Schedule' : 'Create Schedule'}</h2>
     </header>
@@ -128,7 +135,13 @@
 
       <label data-field>
         Query
-        <textarea bind:value={query} required rows="4" placeholder="SELECT * FROM ..."></textarea>
+        <SqlEditor
+          bind:value={query}
+          minLines={4}
+          placeholder="SELECT * FROM ..."
+          ariaLabel="Schedule SQL query"
+          onsubmit={() => formEl?.requestSubmit()}
+        />
       </label>
 
       <label data-field>
