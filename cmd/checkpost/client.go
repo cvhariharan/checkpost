@@ -87,11 +87,23 @@ func (e *apiError) Error() string {
 
 func (e *apiError) notFound() bool { return e.status == http.StatusNotFound }
 
-func (cl *apiClient) get(path string, out any) error { return cl.do(http.MethodGet, path, nil, out) }
-func (cl *apiClient) post(path string, body any) error {
-	return cl.do(http.MethodPost, path, body, nil)
-}
+func (cl *apiClient) get(path string, out any) error  { return cl.do(http.MethodGet, path, nil, out) }
 func (cl *apiClient) put(path string, body any) error { return cl.do(http.MethodPut, path, body, nil) }
+func (cl *apiClient) delete(path string) error        { return cl.do(http.MethodDelete, path, nil, nil) }
+
+// create POSTs body and returns the new resource's UUID from the {"id":...} response.
+func (cl *apiClient) create(path string, body any) (string, error) {
+	var res struct {
+		ID string `json:"id"`
+	}
+	if err := cl.do(http.MethodPost, path, body, &res); err != nil {
+		return "", err
+	}
+	if res.ID == "" {
+		return "", fmt.Errorf("create %s: server returned no id", path)
+	}
+	return res.ID, nil
+}
 
 func (cl *apiClient) do(method, path string, body, out any) error {
 	var reqBody io.Reader
