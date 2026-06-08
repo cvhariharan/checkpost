@@ -337,6 +337,12 @@ func (q *Queries) ListScheduleRetentions(ctx context.Context) ([]ListScheduleRet
 const listSchedules = `-- name: ListSchedules :many
 WITH filtered AS (
     SELECT id, uuid, name, sql, description, interval_seconds, platform, version, shard, denylist, removed, snapshot, enabled, is_system, sql_version, retention_days, created_at, updated_at FROM schedules
+    WHERE (
+        $3::text = ''
+        OR name ILIKE '%' || $3::text || '%'
+        OR sql ILIKE '%' || $3::text || '%'
+        OR description ILIKE '%' || $3::text || '%'
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -344,12 +350,13 @@ total AS (
 SELECT filtered.id, filtered.uuid, filtered.name, filtered.sql, filtered.description, filtered.interval_seconds, filtered.platform, filtered.version, filtered.shard, filtered.denylist, filtered.removed, filtered.snapshot, filtered.enabled, filtered.is_system, filtered.sql_version, filtered.retention_days, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
-LIMIT $1 OFFSET $2
+LIMIT $2 OFFSET $1
 `
 
 type ListSchedulesParams struct {
-	Limit  int32 `db:"limit" json:"limit"`
-	Offset int32 `db:"offset" json:"offset"`
+	OffsetCount int32  `db:"offset_count" json:"offset_count"`
+	LimitCount  int32  `db:"limit_count" json:"limit_count"`
+	Query       string `db:"query" json:"query"`
 }
 
 type ListSchedulesRow struct {
@@ -375,7 +382,7 @@ type ListSchedulesRow struct {
 }
 
 func (q *Queries) ListSchedules(ctx context.Context, arg ListSchedulesParams) ([]ListSchedulesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSchedules, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listSchedules, arg.OffsetCount, arg.LimitCount, arg.Query)
 	if err != nil {
 		return nil, err
 	}

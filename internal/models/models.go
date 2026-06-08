@@ -127,7 +127,7 @@ type OsqueryInfo struct {
 	PID           string `json:"pid"`
 	StartTime     string `json:"start_time"`
 	Version       string `json:"version"`
-	Checkpost       string `json:"checkpost"`
+	Checkpost     string `json:"checkpost"`
 	NodeFK        int    `json:"-"`
 }
 
@@ -424,6 +424,7 @@ type PolicyMachinesRequest struct {
 type PageRequest struct {
 	Page  int
 	Count int
+	Query string
 }
 
 type Page[T any] struct {

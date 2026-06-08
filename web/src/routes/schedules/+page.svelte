@@ -30,15 +30,18 @@
   let selectedSchedule = $state<Schedule | null>(null)
   let isDeleting = $state(false)
 
-  const schedules = $derived(loadedSchedules.filter((s) => {
-    const search = searchTerm.trim().toLowerCase()
-    return (
-      !search ||
-      (s.title || '').toLowerCase().includes(search) ||
-      (s.sql || '').toLowerCase().includes(search) ||
-      String(s.interval || '').includes(search)
-    )
-  }))
+  let initialized = $state(false)
+  let previousSearch = ''
+  let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+  $effect(() => {
+    if (!initialized || searchTerm === previousSearch) return
+    previousSearch = searchTerm
+    currentPage = 1
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(() => void loadSchedules(), 250)
+  })
+
   const startResult = $derived(loadedSchedules.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
   const endResult = $derived(Math.min(currentPage * countPerPage, totalCount))
   const canCreateSchedule = $derived(canFrom($me, 'schedule', 'create'))
@@ -51,13 +54,15 @@
     loading = true
     error = ''
     try {
-      const data = await fetchSchedules({ page: currentPage, countPerPage })
+      const data = await fetchSchedules({ page: currentPage, countPerPage, query: searchTerm })
       loadedSchedules = data.schedules || []
       pageCount = data.page_count || 1
       totalCount = data.total_count || loadedSchedules.length
     } catch (err) {
       error = (err as Error).message || 'Failed to fetch schedules'
     } finally {
+      previousSearch = searchTerm
+      initialized = true
       loading = false
     }
   }
@@ -145,7 +150,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each schedules as schedule}
+          {#each loadedSchedules as schedule}
             <tr>
               <td>
                 <button type="button" class="cell-link" onclick={() => goto(`/schedules/${schedule.uuid}`)}>

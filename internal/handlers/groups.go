@@ -39,7 +39,7 @@ func (h *Handler) HandleGroupsPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	page, err := h.c.PaginateGroups(c.Request().Context(), models.PageRequest{Page: req.Page, Count: req.Count})
+	page, err := h.c.PaginateGroups(c.Request().Context(), models.PageRequest{Page: req.Page, Count: req.Count, Query: req.Query})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get groups", err, nil)
 	}

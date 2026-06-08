@@ -138,8 +138,9 @@ type CreateResponse struct {
 }
 
 type PaginateRequest struct {
-	Page  int `query:"page" validate:"gte=0"`
-	Count int `query:"count_per_page" validate:"gte=0"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0"`
+	Query string `query:"q" validate:"lte=4096"`
 }
 
 type MachineListRequest struct {
@@ -455,11 +456,11 @@ type DistributedWriteRequest struct {
 }
 
 type OsqueryBootstrapResponse struct {
-	Ready       bool                       `json:"ready"`
-	CheckpostURL  string                     `json:"checkpost_url"`
-	TLSHostname string                     `json:"tls_hostname"`
-	Warnings    []string                   `json:"warnings"`
-	Platforms   []OsqueryBootstrapPlatform `json:"platforms"`
+	Ready        bool                       `json:"ready"`
+	CheckpostURL string                     `json:"checkpost_url"`
+	TLSHostname  string                     `json:"tls_hostname"`
+	Warnings     []string                   `json:"warnings"`
+	Platforms    []OsqueryBootstrapPlatform `json:"platforms"`
 }
 
 type OsqueryBootstrapPlatform struct {

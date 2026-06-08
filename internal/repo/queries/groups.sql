@@ -42,6 +42,11 @@ GROUP BY
 WITH filtered AS (
     SELECT *
     FROM groups
+    WHERE (
+        @query::text = ''
+        OR name ILIKE '%' || @query::text || '%'
+        OR description ILIKE '%' || @query::text || '%'
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered

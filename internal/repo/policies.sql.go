@@ -489,6 +489,12 @@ const listPoliciesWithCounts = `-- name: ListPoliciesWithCounts :many
 WITH filtered AS (
     SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
     FROM policies
+    WHERE (
+        $1::text = ''
+        OR name ILIKE '%' || $1::text || '%'
+        OR description ILIKE '%' || $1::text || '%'
+        OR query ILIKE '%' || $1::text || '%'
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -497,7 +503,7 @@ page AS (
     SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
     FROM filtered
     ORDER BY created_at DESC, id DESC
-    LIMIT $2 OFFSET $1
+    LIMIT $3 OFFSET $2
 ),
 effective_targets AS (
     SELECT
@@ -530,18 +536,18 @@ counts AS (
         page.id AS policy_id,
         count(effective_targets.node_id) FILTER (
             WHERE policy_membership.passes = true
-              AND policy_membership.checked_at >= now() - $3::text::interval
+              AND policy_membership.checked_at >= now() - $4::text::interval
         )::bigint AS passing_count,
         count(effective_targets.node_id) FILTER (
             WHERE policy_membership.passes = false
-              AND policy_membership.checked_at >= now() - $3::text::interval
+              AND policy_membership.checked_at >= now() - $4::text::interval
         )::bigint AS failing_count,
         count(effective_targets.node_id) FILTER (
             WHERE effective_targets.node_id IS NOT NULL
               AND (
                 policy_membership.policy_id IS NULL
                 OR policy_membership.passes IS NULL
-                OR policy_membership.checked_at < now() - $3::text::interval
+                OR policy_membership.checked_at < now() - $4::text::interval
               )
         )::bigint AS unknown_count,
         max(policy_membership.updated_at) AS last_count_updated_at
@@ -584,6 +590,7 @@ ORDER BY page.created_at DESC, page.id DESC, groups.name
 `
 
 type ListPoliciesWithCountsParams struct {
+	Query       string `db:"query" json:"query"`
 	OffsetCount int32  `db:"offset_count" json:"offset_count"`
 	LimitCount  int32  `db:"limit_count" json:"limit_count"`
 	StaleAfter  string `db:"stale_after" json:"stale_after"`
@@ -615,7 +622,12 @@ type ListPoliciesWithCountsRow struct {
 }
 
 func (q *Queries) ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPoliciesWithCounts, arg.OffsetCount, arg.LimitCount, arg.StaleAfter)
+	rows, err := q.db.QueryContext(ctx, listPoliciesWithCounts,
+		arg.Query,
+		arg.OffsetCount,
+		arg.LimitCount,
+		arg.StaleAfter,
+	)
 	if err != nil {
 		return nil, err
 	}

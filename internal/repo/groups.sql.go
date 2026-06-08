@@ -412,6 +412,11 @@ const listGroupsWithCounts = `-- name: ListGroupsWithCounts :many
 WITH filtered AS (
     SELECT id, uuid, name, description, created_at, updated_at
     FROM groups
+    WHERE (
+        $3::text = ''
+        OR name ILIKE '%' || $3::text || '%'
+        OR description ILIKE '%' || $3::text || '%'
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -443,8 +448,9 @@ LIMIT $2 OFFSET $1
 `
 
 type ListGroupsWithCountsParams struct {
-	OffsetCount int32 `db:"offset_count" json:"offset_count"`
-	LimitCount  int32 `db:"limit_count" json:"limit_count"`
+	OffsetCount int32  `db:"offset_count" json:"offset_count"`
+	LimitCount  int32  `db:"limit_count" json:"limit_count"`
+	Query       string `db:"query" json:"query"`
 }
 
 type ListGroupsWithCountsRow struct {
@@ -460,7 +466,7 @@ type ListGroupsWithCountsRow struct {
 }
 
 func (q *Queries) ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listGroupsWithCounts, arg.OffsetCount, arg.LimitCount)
+	rows, err := q.db.QueryContext(ctx, listGroupsWithCounts, arg.OffsetCount, arg.LimitCount, arg.Query)
 	if err != nil {
 		return nil, err
 	}

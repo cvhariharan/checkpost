@@ -28,15 +28,18 @@
   let machinesPolicy = $state<Policy | null>(null)
   let machinesOpen = $state(false)
 
-  const policies = $derived(loadedPolicies.filter((p) => {
-    const search = searchTerm.trim().toLowerCase()
-    return (
-      !search ||
-      (p.name || '').toLowerCase().includes(search) ||
-      (p.description || '').toLowerCase().includes(search) ||
-      (p.query || '').toLowerCase().includes(search)
-    )
-  }))
+  let initialized = $state(false)
+  let previousSearch = ''
+  let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+  $effect(() => {
+    if (!initialized || searchTerm === previousSearch) return
+    previousSearch = searchTerm
+    currentPage = 1
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(() => void loadPolicies(), 250)
+  })
+
   const startResult = $derived(loadedPolicies.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
   const endResult = $derived(Math.min(currentPage * countPerPage, totalCount))
   const canCreatePolicy = $derived(canFrom($me, 'policy', 'create'))
@@ -49,13 +52,15 @@
     loading = true
     error = ''
     try {
-      const data = await fetchPolicies({ page: currentPage, countPerPage })
+      const data = await fetchPolicies({ page: currentPage, countPerPage, query: searchTerm })
       loadedPolicies = data.policies || []
       pageCount = data.page_count || 1
       totalCount = data.total_count || loadedPolicies.length
     } catch (err) {
       error = (err as Error).message || 'Failed to fetch policies'
     } finally {
+      previousSearch = searchTerm
+      initialized = true
       loading = false
     }
   }
@@ -155,7 +160,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each policies as policy}
+          {#each loadedPolicies as policy}
             <tr>
               <td>
                 <button type="button" class="cell-link" onclick={() => openMachinesModal(policy)}>

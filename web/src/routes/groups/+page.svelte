@@ -24,14 +24,18 @@
   let selectedGroup = $state<Group | null>(null)
   let isDeleting = $state(false)
 
-  const groups = $derived(loadedGroups.filter((g) => {
-    const search = searchTerm.trim().toLowerCase()
-    return (
-      !search ||
-      (g.name || '').toLowerCase().includes(search) ||
-      (g.description || '').toLowerCase().includes(search)
-    )
-  }))
+  let initialized = $state(false)
+  let previousSearch = ''
+  let searchTimer: ReturnType<typeof setTimeout> | undefined
+
+  $effect(() => {
+    if (!initialized || searchTerm === previousSearch) return
+    previousSearch = searchTerm
+    currentPage = 1
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(() => void loadGroups(), 250)
+  })
+
   const startResult = $derived(loadedGroups.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
   const endResult = $derived(Math.min(currentPage * countPerPage, totalCount))
   const canCreateGroup = $derived(canFrom($me, 'machine_group', 'create'))
@@ -44,13 +48,15 @@
     loading = true
     error = ''
     try {
-      const data = await fetchGroups({ page: currentPage, countPerPage })
+      const data = await fetchGroups({ page: currentPage, countPerPage, query: searchTerm })
       loadedGroups = data.groups || []
       pageCount = data.page_count || 1
       totalCount = data.total_count || loadedGroups.length
     } catch (err) {
       error = (err as Error).message || 'Failed to fetch groups'
     } finally {
+      previousSearch = searchTerm
+      initialized = true
       loading = false
     }
   }
@@ -136,7 +142,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each groups as group}
+          {#each loadedGroups as group}
             <tr>
               <td>
                 {#if canUpdateGroup}

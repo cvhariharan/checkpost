@@ -282,9 +282,9 @@ export function fetchOsqueryBootstrapProfile() {
 }
 
 // Schedules
-export function fetchSchedules(opts: PageOpts = {}) {
-  const { page = 1, countPerPage = 10 } = opts
-  return fetch(apiUrl('/schedules', { page, count_per_page: countPerPage })).then((r) =>
+export function fetchSchedules(opts: PageOpts & { query?: string } = {}) {
+  const { page = 1, countPerPage = 10, query = '' } = opts
+  return fetch(apiUrl('/schedules', { page, count_per_page: countPerPage, q: query })).then((r) =>
     handleResponse<Paginated<Schedule, 'schedules'>>(r)
   )
 }
@@ -320,9 +320,9 @@ export function fetchScheduleResults(
 }
 
 // Policies
-export function fetchPolicies(opts: PageOpts = {}) {
-  const { page = 1, countPerPage = 10 } = opts
-  return fetch(apiUrl('/policies', { page, count_per_page: countPerPage })).then((r) =>
+export function fetchPolicies(opts: PageOpts & { query?: string } = {}) {
+  const { page = 1, countPerPage = 10, query = '' } = opts
+  return fetch(apiUrl('/policies', { page, count_per_page: countPerPage, q: query })).then((r) =>
     handleResponse<Paginated<Policy, 'policies'>>(r)
   )
 }
@@ -352,9 +352,9 @@ export function fetchPolicyMachines(
 }
 
 // Groups
-export function fetchGroups(opts: PageOpts = {}) {
-  const { page = 1, countPerPage = 10 } = opts
-  return fetch(apiUrl('/groups', { page, count_per_page: countPerPage })).then((r) =>
+export function fetchGroups(opts: PageOpts & { query?: string } = {}) {
+  const { page = 1, countPerPage = 10, query = '' } = opts
+  return fetch(apiUrl('/groups', { page, count_per_page: countPerPage, q: query })).then((r) =>
     handleResponse<Paginated<Group, 'groups'>>(r)
   )
 }

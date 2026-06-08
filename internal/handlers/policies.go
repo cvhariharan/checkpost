@@ -47,7 +47,7 @@ func (h *Handler) HandlePoliciesPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	page, err := h.c.PaginatePolicies(c.Request().Context(), models.PageRequest{Page: req.Page, Count: req.Count})
+	page, err := h.c.PaginatePolicies(c.Request().Context(), models.PageRequest{Page: req.Page, Count: req.Count, Query: req.Query})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get policies", err, nil)
 	}

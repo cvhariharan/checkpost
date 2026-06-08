@@ -271,8 +271,9 @@ func (c *Core) PaginateSchedules(ctx context.Context, req models.PageRequest) (m
 	}
 
 	rows, err := c.store.ListSchedules(ctx, repo.ListSchedulesParams{
-		Limit:  int32(countPerPage),
-		Offset: int32(page * countPerPage),
+		Query:       strings.TrimSpace(req.Query),
+		LimitCount:  int32(countPerPage),
+		OffsetCount: int32(page * countPerPage),
 	})
 	if err != nil {
 		return models.Page[models.Schedule]{}, fmt.Errorf("list schedules: %w", err)

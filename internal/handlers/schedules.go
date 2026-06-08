@@ -56,6 +56,7 @@ func (h *Handler) HandleSchedulesPagination(c echo.Context) error {
 	page, err := h.c.PaginateSchedules(c.Request().Context(), models.PageRequest{
 		Page:  req.Page,
 		Count: req.Count,
+		Query: req.Query,
 	})
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get queries", err, nil)

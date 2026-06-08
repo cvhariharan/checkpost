@@ -29,6 +29,12 @@ SELECT * FROM schedules WHERE name = ANY(@names::text[]);
 -- name: ListSchedules :many
 WITH filtered AS (
     SELECT * FROM schedules
+    WHERE (
+        @query::text = ''
+        OR name ILIKE '%' || @query::text || '%'
+        OR sql ILIKE '%' || @query::text || '%'
+        OR description ILIKE '%' || @query::text || '%'
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -36,7 +42,7 @@ total AS (
 SELECT filtered.*, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
-LIMIT $1 OFFSET $2;
+LIMIT @limit_count OFFSET @offset_count;
 
 -- name: ListEnabledSchedules :many
 SELECT * FROM schedules

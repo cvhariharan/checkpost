@@ -92,6 +92,7 @@ func (c *Core) PaginatePolicies(ctx context.Context, req models.PageRequest) (mo
 	}
 
 	rows, err := c.store.ListPoliciesWithCounts(ctx, repo.ListPoliciesWithCountsParams{
+		Query:       strings.TrimSpace(req.Query),
 		StaleAfter:  postgresInterval(c.policyStaleAfter),
 		LimitCount:  int32(countPerPage),
 		OffsetCount: int32(page * countPerPage),

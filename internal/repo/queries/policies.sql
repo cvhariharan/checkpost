@@ -51,6 +51,12 @@ ORDER BY name;
 WITH filtered AS (
     SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
     FROM policies
+    WHERE (
+        @query::text = ''
+        OR name ILIKE '%' || @query::text || '%'
+        OR description ILIKE '%' || @query::text || '%'
+        OR query ILIKE '%' || @query::text || '%'
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered

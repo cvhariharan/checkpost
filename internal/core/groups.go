@@ -48,6 +48,7 @@ func (c *Core) PaginateGroups(ctx context.Context, req models.PageRequest) (mode
 	}
 
 	rows, err := c.store.ListGroupsWithCounts(ctx, repo.ListGroupsWithCountsParams{
+		Query:       strings.TrimSpace(req.Query),
 		LimitCount:  int32(countPerPage),
 		OffsetCount: int32(page * countPerPage),
 	})
