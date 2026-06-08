@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cvhariharan/checkpost/internal/core"
+	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/labstack/echo/v4"
 )
 
@@ -38,7 +38,7 @@ func (h *Handler) HandleGetGroupByName(c echo.Context) error {
 	return h.lookupByName(c, h.c.GroupUUIDByName)
 }
 
-func (h *Handler) lookupByName(c echo.Context, fn func(context.Context, string) (core.LookupResult, error)) error {
+func (h *Handler) lookupByName(c echo.Context, fn func(context.Context, string) (models.LookupResult, error)) error {
 	name := strings.TrimSpace(c.Param("name"))
 	if name == "" {
 		return wrapError(http.StatusBadRequest, "name is required", nil, nil)

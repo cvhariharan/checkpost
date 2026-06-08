@@ -2,12 +2,14 @@ package core
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 )
 
 func toModelNode(node repo.Node) models.Node {
@@ -586,5 +588,73 @@ func timePtrFromValue(value interface{}) *time.Time {
 		return v
 	default:
 		return nil
+	}
+}
+
+func toModelMachineQueryResult(row repo.MachineQueryResult) models.MachineQueryResult {
+	timestamp := row.CreatedAt
+	if row.CompletedAt.Valid {
+		timestamp = row.CompletedAt.Time
+	}
+
+	return models.MachineQueryResult{
+		ID:        row.Uuid.String(),
+		Query:     row.Query,
+		Status:    row.Status,
+		Timestamp: timestamp,
+		Results:   decodeMachineQueryResults(row.Results),
+		Error:     row.Error,
+	}
+}
+
+func toModelMachineQueryResultRow(row repo.ListMachineQueryResultsByNodeUUIDRow) models.MachineQueryResult {
+	timestamp := row.CreatedAt
+	if row.CompletedAt.Valid {
+		timestamp = row.CompletedAt.Time
+	}
+
+	return models.MachineQueryResult{
+		ID:        row.Uuid.String(),
+		Query:     row.Query,
+		Status:    row.Status,
+		Timestamp: timestamp,
+		Results:   decodeMachineQueryResults(row.Results),
+		Error:     row.Error,
+	}
+}
+
+func decodeMachineQueryResults(raw pqtype.NullRawMessage) interface{} {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil
+	}
+
+	var out interface{}
+	if err := json.Unmarshal(raw.RawMessage, &out); err != nil {
+		return string(raw.RawMessage)
+	}
+	return out
+}
+
+func toModelAlertTarget(t repo.AlertTarget) models.AlertTarget {
+	return models.AlertTarget{
+		UUID:      t.Uuid.String(),
+		Name:      t.Name,
+		Type:      t.Type,
+		Config:    t.Config,
+		Enabled:   t.Enabled,
+		CreatedAt: t.CreatedAt,
+		UpdatedAt: t.UpdatedAt,
+	}
+}
+
+func toModelAPIToken(row repo.ApiToken) models.APIToken {
+	return models.APIToken{
+		UUID:       row.Uuid.String(),
+		Name:       row.Name,
+		Source:     row.Source,
+		ExpiresAt:  timePtrFromNull(row.ExpiresAt),
+		LastUsedAt: timePtrFromNull(row.LastUsedAt),
+		RevokedAt:  timePtrFromNull(row.RevokedAt),
+		CreatedAt:  row.CreatedAt,
 	}
 }

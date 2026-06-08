@@ -163,32 +163,6 @@ func (q *Queries) DeleteAlertTargetByUUID(ctx context.Context, argUuid uuid.UUID
 	return result.RowsAffected()
 }
 
-const getAlertRuleByUUID = `-- name: GetAlertRuleByUUID :one
-SELECT id, uuid, name, description, source, params, severity, enabled, evaluation_interval_seconds, for_seconds, repeat_interval_seconds, last_evaluated_at, created_at, updated_at FROM alert_rules WHERE uuid = $1
-`
-
-func (q *Queries) GetAlertRuleByUUID(ctx context.Context, argUuid uuid.UUID) (AlertRule, error) {
-	row := q.db.QueryRowContext(ctx, getAlertRuleByUUID, argUuid)
-	var i AlertRule
-	err := row.Scan(
-		&i.ID,
-		&i.Uuid,
-		&i.Name,
-		&i.Description,
-		&i.Source,
-		&i.Params,
-		&i.Severity,
-		&i.Enabled,
-		&i.EvaluationIntervalSeconds,
-		&i.ForSeconds,
-		&i.RepeatIntervalSeconds,
-		&i.LastEvaluatedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getAlertRuleByName = `-- name: GetAlertRuleByName :one
 SELECT id, uuid, name, description, source, params, severity, enabled, evaluation_interval_seconds, for_seconds, repeat_interval_seconds, last_evaluated_at, created_at, updated_at FROM alert_rules WHERE name = $1
 `
@@ -215,12 +189,38 @@ func (q *Queries) GetAlertRuleByName(ctx context.Context, name string) (AlertRul
 	return i, err
 }
 
-const getAlertTargetByUUID = `-- name: GetAlertTargetByUUID :one
-SELECT id, uuid, name, type, config, enabled, created_at, updated_at FROM alert_targets WHERE uuid = $1
+const getAlertRuleByUUID = `-- name: GetAlertRuleByUUID :one
+SELECT id, uuid, name, description, source, params, severity, enabled, evaluation_interval_seconds, for_seconds, repeat_interval_seconds, last_evaluated_at, created_at, updated_at FROM alert_rules WHERE uuid = $1
 `
 
-func (q *Queries) GetAlertTargetByUUID(ctx context.Context, argUuid uuid.UUID) (AlertTarget, error) {
-	row := q.db.QueryRowContext(ctx, getAlertTargetByUUID, argUuid)
+func (q *Queries) GetAlertRuleByUUID(ctx context.Context, argUuid uuid.UUID) (AlertRule, error) {
+	row := q.db.QueryRowContext(ctx, getAlertRuleByUUID, argUuid)
+	var i AlertRule
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.Name,
+		&i.Description,
+		&i.Source,
+		&i.Params,
+		&i.Severity,
+		&i.Enabled,
+		&i.EvaluationIntervalSeconds,
+		&i.ForSeconds,
+		&i.RepeatIntervalSeconds,
+		&i.LastEvaluatedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAlertTargetByName = `-- name: GetAlertTargetByName :one
+SELECT id, uuid, name, type, config, enabled, created_at, updated_at FROM alert_targets WHERE name = $1
+`
+
+func (q *Queries) GetAlertTargetByName(ctx context.Context, name string) (AlertTarget, error) {
+	row := q.db.QueryRowContext(ctx, getAlertTargetByName, name)
 	var i AlertTarget
 	err := row.Scan(
 		&i.ID,
@@ -235,12 +235,12 @@ func (q *Queries) GetAlertTargetByUUID(ctx context.Context, argUuid uuid.UUID) (
 	return i, err
 }
 
-const getAlertTargetByName = `-- name: GetAlertTargetByName :one
-SELECT id, uuid, name, type, config, enabled, created_at, updated_at FROM alert_targets WHERE name = $1
+const getAlertTargetByUUID = `-- name: GetAlertTargetByUUID :one
+SELECT id, uuid, name, type, config, enabled, created_at, updated_at FROM alert_targets WHERE uuid = $1
 `
 
-func (q *Queries) GetAlertTargetByName(ctx context.Context, name string) (AlertTarget, error) {
-	row := q.db.QueryRowContext(ctx, getAlertTargetByName, name)
+func (q *Queries) GetAlertTargetByUUID(ctx context.Context, argUuid uuid.UUID) (AlertTarget, error) {
+	row := q.db.QueryRowContext(ctx, getAlertTargetByUUID, argUuid)
 	var i AlertTarget
 	err := row.Scan(
 		&i.ID,

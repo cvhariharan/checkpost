@@ -123,21 +123,22 @@ const listAllRoleBindings = `-- name: ListAllRoleBindings :many
 SELECT
     role_bindings.uuid,
     role_bindings.role,
-    users.uuid AS user_uuid,
-    user_groups.uuid AS user_group_uuid,
+    (CASE WHEN users.uuid IS NOT NULL THEN 'user' ELSE 'usergroup' END)::text AS subject_type,
+    COALESCE(users.uuid, user_groups.uuid) AS subject_uuid,
     groups.uuid AS scope_group_uuid
 FROM role_bindings
 LEFT JOIN users ON users.id = role_bindings.user_id
 LEFT JOIN user_groups ON user_groups.id = role_bindings.user_group_id
 LEFT JOIN groups ON groups.id = role_bindings.scope_group_id
+WHERE users.uuid IS NOT NULL OR user_groups.uuid IS NOT NULL
 ORDER BY role_bindings.id
 `
 
 type ListAllRoleBindingsRow struct {
 	Uuid           uuid.UUID     `db:"uuid" json:"uuid"`
 	Role           string        `db:"role" json:"role"`
-	UserUuid       uuid.NullUUID `db:"user_uuid" json:"user_uuid"`
-	UserGroupUuid  uuid.NullUUID `db:"user_group_uuid" json:"user_group_uuid"`
+	SubjectType    string        `db:"subject_type" json:"subject_type"`
+	SubjectUuid    uuid.UUID     `db:"subject_uuid" json:"subject_uuid"`
 	ScopeGroupUuid uuid.NullUUID `db:"scope_group_uuid" json:"scope_group_uuid"`
 }
 
@@ -153,8 +154,8 @@ func (q *Queries) ListAllRoleBindings(ctx context.Context) ([]ListAllRoleBinding
 		if err := rows.Scan(
 			&i.Uuid,
 			&i.Role,
-			&i.UserUuid,
-			&i.UserGroupUuid,
+			&i.SubjectType,
+			&i.SubjectUuid,
 			&i.ScopeGroupUuid,
 		); err != nil {
 			return nil, err

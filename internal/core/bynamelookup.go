@@ -1,54 +1,47 @@
 package core
 
-import "context"
+import (
+	"context"
 
-// LookupResult is the minimal by-name lookup payload used by `checkpost apply` to
-// decide create vs update. It deliberately carries only the natural key and the
-// UUID needed to address the resource on update.
-type LookupResult struct {
-	UUID string
-	Name string
-}
+	"github.com/cvhariharan/checkpost/internal/models"
+)
 
-// The by-name lookups below return the underlying store error verbatim so the
-// handler can map sql.ErrNoRows to a 404 (absent → the reconciler creates it).
-
-func (c *Core) PolicyUUIDByName(ctx context.Context, name string) (LookupResult, error) {
+func (c *Core) PolicyUUIDByName(ctx context.Context, name string) (models.LookupResult, error) {
 	row, err := c.store.GetPolicyByName(ctx, name)
 	if err != nil {
-		return LookupResult{}, err
+		return models.LookupResult{}, err
 	}
-	return LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
+	return models.LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
 }
 
-func (c *Core) ScheduleUUIDByName(ctx context.Context, name string) (LookupResult, error) {
+func (c *Core) ScheduleUUIDByName(ctx context.Context, name string) (models.LookupResult, error) {
 	row, err := c.store.GetScheduleByName(ctx, name)
 	if err != nil {
-		return LookupResult{}, err
+		return models.LookupResult{}, err
 	}
-	return LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
+	return models.LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
 }
 
-func (c *Core) AlertRuleUUIDByName(ctx context.Context, name string) (LookupResult, error) {
+func (c *Core) AlertRuleUUIDByName(ctx context.Context, name string) (models.LookupResult, error) {
 	row, err := c.store.GetAlertRuleByName(ctx, name)
 	if err != nil {
-		return LookupResult{}, err
+		return models.LookupResult{}, err
 	}
-	return LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
+	return models.LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
 }
 
-func (c *Core) AlertTargetUUIDByName(ctx context.Context, name string) (LookupResult, error) {
+func (c *Core) AlertTargetUUIDByName(ctx context.Context, name string) (models.LookupResult, error) {
 	row, err := c.store.GetAlertTargetByName(ctx, name)
 	if err != nil {
-		return LookupResult{}, err
+		return models.LookupResult{}, err
 	}
-	return LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
+	return models.LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
 }
 
-func (c *Core) GroupUUIDByName(ctx context.Context, name string) (LookupResult, error) {
+func (c *Core) GroupUUIDByName(ctx context.Context, name string) (models.LookupResult, error) {
 	row, err := c.store.GetGroupByName(ctx, name)
 	if err != nil {
-		return LookupResult{}, err
+		return models.LookupResult{}, err
 	}
-	return LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
+	return models.LookupResult{UUID: row.Uuid.String(), Name: row.Name}, nil
 }

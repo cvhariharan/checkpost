@@ -11,7 +11,6 @@ import (
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 func (c *Core) ListMachineQueries(ctx context.Context, req models.NodeIdentity, pageReq models.PageRequest) (models.Page[models.MachineQueryResult], error) {
@@ -85,6 +84,7 @@ func (c *Core) DeleteMachineQuery(ctx context.Context, nodeReq models.NodeIdenti
 	return nil
 }
 
+// ExecuteMachineQuery creates a adhoc query in the store with status as pending to be dispatched during the next node poll
 func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryRequest) (models.MachineQueryResult, error) {
 	query := strings.TrimSpace(req.Query)
 	if err := validateQuery(query); err != nil {
@@ -129,6 +129,7 @@ func (c *Core) pendingMachineQueries(ctx context.Context, node models.Node) ([]m
 	return out, nil
 }
 
+// completeAdHocResult parses the query response and stores the json results in the DB. Used for adhoc query results.
 func (c *Core) completeAdHocResult(ctx context.Context, queryID string, rows interface{}, errMsg string) (models.MachineQueryResult, bool, error) {
 	parsedID, err := uuid.Parse(queryID)
 	if err != nil {
@@ -160,48 +161,4 @@ func (c *Core) completeAdHocResult(ctx context.Context, queryID string, rows int
 	}
 
 	return toModelMachineQueryResult(completed), true, nil
-}
-
-func toModelMachineQueryResult(row repo.MachineQueryResult) models.MachineQueryResult {
-	timestamp := row.CreatedAt
-	if row.CompletedAt.Valid {
-		timestamp = row.CompletedAt.Time
-	}
-
-	return models.MachineQueryResult{
-		ID:        row.Uuid.String(),
-		Query:     row.Query,
-		Status:    row.Status,
-		Timestamp: timestamp,
-		Results:   decodeMachineQueryResults(row.Results),
-		Error:     row.Error,
-	}
-}
-
-func toModelMachineQueryResultRow(row repo.ListMachineQueryResultsByNodeUUIDRow) models.MachineQueryResult {
-	timestamp := row.CreatedAt
-	if row.CompletedAt.Valid {
-		timestamp = row.CompletedAt.Time
-	}
-
-	return models.MachineQueryResult{
-		ID:        row.Uuid.String(),
-		Query:     row.Query,
-		Status:    row.Status,
-		Timestamp: timestamp,
-		Results:   decodeMachineQueryResults(row.Results),
-		Error:     row.Error,
-	}
-}
-
-func decodeMachineQueryResults(raw pqtype.NullRawMessage) interface{} {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil
-	}
-
-	var out interface{}
-	if err := json.Unmarshal(raw.RawMessage, &out); err != nil {
-		return string(raw.RawMessage)
-	}
-	return out
 }

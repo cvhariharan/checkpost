@@ -20,7 +20,6 @@ import (
 //go:embed rbac_model.conf
 var rbacModel string
 
-// Built-in role names.
 const (
 	RoleAdmin    = "admin"
 	RoleOperator = "operator"
@@ -28,7 +27,6 @@ const (
 	RoleViewer   = "viewer"
 )
 
-// Resources (map 1:1 to checkpost domains).
 const (
 	ResourceMachine      = "machine"
 	ResourceMachineGroup = "machine_group"
@@ -46,7 +44,6 @@ const (
 	ResourceAlertTarget  = "alert_target"
 )
 
-// Actions.
 const (
 	ActionView    = "view"
 	ActionCreate  = "create"
@@ -55,14 +52,11 @@ const (
 	ActionExecute = "execute"
 )
 
-// Subject types.
 const (
 	SubjectUser      = "user"
 	SubjectUserGroup = "usergroup"
 )
 
-// globalDomain is the wildcard Casbin domain used for global bindings and for
-// Phase-1 (un-scoped) enforcement.
 const globalDomain = "*"
 
 var ErrInvalidRole = errors.New("invalid role")
@@ -160,7 +154,7 @@ func IsBuiltinRole(name string) bool {
 }
 
 // NewEnforcer builds a Casbin enforcer backed by the postgres sqlx adapter,
-// wrapping the existing *sql.DB (no second connection pool).
+// wrapping the existing *sql.DB.
 func NewEnforcer(db *sql.DB) (*casbin.Enforcer, error) {
 	m, err := casbinmodel.NewModelFromString(rbacModel)
 	if err != nil {
@@ -208,8 +202,7 @@ func (c *Core) SeedBuiltinRoles(enforcer *casbin.Enforcer) error {
 }
 
 // SyncPolicies rebuilds the shared casbin_rule store from the code-defined role
-// matrix plus the role_bindings table. Plain clear-and-rebuild (no locks/diffing);
-// every instance converges to the same content. Startup only.
+// matrix plus the role_bindings table
 func (c *Core) SyncPolicies(ctx context.Context) error {
 	if c.enforcer == nil {
 		return errors.New("casbin enforcer not configured")
@@ -230,14 +223,11 @@ func (c *Core) SyncPolicies(ctx context.Context) error {
 		return fmt.Errorf("list role bindings: %w", err)
 	}
 	for _, b := range bindings {
-		subject, ok := bindingSubject(b)
-		if !ok {
-			continue
-		}
 		domain := globalDomain
 		if b.ScopeGroupUuid.Valid {
 			domain = b.ScopeGroupUuid.UUID.String()
 		}
+		subject := subjectFor(b.SubjectType, b.SubjectUuid.String())
 		if _, err := c.enforcer.AddGroupingPolicy(subject, roleSubject(b.Role), domain); err != nil {
 			return fmt.Errorf("add binding grouping policy: %w", err)
 		}
@@ -247,17 +237,6 @@ func (c *Core) SyncPolicies(ctx context.Context) error {
 		return fmt.Errorf("save policy: %w", err)
 	}
 	return nil
-}
-
-func bindingSubject(b repo.ListAllRoleBindingsRow) (string, bool) {
-	switch {
-	case b.UserUuid.Valid:
-		return subjectFor(SubjectUser, b.UserUuid.UUID.String()), true
-	case b.UserGroupUuid.Valid:
-		return subjectFor(SubjectUserGroup, b.UserGroupUuid.UUID.String()), true
-	default:
-		return "", false
-	}
 }
 
 // Can reports whether the user (directly or via its user groups) is permitted to
@@ -306,7 +285,7 @@ func (c *Core) Can(ctx context.Context, userUUID, resource, action string, group
 	return false, nil
 }
 
-// Roles returns the four built-in roles and their permission matrix (read-only).
+// Roles returns the four built-in roles and their permission matrix
 func (c *Core) Roles() []models.RoleDefinition {
 	out := make([]models.RoleDefinition, 0, len(orderedRoles))
 	for _, role := range orderedRoles {
@@ -340,73 +319,17 @@ func (c *Core) BindRole(ctx context.Context, subjectType, subjectUUID, role stri
 		return models.RoleBinding{}, fmt.Errorf("%w: %s", ErrInvalidRole, role)
 	}
 
-	var (
-		userID, groupID sql.NullInt64
-		canonicalUUID   string
-	)
-	switch subjectType {
-	case SubjectUser:
-		uid, err := uuid.Parse(subjectUUID)
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("parse user uuid: %w", err)
-		}
-		user, err := c.store.GetUserByUUID(ctx, uid)
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("get user: %w", err)
-		}
-		userID = sql.NullInt64{Int64: user.ID, Valid: true}
-		canonicalUUID = user.Uuid.String()
-	case SubjectUserGroup:
-		gid, err := uuid.Parse(subjectUUID)
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("parse user group uuid: %w", err)
-		}
-		group, err := c.store.GetUserGroupByUUID(ctx, gid)
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("get user group: %w", err)
-		}
-		groupID = sql.NullInt64{Int64: group.ID, Valid: true}
-		canonicalUUID = group.Uuid.String()
-	default:
-		return models.RoleBinding{}, fmt.Errorf("invalid subject type: %s", subjectType)
+	userID, groupID, canonicalUUID, err := c.resolveBindingSubject(ctx, subjectType, subjectUUID)
+	if err != nil {
+		return models.RoleBinding{}, err
 	}
-
-	domain := globalDomain
-	var scopeGroupID sql.NullInt64
-	if scopeGroupUUID != nil && *scopeGroupUUID != "" {
-		sgid, err := uuid.Parse(*scopeGroupUUID)
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("parse scope group uuid: %w", err)
-		}
-		group, err := c.store.GetGroupByUUID(ctx, sgid)
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("get scope group: %w", err)
-		}
-		scopeGroupID = sql.NullInt64{Int64: group.ID, Valid: true}
-		domain = group.Uuid.String()
+	scopeGroupID, domain, err := c.resolveScopeGroup(ctx, scopeGroupUUID)
+	if err != nil {
+		return models.RoleBinding{}, err
 	}
-
-	existing, err := c.store.FindRoleBinding(ctx, repo.FindRoleBindingParams{
-		UserID:       userID,
-		UserGroupID:  groupID,
-		Role:         role,
-		ScopeGroupID: scopeGroupID,
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return models.RoleBinding{}, fmt.Errorf("find role binding: %w", err)
-	}
-
-	binding := existing
-	if errors.Is(err, sql.ErrNoRows) {
-		binding, err = c.store.CreateRoleBinding(ctx, repo.CreateRoleBindingParams{
-			UserID:       userID,
-			UserGroupID:  groupID,
-			Role:         role,
-			ScopeGroupID: scopeGroupID,
-		})
-		if err != nil {
-			return models.RoleBinding{}, fmt.Errorf("create role binding: %w", err)
-		}
+	binding, err := c.findOrCreateRoleBinding(ctx, userID, groupID, role, scopeGroupID)
+	if err != nil {
+		return models.RoleBinding{}, err
 	}
 
 	if _, err := c.enforcer.AddGroupingPolicy(subjectFor(subjectType, canonicalUUID), roleSubject(role), domain); err != nil {
@@ -416,15 +339,89 @@ func (c *Core) BindRole(ctx context.Context, subjectType, subjectUUID, role stri
 		return models.RoleBinding{}, fmt.Errorf("save policy: %w", err)
 	}
 
-	out := models.RoleBinding{
-		UUID:      binding.Uuid.String(),
-		Role:      binding.Role,
-		CreatedAt: binding.CreatedAt,
+	return toModelRoleBinding(binding, scopeGroupUUID), nil
+}
+
+// resolveBindingSubject validates a subject (user or user group) by UUID and
+// returns its id column plus the canonical UUID used for the casbin subject.
+func (c *Core) resolveBindingSubject(ctx context.Context, subjectType, subjectUUID string) (userID, groupID sql.NullInt64, canonicalUUID string, err error) {
+	id, err := uuid.Parse(subjectUUID)
+	if err != nil {
+		return userID, groupID, "", fmt.Errorf("parse subject uuid: %w", err)
 	}
-	if scopeGroupUUID != nil && *scopeGroupUUID != "" {
+	switch subjectType {
+	case SubjectUser:
+		user, err := c.store.GetUserByUUID(ctx, id)
+		if err != nil {
+			return userID, groupID, "", fmt.Errorf("get user: %w", err)
+		}
+		return sql.NullInt64{Int64: user.ID, Valid: true}, groupID, user.Uuid.String(), nil
+	case SubjectUserGroup:
+		group, err := c.store.GetUserGroupByUUID(ctx, id)
+		if err != nil {
+			return userID, groupID, "", fmt.Errorf("get user group: %w", err)
+		}
+		return userID, sql.NullInt64{Int64: group.ID, Valid: true}, group.Uuid.String(), nil
+	default:
+		return userID, groupID, "", fmt.Errorf("invalid subject type: %s", subjectType)
+	}
+}
+
+// resolveScopeGroup maps an optional machine-group UUID to its id column and the
+// casbin domain, defaulting to a global (unscoped) binding when nil/empty.
+func (c *Core) resolveScopeGroup(ctx context.Context, scopeGroupUUID *string) (sql.NullInt64, string, error) {
+	if scopeGroupUUID == nil || *scopeGroupUUID == "" {
+		return sql.NullInt64{}, globalDomain, nil
+	}
+	sgid, err := uuid.Parse(*scopeGroupUUID)
+	if err != nil {
+		return sql.NullInt64{}, "", fmt.Errorf("parse scope group uuid: %w", err)
+	}
+	group, err := c.store.GetGroupByUUID(ctx, sgid)
+	if err != nil {
+		return sql.NullInt64{}, "", fmt.Errorf("get scope group: %w", err)
+	}
+	return sql.NullInt64{Int64: group.ID, Valid: true}, group.Uuid.String(), nil
+}
+
+// findOrCreateRoleBinding returns the existing binding matching the tuple, or
+// creates it. Idempotency relies on FindRoleBinding's IS NOT DISTINCT FROM match
+// (the unique constraints are NULLS DISTINCT, so they don't dedupe global bindings).
+func (c *Core) findOrCreateRoleBinding(ctx context.Context, userID, groupID sql.NullInt64, role string, scopeGroupID sql.NullInt64) (repo.RoleBinding, error) {
+	existing, err := c.store.FindRoleBinding(ctx, repo.FindRoleBindingParams{
+		UserID:       userID,
+		UserGroupID:  groupID,
+		Role:         role,
+		ScopeGroupID: scopeGroupID,
+	})
+	if err == nil {
+		return existing, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return repo.RoleBinding{}, fmt.Errorf("find role binding: %w", err)
+	}
+	binding, err := c.store.CreateRoleBinding(ctx, repo.CreateRoleBindingParams{
+		UserID:       userID,
+		UserGroupID:  groupID,
+		Role:         role,
+		ScopeGroupID: scopeGroupID,
+	})
+	if err != nil {
+		return repo.RoleBinding{}, fmt.Errorf("create role binding: %w", err)
+	}
+	return binding, nil
+}
+
+func toModelRoleBinding(b repo.RoleBinding, scopeGroupUUID *string) models.RoleBinding {
+	out := models.RoleBinding{
+		UUID:      b.Uuid.String(),
+		Role:      b.Role,
+		CreatedAt: b.CreatedAt,
+	}
+	if scopeGroupUUID != nil {
 		out.ScopeGroupUUID = *scopeGroupUUID
 	}
-	return out, nil
+	return out
 }
 
 // UnbindRole removes a role binding by uuid and the matching enforcer grouping

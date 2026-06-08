@@ -727,3 +727,10 @@ type NodeMetric struct {
 	CollectedAt time.Time   `json:"collected_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
+
+// LookupResult is the minimal by-name lookup payload used by `checkpost apply` to
+// decide create vs update
+type LookupResult struct {
+	UUID string
+	Name string
+}

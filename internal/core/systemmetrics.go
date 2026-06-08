@@ -22,8 +22,6 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-// reflector emits inline definitions (no $ref / $defs indirection) which
-// makes the rendered schema easier to walk on the frontend.
 var reflector = &jsonschema.Reflector{ExpandedStruct: true, DoNotReference: true}
 
 func schemaOf(v any, title string) *jsonschema.Schema {
@@ -31,8 +29,6 @@ func schemaOf(v any, title string) *jsonschema.Schema {
 	s.Title = title
 	return s
 }
-
-// --- disk ---------------------------------------------------------------
 
 type DiskValue struct {
 	Mounts []DiskMount `json:"mounts" jsonschema:"title=Mounts" jsonschema_extras:"x-display=table"`
@@ -72,8 +68,6 @@ func (DiskExtractor) Extract(rows []results.Row) (any, bool) {
 	sort.Slice(mounts, func(i, j int) bool { return mounts[i].Path < mounts[j].Path })
 	return DiskValue{Mounts: mounts}, true
 }
-
-// --- network ------------------------------------------------------------
 
 type NetworkValue struct {
 	Interfaces []NetworkInterface `json:"interfaces" jsonschema:"title=Interfaces" jsonschema_extras:"x-display=table"`
@@ -138,11 +132,6 @@ func (NetworkExtractor) Extract(rows []results.Row) (any, bool) {
 	return NetworkValue{Interfaces: ifaces}, true
 }
 
-// --- memory -------------------------------------------------------------
-
-// AvailableBytes is omitempty so the Windows SQL — which doesn't expose
-// available memory — can leave it unset and the renderer treats it as
-// "not reported" instead of falsely showing zero free memory.
 type MemoryValue struct {
 	TotalBytes     int64 `json:"total_bytes"               jsonschema:"title=Total"     jsonschema_extras:"x-unit=bytes,x-primary=true"`
 	AvailableBytes int64 `json:"available_bytes,omitempty" jsonschema:"title=Available" jsonschema_extras:"x-unit=bytes"`
@@ -164,8 +153,6 @@ func (MemoryExtractor) Extract(rows []results.Row) (any, bool) {
 	}
 	return nil, false
 }
-
-// --- cpu ----------------------------------------------------------------
 
 type CPUValue struct {
 	Model         string `json:"model"          jsonschema:"title=Model" jsonschema_extras:"x-primary=true"`
@@ -190,8 +177,6 @@ func (CPUExtractor) Extract(rows []results.Row) (any, bool) {
 	}
 	return nil, false
 }
-
-// --- os_info ------------------------------------------------------------
 
 type OSInfoValue struct {
 	Name     string `json:"name"               jsonschema:"title=Name"    jsonschema_extras:"x-primary=true"`
@@ -224,8 +209,6 @@ func (OSInfoExtractor) Extract(rows []results.Row) (any, bool) {
 	return nil, false
 }
 
-// --- uptime -------------------------------------------------------------
-
 type UptimeValue struct {
 	Seconds int64 `json:"seconds" jsonschema:"title=Uptime" jsonschema_extras:"x-unit=duration-seconds,x-primary=true"`
 }
@@ -246,8 +229,6 @@ func (UptimeExtractor) Extract(rows []results.Row) (any, bool) {
 	return nil, false
 }
 
-// --- helpers ------------------------------------------------------------
-
 func parseFloat(s string) float64 {
 	v, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return v
@@ -258,8 +239,7 @@ func parseInt(s string) int64 {
 	return v
 }
 
-// Kind names a class of device metric. Stable string — written to
-// node_metrics.kind and surfaced in the schemas endpoint.
+// Kind names a class of device metric
 type Kind string
 
 const (
@@ -277,16 +257,13 @@ type Snapshot struct {
 	Value any
 }
 
-// Extractor is the unit of metric extensibility. Implementations are
-// stateless; Schema is reflected once at registry construction.
 type Extractor interface {
 	Kind() Kind
 	Schema() *jsonschema.Schema
 	Extract(rows []results.Row) (value any, ok bool)
 }
 
-// SystemMetricsRegistry maps schedule names to Extractors and memoizes each kind's
-// reflected schema. Build via New or Default; the zero value is not usable.
+// SystemMetricsRegistry maps schedule names to Extractors and stores each kind's reflected schema
 type SystemMetricsRegistry struct {
 	entries map[string]Extractor
 	schemas map[Kind]*jsonschema.Schema
@@ -299,8 +276,7 @@ func New() *SystemMetricsRegistry {
 	}
 }
 
-// Register binds each schedule name to e and memoizes e.Schema() for the
-// kind. Later registrations for the same name or kind overwrite earlier ones.
+// Register binds each schedule name to an extractor and stores the schema for the kind
 func (r *SystemMetricsRegistry) Register(e Extractor, scheduleNames ...string) {
 	r.schemas[e.Kind()] = e.Schema()
 	for _, name := range scheduleNames {
@@ -320,13 +296,12 @@ func (r *SystemMetricsRegistry) Apply(scheduleName string, rows []results.Row) (
 	return Snapshot{Kind: e.Kind(), Value: value}, true
 }
 
-// Schemas returns kind → reflected schema. Callers must not mutate.
+// Schemas returns kind → reflected schema
 func (r *SystemMetricsRegistry) Schemas() map[Kind]*jsonschema.Schema {
 	return r.schemas
 }
 
-// Kinds returns the registered kinds in alphabetical order — the canonical
-// render order surfaced to the frontend.
+// Kinds returns the registered kinds in alphabetical order
 func (r *SystemMetricsRegistry) Kinds() []Kind {
 	out := make([]Kind, 0, len(r.schemas))
 	for k := range r.schemas {

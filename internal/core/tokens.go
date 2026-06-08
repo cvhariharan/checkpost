@@ -76,7 +76,7 @@ func (c *Core) IssueAPIToken(ctx context.Context, userID int64, name, source str
 	}
 
 	return models.IssuedAPIToken{
-		APIToken: apiTokenFromRepo(row),
+		APIToken: toModelAPIToken(row),
 		Secret:   secret,
 	}, nil
 }
@@ -144,7 +144,7 @@ func (c *Core) ListAPITokens(ctx context.Context, userUUID string) ([]models.API
 	}
 	out := make([]models.APIToken, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, apiTokenFromRepo(row))
+		out = append(out, toModelAPIToken(row))
 	}
 	return out, nil
 }
@@ -180,18 +180,6 @@ func (c *Core) SweepExpiredTokens(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("delete expired api tokens: %w", err)
 	}
 	return n, nil
-}
-
-func apiTokenFromRepo(row repo.ApiToken) models.APIToken {
-	return models.APIToken{
-		UUID:       row.Uuid.String(),
-		Name:       row.Name,
-		Source:     row.Source,
-		ExpiresAt:  timePtrFromNull(row.ExpiresAt),
-		LastUsedAt: timePtrFromNull(row.LastUsedAt),
-		RevokedAt:  timePtrFromNull(row.RevokedAt),
-		CreatedAt:  row.CreatedAt,
-	}
 }
 
 // TokenSweeper periodically deletes expired API tokens.

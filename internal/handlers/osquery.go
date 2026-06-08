@@ -90,9 +90,7 @@ func (h *Handler) HandleLog(c echo.Context) error {
 		LogType: req.LogType,
 		Data:    req.Data,
 	}); err != nil {
-		// Backpressure: osquery treats 503 as a transient failure and retries
-		// on the next interval, which is exactly what the spec asks for. A
-		// generic 500 would mark the batch as broken.
+		// Backpressure: osquery treats 503 as a transient failure and retries on the next interval
 		if errors.Is(err, results.ErrBackpressure) {
 			return wrapError(http.StatusServiceUnavailable, "results buffer full, retry later", err, nil)
 		}

@@ -121,9 +121,6 @@ func (h *Handler) initOIDC() error {
 		groupsClaim = "groups"
 	}
 
-	// The endpoints come from provider discovery, but allow explicit overrides so
-	// the browser-facing auth URL can differ from the server-side token URL (e.g.
-	// dex behind docker: issuer/token at dex:5556, auth at localhost:5556).
 	endpoint := provider.Endpoint()
 	if h.oidcCfg.AuthURL != "" {
 		endpoint.AuthURL = h.oidcCfg.AuthURL

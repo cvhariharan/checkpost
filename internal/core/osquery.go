@@ -22,6 +22,7 @@ import (
 
 const MaxLogCount = 1000
 
+// ReadDistributedQueries returns the queries a node should run next: pending ad-hoc and YARA queries, plus due policy checks, keyed by query ID.
 func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyRequest) (map[string]string, error) {
 	node, err := c.GetNode(ctx, req)
 	if err != nil {
@@ -73,6 +74,7 @@ func (c *Core) ReadDistributedQueries(ctx context.Context, req models.NodeKeyReq
 	return queries, nil
 }
 
+// WriteDistributedQueryResults ingests a node's distributed query responses, dispatching each to its YARA, ad-hoc, or policy handler by query ID.
 func (c *Core) WriteDistributedQueryResults(ctx context.Context, req models.NodeKeyRequest, results map[string]interface{}, statuses map[string]string, messages map[string]string) error {
 	node, err := c.GetNode(ctx, req)
 	if err != nil {
@@ -95,6 +97,7 @@ func (c *Core) WriteDistributedQueryResults(ctx context.Context, req models.Node
 	return policyErr
 }
 
+// deliverYaraResults parses yara query results and status and routes them to appropriate parsing functions
 func (c *Core) deliverYaraResults(ctx context.Context, node models.Node, results map[string]interface{}, statuses, messages map[string]string) error {
 	var firstErr error
 	seen := make(map[string]struct{}, len(results)+len(statuses))
@@ -123,6 +126,7 @@ func (c *Core) deliverYaraResults(ctx context.Context, node models.Node, results
 	return firstErr
 }
 
+// deliverAdHocResults handles adhoc query results and routes it for further parsing and storage
 func (c *Core) deliverAdHocResults(ctx context.Context, node models.Node, results map[string]interface{}, statuses, messages map[string]string) error {
 	var firstErr error
 	for queryID, rows := range results {
@@ -143,6 +147,7 @@ func (c *Core) deliverAdHocResults(ctx context.Context, node models.Node, result
 	return firstErr
 }
 
+// distributedErrorMessage derives a human-readable error from an osquery query's status/message, returning "" for a success status (empty or "0").
 func distributedErrorMessage(status, message string) string {
 	if status == "" || status == "0" {
 		return ""
@@ -153,6 +158,7 @@ func distributedErrorMessage(status, message string) string {
 	return fmt.Sprintf("osquery returned status %s", status)
 }
 
+// IngestOsqueryLogs resolves the batch's node, caps it at MaxLogCount, then dispatches to the result- or status-log ingestion path by log type.
 func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBatch) error {
 	if batch.LogType != "result" && batch.LogType != "status" {
 		return ErrInvalidLogType
@@ -199,6 +205,7 @@ type resultLog struct {
 	snapshot      []map[string]interface{} // snapshot row payload
 }
 
+// parseResultLogs decodes raw result-log entries into resultLog values, skipping any whose schedule name can't be parsed.
 func (c *Core) parseResultLogs(logs []map[string]interface{}) []resultLog {
 	parsed := make([]resultLog, 0, len(logs))
 	for _, raw := range logs {
@@ -212,6 +219,8 @@ func (c *Core) parseResultLogs(logs []map[string]interface{}) []resultLog {
 	return parsed
 }
 
+// ingestResultLogs matches each result log to its schedule (via one batched name lookup), submits the rows to the results sink under the schedule's UUID/version and
+// upserts node metrics for system snapshot schedules. Logs with no matching schedule are skipped.
 func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []resultLog) error {
 	if c.sink == nil {
 		return errors.New("results sink not configured")
@@ -268,7 +277,7 @@ func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []result
 
 // applySystemMetric reduces a system schedule's result batch via the
 // registry and upserts the snapshot into node_metrics. Failures are logged
-// but never bubbled — the parquet write is authoritative.
+// but never bubbled
 func (c *Core) applySystemMetric(ctx context.Context, nodeID int64, scheduleName string, rows []results.Row, collectedAt time.Time) {
 	snap, ok := c.systemMetrics.Apply(scheduleName, rows)
 	if !ok {
@@ -289,6 +298,7 @@ func (c *Core) applySystemMetric(ctx context.Context, nodeID int64, scheduleName
 	}
 }
 
+// parseResultLog decodes one raw result-log map into a resultLog, splitting the versioned name into schedule name + sql version and extracting either the differential `columns` or the `snapshot` rows. Returns false if the name is missing or unversioned.
 func parseResultLog(raw map[string]interface{}) (resultLog, bool) {
 	versionedName := strings.TrimSpace(stringValue(raw["name"]))
 	if versionedName == "" {
@@ -326,6 +336,7 @@ func parseResultLog(raw map[string]interface{}) (resultLog, bool) {
 	return log, true
 }
 
+// parseVersionedName splits a "schedule_name/vN" string into its name and version N, returning false if it isn't in that form.
 func parseVersionedName(versioned string) (string, int32, bool) {
 	idx := strings.LastIndex(versioned, "/v")
 	if idx <= 0 || idx == len(versioned)-2 {
@@ -338,6 +349,7 @@ func parseVersionedName(versioned string) (string, int32, bool) {
 	return versioned[:idx], int32(v), true
 }
 
+// buildResultRows turns a resultLog into sink rows: one row from `columns` for differential logs, or many from `snapshot` for snapshot logs (collapsing consecutive duplicate rows by hash).
 func buildResultRows(log resultLog, nodeID int64) []results.Row {
 	// Differential: one row per log entry from `columns`.
 	if log.action != "snapshot" {
@@ -362,6 +374,7 @@ func buildResultRows(log resultLog, nodeID int64) []results.Row {
 	return rows
 }
 
+// resultRowFromMap builds a single sink Row from a raw column map, stringifying values, dropping blank keys, and computing the row hash.
 func resultRowFromMap(rowMap map[string]interface{}, action string, nodeID int64, ut time.Time, calendarTime string) results.Row {
 	columns := make(map[string]string, len(rowMap))
 	for k, v := range rowMap {
@@ -415,6 +428,7 @@ type statusLog struct {
 	version      string
 }
 
+// parseStatusLogs decodes raw status-log entries into statusLog values, tolerating both `filename` and `file_name` keys.
 func parseStatusLogs(logs []map[string]interface{}) []statusLog {
 	out := make([]statusLog, 0, len(logs))
 	for _, raw := range logs {
@@ -431,6 +445,7 @@ func parseStatusLogs(logs []map[string]interface{}) []statusLog {
 	return out
 }
 
+// ingestStatusLogs persists parsed status logs for a node in a single transactional batch insert.
 func (c *Core) ingestStatusLogs(ctx context.Context, nodeID int64, logs []statusLog) error {
 	params := repo.InsertStatusLogsTxParams{Logs: make([]repo.CreateStatusLogParams, 0, len(logs))}
 	for _, log := range logs {
@@ -448,14 +463,17 @@ func (c *Core) ingestStatusLogs(ctx context.Context, nodeID int64, logs []status
 	return c.store.InsertStatusLogsTx(ctx, params)
 }
 
+// unixTime interprets value as Unix epoch seconds.
 func unixTime(value interface{}) time.Time {
 	return time.Unix(int64Value(value), 0)
 }
 
+// hasValue reports whether a decoded JSON field was present (non-nil).
 func hasValue(value interface{}) bool {
 	return value != nil
 }
 
+// firstValue returns the value of the first of keys present in m, or nil if none are.
 func firstValue(m map[string]interface{}, keys ...string) interface{} {
 	for _, key := range keys {
 		if value, ok := m[key]; ok {
@@ -465,6 +483,7 @@ func firstValue(m map[string]interface{}, keys ...string) interface{} {
 	return nil
 }
 
+// stringValue coerces an arbitrary decoded JSON value to its string form, rendering whole-number floats without a decimal point and returning "" for nil.
 func stringValue(value interface{}) string {
 	switch v := value.(type) {
 	case nil:
@@ -495,6 +514,7 @@ func stringValue(value interface{}) string {
 	}
 }
 
+// int64Value coerces an arbitrary decoded JSON value to an int64, returning 0 for nil or unparseable input.
 func int64Value(value interface{}) int64 {
 	switch v := value.(type) {
 	case nil:

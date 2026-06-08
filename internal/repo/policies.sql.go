@@ -100,12 +100,12 @@ func (q *Queries) GetPolicyByID(ctx context.Context, id int64) (Policy, error) {
 	return i, err
 }
 
-const getPolicyByUUID = `-- name: GetPolicyByUUID :one
-SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE uuid = $1
+const getPolicyByName = `-- name: GetPolicyByName :one
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE name = $1
 `
 
-func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error) {
-	row := q.db.QueryRowContext(ctx, getPolicyByUUID, argUuid)
+func (q *Queries) GetPolicyByName(ctx context.Context, name string) (Policy, error) {
+	row := q.db.QueryRowContext(ctx, getPolicyByName, name)
 	var i Policy
 	err := row.Scan(
 		&i.ID,
@@ -123,12 +123,12 @@ func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Polic
 	return i, err
 }
 
-const getPolicyByName = `-- name: GetPolicyByName :one
-SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE name = $1
+const getPolicyByUUID = `-- name: GetPolicyByUUID :one
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE uuid = $1
 `
 
-func (q *Queries) GetPolicyByName(ctx context.Context, name string) (Policy, error) {
-	row := q.db.QueryRowContext(ctx, getPolicyByName, name)
+func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error) {
+	row := q.db.QueryRowContext(ctx, getPolicyByUUID, argUuid)
 	var i Policy
 	err := row.Scan(
 		&i.ID,
@@ -497,7 +497,7 @@ page AS (
     SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
     FROM filtered
     ORDER BY created_at DESC, id DESC
-    LIMIT $3 OFFSET $2
+    LIMIT $2 OFFSET $1
 ),
 effective_targets AS (
     SELECT
@@ -530,18 +530,18 @@ counts AS (
         page.id AS policy_id,
         count(effective_targets.node_id) FILTER (
             WHERE policy_membership.passes = true
-              AND policy_membership.checked_at >= now() - $1::text::interval
+              AND policy_membership.checked_at >= now() - $3::text::interval
         )::bigint AS passing_count,
         count(effective_targets.node_id) FILTER (
             WHERE policy_membership.passes = false
-              AND policy_membership.checked_at >= now() - $1::text::interval
+              AND policy_membership.checked_at >= now() - $3::text::interval
         )::bigint AS failing_count,
         count(effective_targets.node_id) FILTER (
             WHERE effective_targets.node_id IS NOT NULL
               AND (
                 policy_membership.policy_id IS NULL
                 OR policy_membership.passes IS NULL
-                OR policy_membership.checked_at < now() - $1::text::interval
+                OR policy_membership.checked_at < now() - $3::text::interval
               )
         )::bigint AS unknown_count,
         max(policy_membership.updated_at) AS last_count_updated_at
@@ -584,9 +584,9 @@ ORDER BY page.created_at DESC, page.id DESC, groups.name
 `
 
 type ListPoliciesWithCountsParams struct {
-	StaleAfter  string `db:"stale_after" json:"stale_after"`
 	OffsetCount int32  `db:"offset_count" json:"offset_count"`
 	LimitCount  int32  `db:"limit_count" json:"limit_count"`
+	StaleAfter  string `db:"stale_after" json:"stale_after"`
 }
 
 type ListPoliciesWithCountsRow struct {
@@ -615,7 +615,7 @@ type ListPoliciesWithCountsRow struct {
 }
 
 func (q *Queries) ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPoliciesWithCounts, arg.StaleAfter, arg.OffsetCount, arg.LimitCount)
+	rows, err := q.db.QueryContext(ctx, listPoliciesWithCounts, arg.OffsetCount, arg.LimitCount, arg.StaleAfter)
 	if err != nil {
 		return nil, err
 	}

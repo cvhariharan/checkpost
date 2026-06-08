@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateUserGroup creates a user group (an RBAC subject distinct from machine groups).
+// CreateUserGroup creates a user group
 func (c *Core) CreateUserGroup(ctx context.Context, req models.CreateUserGroup) (models.UserGroup, error) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {

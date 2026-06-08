@@ -262,17 +262,6 @@ func (c *Core) attachGroupsToPolicy(ctx context.Context, policy models.Policy) (
 	return policy, nil
 }
 
-func (c *Core) attachGroupsToPolicies(ctx context.Context, policies []models.Policy) error {
-	for i := range policies {
-		updated, err := c.attachGroupsToPolicy(ctx, policies[i])
-		if err != nil {
-			return err
-		}
-		policies[i] = updated
-	}
-	return nil
-}
-
 func (c *Core) attachGroupsToSchedule(ctx context.Context, schedule models.Schedule) (models.Schedule, error) {
 	if strings.TrimSpace(schedule.UUID) == "" {
 		return schedule, nil

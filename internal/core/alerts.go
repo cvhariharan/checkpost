@@ -309,18 +309,6 @@ func (c *Core) toModelAlertRule(ctx context.Context, r repo.AlertRule) (models.A
 	return out, nil
 }
 
-func toModelAlertTarget(t repo.AlertTarget) models.AlertTarget {
-	return models.AlertTarget{
-		UUID:      t.Uuid.String(),
-		Name:      t.Name,
-		Type:      t.Type,
-		Config:    t.Config,
-		Enabled:   t.Enabled,
-		CreatedAt: t.CreatedAt,
-		UpdatedAt: t.UpdatedAt,
-	}
-}
-
 func normalizeParams(p json.RawMessage) json.RawMessage {
 	if len(p) == 0 {
 		return json.RawMessage("{}")

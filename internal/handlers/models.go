@@ -7,8 +7,6 @@ import (
 	"github.com/cvhariharan/checkpost/internal/models"
 )
 
-// ALERTING ----------------------------------------------------------------
-
 type CreateAlertTargetRequest struct {
 	Name    string          `json:"name" validate:"required"`
 	Type    string          `json:"type" validate:"required,oneof=smtp webhook"`
@@ -494,9 +492,6 @@ type OsqueryBootstrapPackage struct {
 	SHA256       string `json:"sha256"`
 }
 
-// AUTHENTICATION & AUTHORIZATION ------------------------------------------
-
-// LoginRequest is the password login body.
 type LoginRequest struct {
 	Username string `json:"username" validate:"required"`
 	Password string `json:"password" validate:"required"`
@@ -511,13 +506,11 @@ type ProvidersResponse struct {
 	} `json:"sso"`
 }
 
-// IssueTokenRequest is the body for minting an API token (0 days = server default).
 type IssueTokenRequest struct {
 	Name          string `json:"name"`
 	ExpiresInDays int    `json:"expires_in_days" validate:"gte=0"`
 }
 
-// MeResponse is the current user + effective permission set.
 type MeResponse struct {
 	User        models.SessionUser  `json:"user"`
 	Roles       []string            `json:"roles"`

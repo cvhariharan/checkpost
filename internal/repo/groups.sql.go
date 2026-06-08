@@ -187,12 +187,12 @@ func (q *Queries) GetGroupByID(ctx context.Context, id int64) (Group, error) {
 	return i, err
 }
 
-const getGroupByUUID = `-- name: GetGroupByUUID :one
-SELECT id, uuid, name, description, created_at, updated_at FROM groups WHERE uuid = $1
+const getGroupByName = `-- name: GetGroupByName :one
+SELECT id, uuid, name, description, created_at, updated_at FROM groups WHERE name = $1
 `
 
-func (q *Queries) GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error) {
-	row := q.db.QueryRowContext(ctx, getGroupByUUID, argUuid)
+func (q *Queries) GetGroupByName(ctx context.Context, name string) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByName, name)
 	var i Group
 	err := row.Scan(
 		&i.ID,
@@ -205,12 +205,12 @@ func (q *Queries) GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group,
 	return i, err
 }
 
-const getGroupByName = `-- name: GetGroupByName :one
-SELECT id, uuid, name, description, created_at, updated_at FROM groups WHERE name = $1
+const getGroupByUUID = `-- name: GetGroupByUUID :one
+SELECT id, uuid, name, description, created_at, updated_at FROM groups WHERE uuid = $1
 `
 
-func (q *Queries) GetGroupByName(ctx context.Context, name string) (Group, error) {
-	row := q.db.QueryRowContext(ctx, getGroupByName, name)
+func (q *Queries) GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error) {
+	row := q.db.QueryRowContext(ctx, getGroupByUUID, argUuid)
 	var i Group
 	err := row.Scan(
 		&i.ID,

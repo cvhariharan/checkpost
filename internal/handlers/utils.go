@@ -28,21 +28,6 @@ func toJSON(v any) string {
 	return string(jsonBytes)
 }
 
-// func NewTemplateRenderer() *Template {
-// 	funcMap := template.FuncMap{
-// 		"toJSON": toJSON,
-// 	}
-
-// 	t := &Template{
-// 		templates: template.Must(template.New("").Funcs(funcMap).ParseGlob("web/layouts/*.html")),
-// 	}
-// 	template.Must(t.templates.ParseGlob("web/components/*.html"))
-// 	template.Must(t.templates.ParseGlob("web/pages/**/*.html"))
-// 	template.Must(t.templates.ParseGlob("web/pages/*.html"))
-
-// 	return t
-// }
-
 type HTTPError struct {
 	code           int
 	msg            string

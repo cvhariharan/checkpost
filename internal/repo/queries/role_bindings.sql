@@ -53,13 +53,14 @@ ORDER BY role_bindings.created_at DESC;
 SELECT
     role_bindings.uuid,
     role_bindings.role,
-    users.uuid AS user_uuid,
-    user_groups.uuid AS user_group_uuid,
+    (CASE WHEN users.uuid IS NOT NULL THEN 'user' ELSE 'usergroup' END)::text AS subject_type,
+    COALESCE(users.uuid, user_groups.uuid) AS subject_uuid,
     groups.uuid AS scope_group_uuid
 FROM role_bindings
 LEFT JOIN users ON users.id = role_bindings.user_id
 LEFT JOIN user_groups ON user_groups.id = role_bindings.user_group_id
 LEFT JOIN groups ON groups.id = role_bindings.scope_group_id
+WHERE users.uuid IS NOT NULL OR user_groups.uuid IS NOT NULL
 ORDER BY role_bindings.id;
 
 -- name: ListGlobalRolesForUser :many
