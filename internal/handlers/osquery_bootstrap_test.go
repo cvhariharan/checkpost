@@ -55,7 +55,7 @@ func TestOsqueryBootstrapProfileReady(t *testing.T) {
 
 func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 	cfg := testBootstrapConfig("http://localhost:1323")
-	cfg.OsqueryBootstrap.Linux.DEBAMD64.URL = ""
+	cfg.OsqueryBootstrap.Linux.TarballAMD64.URL = ""
 	h := &Handler{cfg: cfg, bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
@@ -76,7 +76,7 @@ func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 	if !strings.Contains(joined, "app.root_url must use https://") {
 		t.Fatalf("warnings = %v, want root URL warning", resp.Warnings)
 	}
-	if !strings.Contains(joined, "Linux DEB amd64 package URL is not configured") {
+	if !strings.Contains(joined, "Linux tarball amd64 package URL is not configured") {
 		t.Fatalf("warnings = %v, want package URL warning", resp.Warnings)
 	}
 }
@@ -99,6 +99,9 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 		"ENROLL_SECRET='enroll-secret'",
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"install_osquery_if_missing",
+		"TARBALL_AMD64_URL='https://packages.example/osquery'",
+		"/etc/systemd/system/osqueryd.service",
+		"systemctl enable --now osqueryd",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("script missing %q\n%s", want, body)
@@ -117,10 +120,8 @@ func testBootstrapConfig(rootURL string) config.AppConfig {
 		OsqueryBootstrap: config.OsqueryBootstrapConfig{
 			Enabled: true,
 			Linux: config.LinuxBootstrapConfig{
-				DEBAMD64: pkg,
-				DEBARM64: pkg,
-				RPMAMD64: pkg,
-				RPMARM64: pkg,
+				TarballAMD64: pkg,
+				TarballARM64: pkg,
 			},
 			MacOS: config.MacOSBootstrapConfig{
 				PKGUniversal: pkg,

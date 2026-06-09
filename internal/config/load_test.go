@@ -242,28 +242,28 @@ func TestConfigValidateOsqueryBootstrapPackages(t *testing.T) {
 		{name: "empty pair"},
 		{
 			name:    "url only",
-			pkg:     BootstrapPackage{URL: "https://packages.example/osquery.deb"},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.DEBAMD64.SHA256",
+			pkg:     BootstrapPackage{URL: "https://packages.example/osquery.tar.gz"},
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.SHA256",
 		},
 		{
 			name:    "sha only",
 			pkg:     BootstrapPackage{SHA256: strings.Repeat("a", 64)},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.DEBAMD64.URL",
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.URL",
 		},
 		{
 			name:    "invalid url",
 			pkg:     BootstrapPackage{URL: "not a url", SHA256: strings.Repeat("a", 64)},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.DEBAMD64.URL",
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.URL",
 		},
 		{
 			name:    "invalid sha",
-			pkg:     BootstrapPackage{URL: "https://packages.example/osquery.deb", SHA256: "abc"},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.DEBAMD64.SHA256",
+			pkg:     BootstrapPackage{URL: "https://packages.example/osquery.tar.gz", SHA256: "abc"},
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.SHA256",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.AppConfig.OsqueryBootstrap.Linux.DEBAMD64 = tt.pkg
+			cfg.AppConfig.OsqueryBootstrap.Linux.TarballAMD64 = tt.pkg
 
 			err := cfg.Validate()
 			assertValidationError(t, err, tt.wantErr)

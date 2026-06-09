@@ -25,14 +25,10 @@ const (
 type bootstrapTemplateData struct {
 	TLSHostname             string
 	EnrollmentKey           string
-	LinuxDEBAMD64URL        string
-	LinuxDEBAMD64SHA256     string
-	LinuxDEBARM64URL        string
-	LinuxDEBARM64SHA256     string
-	LinuxRPMAMD64URL        string
-	LinuxRPMAMD64SHA256     string
-	LinuxRPMARM64URL        string
-	LinuxRPMARM64SHA256     string
+	LinuxTarballAMD64URL    string
+	LinuxTarballAMD64SHA256 string
+	LinuxTarballARM64URL    string
+	LinuxTarballARM64SHA256 string
 	MacOSPKGUniversalURL    string
 	MacOSPKGUniversalSHA256 string
 	WindowsMSIAMD64URL      string
@@ -78,18 +74,18 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 			Label:             "Linux",
 			Command:           bootstrapCommand(checkpostURL, "linux"),
 			ScriptURL:         bootstrapScriptURL(checkpostURL, "linux.sh"),
-			VerifyCommand:     "systemctl status osqueryd --no-pager",
-			RestartCommand:    "systemctl restart osqueryd && systemctl enable osqueryd",
+			VerifyCommand:     "sudo systemctl status osqueryd --no-pager",
+			RestartCommand:    "sudo systemctl restart osqueryd && sudo systemctl enable osqueryd",
 			Package:           firstPackage(packages["linux"]),
 			Packages:          packages["linux"],
-			InstallSteps:      []string{"If osquery is not installed, detect DEB or RPM packaging", "Download the matching package for the host architecture", "Verify SHA256 before installing with apt, dnf, yum, zypper, or rpm"},
+			InstallSteps:      []string{"If osquery is not installed, download the generic Linux tarball for the host architecture", "Verify SHA256, then copy osquery into /opt/osquery and link the binaries into /usr/bin", "Install a systemd unit and enable the osqueryd service"},
 			FlagfilePath:      linuxFlagfilePath,
 			SecretPath:        linuxSecretPath,
 			Secret:            h.cfg.EnrollmentKey,
 			Flagfile:          osqueryFlagfile(tlsHostname, linuxSecretPath),
 			Script:            scripts["linux.sh"],
-			ArchitectureNotes: "Supports amd64 and arm64 package entries for DEB and RPM based distributions.",
-			Caveats:           []string{"Unsupported Linux distributions can still use the bootstrap command after osquery is installed manually."},
+			ArchitectureNotes: "Uses the generic osquery Linux tarball with amd64 and arm64 entries; works on any distribution running systemd.",
+			Caveats:           []string{"Requires systemd and the tar utility on the host."},
 		},
 		{
 			Key:               "macos",
@@ -130,11 +126,11 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 	}
 
 	return OsqueryBootstrapResponse{
-		Ready:       h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
-		CheckpostURL:  checkpostURL,
-		TLSHostname: tlsHostname,
-		Warnings:    warnings,
-		Platforms:   platforms,
+		Ready:        h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
+		CheckpostURL: checkpostURL,
+		TLSHostname:  tlsHostname,
+		Warnings:     warnings,
+		Platforms:    platforms,
 	}, nil
 }
 
@@ -180,14 +176,10 @@ func (h *Handler) bootstrapTemplateData() bootstrapTemplateData {
 	return bootstrapTemplateData{
 		TLSHostname:             tlsHostname,
 		EnrollmentKey:           h.cfg.EnrollmentKey,
-		LinuxDEBAMD64URL:        cfg.Linux.DEBAMD64.URL,
-		LinuxDEBAMD64SHA256:     cfg.Linux.DEBAMD64.SHA256,
-		LinuxDEBARM64URL:        cfg.Linux.DEBARM64.URL,
-		LinuxDEBARM64SHA256:     cfg.Linux.DEBARM64.SHA256,
-		LinuxRPMAMD64URL:        cfg.Linux.RPMAMD64.URL,
-		LinuxRPMAMD64SHA256:     cfg.Linux.RPMAMD64.SHA256,
-		LinuxRPMARM64URL:        cfg.Linux.RPMARM64.URL,
-		LinuxRPMARM64SHA256:     cfg.Linux.RPMARM64.SHA256,
+		LinuxTarballAMD64URL:    cfg.Linux.TarballAMD64.URL,
+		LinuxTarballAMD64SHA256: cfg.Linux.TarballAMD64.SHA256,
+		LinuxTarballARM64URL:    cfg.Linux.TarballARM64.URL,
+		LinuxTarballARM64SHA256: cfg.Linux.TarballARM64.SHA256,
 		MacOSPKGUniversalURL:    cfg.MacOS.PKGUniversal.URL,
 		MacOSPKGUniversalSHA256: cfg.MacOS.PKGUniversal.SHA256,
 		WindowsMSIAMD64URL:      cfg.Windows.MSIAMD64.URL,
@@ -226,10 +218,8 @@ func (h *Handler) bootstrapPackages() map[string][]OsqueryBootstrapPackage {
 	cfg := h.cfg.OsqueryBootstrap
 	return map[string][]OsqueryBootstrapPackage{
 		"linux": {
-			packageEntry("linux-deb-amd64", "Linux DEB amd64", "linux", "deb", "amd64", "deb", cfg.Linux.DEBAMD64),
-			packageEntry("linux-deb-arm64", "Linux DEB arm64", "linux", "deb", "arm64", "deb", cfg.Linux.DEBARM64),
-			packageEntry("linux-rpm-amd64", "Linux RPM amd64", "linux", "rpm", "amd64", "rpm", cfg.Linux.RPMAMD64),
-			packageEntry("linux-rpm-arm64", "Linux RPM arm64", "linux", "rpm", "arm64", "rpm", cfg.Linux.RPMARM64),
+			packageEntry("linux-tarball-amd64", "Linux tarball amd64", "linux", "tarball", "amd64", "tarball", cfg.Linux.TarballAMD64),
+			packageEntry("linux-tarball-arm64", "Linux tarball arm64", "linux", "tarball", "arm64", "tarball", cfg.Linux.TarballARM64),
 		},
 		"macos": {
 			packageEntry("macos-pkg-universal", "macOS PKG universal", "macos", "pkg", "universal", "pkg", cfg.MacOS.PKGUniversal),

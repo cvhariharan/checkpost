@@ -111,10 +111,8 @@ type OsqueryBootstrapConfig struct {
 }
 
 type LinuxBootstrapConfig struct {
-	DEBAMD64 BootstrapPackage
-	DEBARM64 BootstrapPackage
-	RPMAMD64 BootstrapPackage
-	RPMARM64 BootstrapPackage
+	TarballAMD64 BootstrapPackage
+	TarballARM64 BootstrapPackage
 }
 
 type MacOSBootstrapConfig struct {

@@ -2,7 +2,7 @@
 FROM fedora:latest
 
 # Prerequisites to fetch and run the bootstrap installer.
-RUN dnf install -y curl ca-certificates && dnf clean all
+RUN dnf install -y curl ca-certificates tar gzip && dnf clean all
 
 # Trust the Checkpost test server certificate so the installer's HTTPS download validates.
 # Build context is the repo root (see dev/docker-compose.yml).

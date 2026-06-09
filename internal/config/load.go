@@ -104,14 +104,10 @@ type rawResultsConfig struct {
 
 type rawOsqueryBootstrapConfig struct {
 	Enabled                 bool   `koanf:"osquery_bootstrap.enabled"`
-	LinuxDEBAMD64URL        string `koanf:"osquery_bootstrap.linux.deb_amd64.url"`
-	LinuxDEBAMD64SHA256     string `koanf:"osquery_bootstrap.linux.deb_amd64.sha256"`
-	LinuxDEBARM64URL        string `koanf:"osquery_bootstrap.linux.deb_arm64.url"`
-	LinuxDEBARM64SHA256     string `koanf:"osquery_bootstrap.linux.deb_arm64.sha256"`
-	LinuxRPMAMD64URL        string `koanf:"osquery_bootstrap.linux.rpm_amd64.url"`
-	LinuxRPMAMD64SHA256     string `koanf:"osquery_bootstrap.linux.rpm_amd64.sha256"`
-	LinuxRPMARM64URL        string `koanf:"osquery_bootstrap.linux.rpm_arm64.url"`
-	LinuxRPMARM64SHA256     string `koanf:"osquery_bootstrap.linux.rpm_arm64.sha256"`
+	LinuxTarballAMD64URL    string `koanf:"osquery_bootstrap.linux.tarball_amd64.url"`
+	LinuxTarballAMD64SHA256 string `koanf:"osquery_bootstrap.linux.tarball_amd64.sha256"`
+	LinuxTarballARM64URL    string `koanf:"osquery_bootstrap.linux.tarball_arm64.url"`
+	LinuxTarballARM64SHA256 string `koanf:"osquery_bootstrap.linux.tarball_arm64.sha256"`
 	MacOSPKGUniversalURL    string `koanf:"osquery_bootstrap.macos.pkg_universal.url"`
 	MacOSPKGUniversalSHA256 string `koanf:"osquery_bootstrap.macos.pkg_universal.sha256"`
 	WindowsMSIAMD64URL      string `koanf:"osquery_bootstrap.windows.msi_amd64.url"`
@@ -172,10 +168,8 @@ func (r rawConfig) toConfig() (Config, error) {
 			OsqueryBootstrap: OsqueryBootstrapConfig{
 				Enabled: r.OsqueryBootstrapConfig.Enabled,
 				Linux: LinuxBootstrapConfig{
-					DEBAMD64: packageConfig(r.OsqueryBootstrapConfig.LinuxDEBAMD64URL, r.OsqueryBootstrapConfig.LinuxDEBAMD64SHA256),
-					DEBARM64: packageConfig(r.OsqueryBootstrapConfig.LinuxDEBARM64URL, r.OsqueryBootstrapConfig.LinuxDEBARM64SHA256),
-					RPMAMD64: packageConfig(r.OsqueryBootstrapConfig.LinuxRPMAMD64URL, r.OsqueryBootstrapConfig.LinuxRPMAMD64SHA256),
-					RPMARM64: packageConfig(r.OsqueryBootstrapConfig.LinuxRPMARM64URL, r.OsqueryBootstrapConfig.LinuxRPMARM64SHA256),
+					TarballAMD64: packageConfig(r.OsqueryBootstrapConfig.LinuxTarballAMD64URL, r.OsqueryBootstrapConfig.LinuxTarballAMD64SHA256),
+					TarballARM64: packageConfig(r.OsqueryBootstrapConfig.LinuxTarballARM64URL, r.OsqueryBootstrapConfig.LinuxTarballARM64SHA256),
 				},
 				MacOS: MacOSBootstrapConfig{
 					PKGUniversal: packageConfig(r.OsqueryBootstrapConfig.MacOSPKGUniversalURL, r.OsqueryBootstrapConfig.MacOSPKGUniversalSHA256),
@@ -378,14 +372,10 @@ func loadDefaults(k *koanf.Koanf) error {
 		"alerts.smtp.from":                             "checkpost@example.com",
 		"alerts.smtp.tls":                              "starttls",
 		"osquery_bootstrap.enabled":                    true,
-		"osquery_bootstrap.linux.deb_amd64.url":        "",
-		"osquery_bootstrap.linux.deb_amd64.sha256":     "",
-		"osquery_bootstrap.linux.deb_arm64.url":        "",
-		"osquery_bootstrap.linux.deb_arm64.sha256":     "",
-		"osquery_bootstrap.linux.rpm_amd64.url":        "",
-		"osquery_bootstrap.linux.rpm_amd64.sha256":     "",
-		"osquery_bootstrap.linux.rpm_arm64.url":        "",
-		"osquery_bootstrap.linux.rpm_arm64.sha256":     "",
+		"osquery_bootstrap.linux.tarball_amd64.url":    "",
+		"osquery_bootstrap.linux.tarball_amd64.sha256": "",
+		"osquery_bootstrap.linux.tarball_arm64.url":    "",
+		"osquery_bootstrap.linux.tarball_arm64.sha256": "",
 		"osquery_bootstrap.macos.pkg_universal.url":    "",
 		"osquery_bootstrap.macos.pkg_universal.sha256": "",
 		"osquery_bootstrap.windows.msi_amd64.url":      "",

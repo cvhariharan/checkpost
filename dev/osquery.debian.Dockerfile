@@ -3,7 +3,7 @@ FROM debian:stable-slim
 
 # Prerequisites to fetch and run the bootstrap installer.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends curl ca-certificates tar gzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Trust the Checkpost test server certificate so the installer's HTTPS download validates.
