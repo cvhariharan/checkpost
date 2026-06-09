@@ -29,7 +29,7 @@ func (h *Handler) HandleCreateAlertTarget(c echo.Context) error {
 	if err != nil {
 		return wrapError(http.StatusBadRequest, "error creating alert target", err, nil)
 	}
-	return c.JSON(http.StatusCreated, target)
+	return c.JSON(http.StatusCreated, CreateResponse{ID: target.UUID})
 }
 
 func (h *Handler) HandleAlertTargetsPagination(c echo.Context) error {
@@ -112,7 +112,7 @@ func (h *Handler) HandleCreateAlertRule(c echo.Context) error {
 	if err != nil {
 		return wrapError(http.StatusBadRequest, "error creating alert rule", err, nil)
 	}
-	return c.JSON(http.StatusCreated, rule)
+	return c.JSON(http.StatusCreated, CreateResponse{ID: rule.UUID})
 }
 
 func (h *Handler) HandleAlertRulesPagination(c echo.Context) error {
