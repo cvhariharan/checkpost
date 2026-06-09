@@ -325,7 +325,7 @@
 
     <footer>
       <button type="button" class="outline" onclick={() => dialog?.close()}>Cancel</button>
-      <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined}>
+      <button type="submit" class="gap-1" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined} data-spinner="small">
         {isSubmitting ? 'Saving...' : isEdit ? 'Update' : 'Create'}
       </button>
     </footer>

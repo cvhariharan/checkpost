@@ -142,7 +142,7 @@
   <ErrorMessage message={error} onClose={() => (error = '')} />
 
   {#if loading}
-    <Spinner />
+    <Spinner fill />
   {:else}
     <div class="table">
       <table>

@@ -360,7 +360,7 @@
   <ErrorMessage message={error} onClose={() => (error = '')} />
 
   {#if !ready}
-    <Spinner />
+    <Spinner fill />
   {:else}
     <ot-tabs bind:this={tabs} class="inventory-tabs" onot-tab-change={handleTabChange}>
       <div role="tablist" aria-label="Inventory sections">
@@ -606,8 +606,10 @@
       <button type="button" class="outline" onclick={() => inventoryDialog?.close()}>Cancel</button>
       <button
         type="submit"
+        class="gap-1"
         disabled={savingInventory || loadingOwnerOptions}
         aria-busy={savingInventory ? 'true' : undefined}
+        data-spinner="small"
       >
         {savingInventory ? 'Saving...' : 'Save'}
       </button>
@@ -660,7 +662,7 @@
 
     <footer class="hstack justify-end">
       <button type="button" class="outline" onclick={() => ownerDialog?.close()}>Cancel</button>
-      <button type="submit" disabled={savingOwner} aria-busy={savingOwner ? 'true' : undefined}>
+      <button type="submit" class="gap-1" disabled={savingOwner} aria-busy={savingOwner ? 'true' : undefined} data-spinner="small">
         {savingOwner ? 'Saving...' : 'Save'}
       </button>
     </footer>

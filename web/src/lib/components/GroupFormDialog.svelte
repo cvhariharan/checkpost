@@ -207,10 +207,11 @@
               </div>
               <button
                 type="button"
-                class="add-hosts-button"
+                class="add-hosts-button gap-1"
                 onclick={addHosts}
                 disabled={addIds.length === 0 || membersSaving}
                 aria-busy={membersSaving ? 'true' : undefined}
+                data-spinner="small"
               >
                 Add{addIds.length ? ` (${addIds.length})` : ''}
               </button>
@@ -218,7 +219,7 @@
           </div>
         {/if}
 
-        <div class="hosts-scroll table" aria-busy={machinesLoading || membersSaving ? 'true' : undefined}>
+        <div class="hosts-scroll table" aria-busy={machinesLoading || membersSaving ? 'true' : undefined} data-spinner="overlay">
           <table>
             <thead>
               <tr>
@@ -279,7 +280,7 @@
 
     <footer>
       <button type="button" class="outline" onclick={() => dialog?.close()}>Cancel</button>
-      <button type="submit" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined}>
+      <button type="submit" class="gap-1" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined} data-spinner="small">
         {isSubmitting ? (group ? 'Updating...' : 'Creating...') : group ? 'Update' : 'Create'}
       </button>
     </footer>

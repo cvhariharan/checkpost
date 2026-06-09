@@ -70,7 +70,13 @@
           placeholder="Password"
         />
       </label>
-      <button type="submit" disabled={submitting} aria-busy={submitting ? 'true' : undefined}>
+      <button
+        type="submit"
+        class="gap-1 submit-btn"
+        disabled={submitting}
+        aria-busy={submitting ? 'true' : undefined}
+        data-spinner="small"
+      >
         {submitting ? 'Signing in...' : 'Sign in'}
       </button>
     </form>
@@ -110,6 +116,9 @@
   }
   .w-full {
     width: 100%;
+  }
+  .submit-btn {
+    align-self: center;
   }
   .sso-divider {
     display: flex;

@@ -138,7 +138,7 @@
   </div>
 
   {#if loading}
-    <Spinner />
+    <Spinner fill />
   {:else}
     <div class="table">
       <table class="schedules-table">

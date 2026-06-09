@@ -380,7 +380,7 @@
   <ErrorMessage message={error} onClose={() => (error = '')} />
 
   {#if loading}
-    <Spinner />
+    <Spinner fill />
   {:else}
     <ot-tabs bind:this={tabs} class="yara-tabs" onot-tab-change={handleTabChange}>
       <div role="tablist" aria-label="YARA sections">
@@ -645,8 +645,10 @@
       <button type="button" class="outline" onclick={() => scanDialog?.close()}>Cancel</button>
       <button
         type="submit"
+        class="gap-1"
         disabled={startingScan || !hasPath || !hasRuleURL}
         aria-busy={startingScan ? 'true' : undefined}
+        data-spinner="small"
       >
         {startingScan ? 'Starting...' : 'Start scan'}
       </button>
@@ -683,7 +685,7 @@
 
     <footer>
       <button type="button" class="outline" onclick={() => sourceDialog?.close()}>Cancel</button>
-      <button type="submit" disabled={savingSource} aria-busy={savingSource ? 'true' : undefined}>
+      <button type="submit" class="gap-1" disabled={savingSource} aria-busy={savingSource ? 'true' : undefined} data-spinner="small">
         {savingSource ? 'Saving...' : editingSource ? 'Update' : 'Add'}
       </button>
     </footer>

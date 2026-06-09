@@ -129,6 +129,7 @@
     role="region"
     aria-label={`${schedule?.title || 'Schedule'} results`}
     aria-busy={loading ? 'true' : undefined}
+    data-spinner="overlay"
     bind:clientHeight={viewportHeight}
     onscroll={handleScroll}
   >

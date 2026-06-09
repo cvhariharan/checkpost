@@ -134,7 +134,7 @@
   <ErrorMessage message={error} onClose={() => (error = '')} />
 
   {#if loading}
-    <Spinner />
+    <Spinner fill />
   {:else}
     <div class="table">
       <table>
@@ -195,7 +195,7 @@
     </div>
     <footer>
       <button type="button" class="outline" onclick={() => createDialog?.close()}>Cancel</button>
-      <button type="submit" disabled={saving} aria-busy={saving ? 'true' : undefined}>
+      <button type="submit" class="gap-1" disabled={saving} aria-busy={saving ? 'true' : undefined} data-spinner="small">
         {saving ? 'Creating...' : 'Create'}
       </button>
     </footer>

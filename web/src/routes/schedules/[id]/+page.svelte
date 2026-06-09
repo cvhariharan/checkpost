@@ -83,7 +83,7 @@
 <ErrorMessage message={error} onClose={() => (error = '')} />
 
 {#if loading}
-  <Spinner />
+  <Spinner fill />
 {:else if schedule}
   {#if browsingDisabled}
     <div role="alert" data-variant="warning">

@@ -114,7 +114,7 @@
       {/each}
     </div>
 
-    <div class="table" aria-busy={loading ? 'true' : undefined}>
+    <div class="table" aria-busy={loading ? 'true' : undefined} data-spinner="overlay">
       <table>
         <thead>
           <tr>

@@ -445,7 +445,7 @@
 
 <section class="vstack gap-4">
   {#if loading}
-    <Spinner />
+    <Spinner fill />
   {:else}
     <header class="hstack justify-between mb-4">
       <div>
@@ -461,7 +461,7 @@
         </span>
         {#if editing}
           <button type="button" class="outline" onclick={cancelEdit} disabled={saving}>Cancel</button>
-          <button type="button" onclick={saveOverview} disabled={saving} aria-busy={saving ? 'true' : undefined}>
+          <button type="button" class="gap-1" onclick={saveOverview} disabled={saving} aria-busy={saving ? 'true' : undefined} data-spinner="small">
             {saving ? 'Saving...' : 'Save'}
           </button>
         {:else}
@@ -634,8 +634,10 @@
               <footer class="hstack justify-end mt-4">
                 <button
                   type="submit"
+                  class="gap-1"
                   disabled={executing || !queryText.trim()}
                   aria-busy={executing ? 'true' : undefined}
+                  data-spinner="small"
                 >
                   {executing ? 'Executing...' : 'Run Query'}
                 </button>
