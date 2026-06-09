@@ -2,17 +2,28 @@ package handlers
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/cvhariharan/checkpost/assets"
 	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/labstack/echo/v4"
 )
 
+func testBootstrapTemplates(t *testing.T) fs.FS {
+	t.Helper()
+	fsys, err := assets.BootstrapTemplates()
+	if err != nil {
+		t.Fatalf("load bootstrap templates: %v", err)
+	}
+	return fsys
+}
+
 func TestOsqueryBootstrapProfileReady(t *testing.T) {
-	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com")}
+	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com"), bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
@@ -45,7 +56,7 @@ func TestOsqueryBootstrapProfileReady(t *testing.T) {
 func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 	cfg := testBootstrapConfig("http://localhost:1323")
 	cfg.OsqueryBootstrap.Linux.DEBAMD64.URL = ""
-	h := &Handler{cfg: cfg}
+	h := &Handler{cfg: cfg, bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
@@ -71,7 +82,7 @@ func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 }
 
 func TestOsqueryBootstrapScript(t *testing.T) {
-	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com")}
+	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com"), bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap/linux.sh", nil)
 	rec := httptest.NewRecorder()

@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"database/sql"
-	_ "embed"
 	"errors"
 	"fmt"
 	"sort"
@@ -16,9 +15,6 @@ import (
 	"github.com/jmoiron/sqlx"
 	sqlxadapter "github.com/memwey/casbin-sqlx-adapter"
 )
-
-//go:embed rbac_model.conf
-var rbacModel string
 
 const (
 	RoleAdmin    = "admin"
@@ -154,8 +150,8 @@ func IsBuiltinRole(name string) bool {
 }
 
 // NewEnforcer builds a Casbin enforcer backed by the postgres sqlx adapter,
-// wrapping the existing *sql.DB.
-func NewEnforcer(db *sql.DB) (*casbin.Enforcer, error) {
+// wrapping the existing *sql.DB
+func NewEnforcer(db *sql.DB, rbacModel string) (*casbin.Enforcer, error) {
 	m, err := casbinmodel.NewModelFromString(rbacModel)
 	if err != nil {
 		return nil, fmt.Errorf("parse rbac model: %w", err)

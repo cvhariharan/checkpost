@@ -6,6 +6,7 @@ import (
 
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
+	"github.com/cvhariharan/checkpost/assets"
 	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
 )
@@ -28,6 +29,10 @@ func (s *fakeRBACStore) ListUserGroupsForUser(ctx context.Context, userID int64)
 
 func newTestEnforcer(t *testing.T) *casbin.Enforcer {
 	t.Helper()
+	rbacModel, err := assets.RBACModel()
+	if err != nil {
+		t.Fatalf("load model: %v", err)
+	}
 	m, err := casbinmodel.NewModelFromString(rbacModel)
 	if err != nil {
 		t.Fatalf("parse model: %v", err)

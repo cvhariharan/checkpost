@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cvhariharan/checkpost/assets"
 	"github.com/cvhariharan/checkpost/internal/alerts"
 	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/cvhariharan/checkpost/internal/core"
@@ -86,7 +87,11 @@ func runServer(flags *rootFlags) error {
 	}
 	defer resultsSink.Close()
 
-	enforcer, err := core.NewEnforcer(db)
+	rbacModel, err := assets.RBACModel()
+	if err != nil {
+		return fmt.Errorf("could not load rbac model: %w", err)
+	}
+	enforcer, err := core.NewEnforcer(db, rbacModel)
 	if err != nil {
 		return fmt.Errorf("could not initialize casbin enforcer: %w", err)
 	}
@@ -111,6 +116,10 @@ func runServer(flags *rootFlags) error {
 
 	if cfg.AlertsConfig.Enabled {
 		core.RegisterAlertSources(store, cfg.AppConfig.PolicyStaleAfter)
+		emailTemplates, err := assets.EmailTemplates()
+		if err != nil {
+			return fmt.Errorf("could not load email templates: %w", err)
+		}
 		smtpNotifier, err := alerts.NewSMTPNotifier(alerts.SMTPRelay{
 			Host:     cfg.AlertsConfig.SMTP.Host,
 			Port:     cfg.AlertsConfig.SMTP.Port,
@@ -118,7 +127,7 @@ func runServer(flags *rootFlags) error {
 			Password: cfg.AlertsConfig.SMTP.Password,
 			From:     cfg.AlertsConfig.SMTP.From,
 			TLS:      cfg.AlertsConfig.SMTP.TLS,
-		}, store.ListUserGroupMemberEmails)
+		}, store.ListUserGroupMemberEmails, emailTemplates)
 		if err != nil {
 			return fmt.Errorf("could not initialize smtp notifier: %w", err)
 		}
@@ -132,7 +141,11 @@ func runServer(flags *rootFlags) error {
 
 	e := echo.New()
 
-	h, err := handlers.NewHandler(logger, db, cfg, c)
+	bootstrapTemplates, err := assets.BootstrapTemplates()
+	if err != nil {
+		return fmt.Errorf("could not load bootstrap templates: %w", err)
+	}
+	h, err := handlers.NewHandler(logger, db, cfg, c, bootstrapTemplates)
 	if err != nil {
 		return fmt.Errorf("could not initialize handlers: %w", err)
 	}

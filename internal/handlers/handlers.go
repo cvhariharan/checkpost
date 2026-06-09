@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -39,6 +40,8 @@ type Handler struct {
 
 	sessMgr *simplesessions.Manager
 	oidc    *oidcProvider // nil when SSO not configured
+
+	bootstrapTemplates fs.FS // osquery bootstrap script templates (see assets.BootstrapTemplates)
 }
 
 func getCookie(name string, r interface{}) (*http.Cookie, error) {
@@ -54,7 +57,7 @@ func setCookie(cookie *http.Cookie, w interface{}) error {
 
 // NewHandler wires the session manager (PostgreSQL store) and OIDC provider and
 // returns the HTTP handler. db is required for the session store.
-func NewHandler(logger *slog.Logger, db *sql.DB, cfg config.Config, c *core.Core) (*Handler, error) {
+func NewHandler(logger *slog.Logger, db *sql.DB, cfg config.Config, c *core.Core, bootstrapTemplates fs.FS) (*Handler, error) {
 	validate := validator.New()
 
 	sessMgr := simplesessions.New(simplesessions.Options{
@@ -77,12 +80,13 @@ func NewHandler(logger *slog.Logger, db *sql.DB, cfg config.Config, c *core.Core
 	sessMgr.UseStore(sessionStore)
 
 	h := &Handler{
-		logger:   logger.WithGroup("handler"),
-		cfg:      cfg.AppConfig,
-		oidcCfg:  cfg.OIDCConfig,
-		c:        c,
-		validate: validate,
-		sessMgr:  sessMgr,
+		logger:             logger.WithGroup("handler"),
+		cfg:                cfg.AppConfig,
+		oidcCfg:            cfg.OIDCConfig,
+		c:                  c,
+		validate:           validate,
+		sessMgr:            sessMgr,
+		bootstrapTemplates: bootstrapTemplates,
 	}
 
 	if err := h.initOIDC(); err != nil {

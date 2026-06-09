@@ -2,20 +2,16 @@ package handlers
 
 import (
 	"bytes"
-	"embed"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"text/template"
 
 	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/labstack/echo/v4"
 )
-
-//go:embed bootstrap_templates/*
-var bootstrapTemplates embed.FS
 
 const (
 	linuxFlagfilePath   = "/etc/osquery/osquery.flags"
@@ -157,7 +153,7 @@ func (h *Handler) osqueryBootstrapScript(platform string) (string, string, error
 		return "", "", fmt.Errorf("unknown platform %q", platform)
 	}
 
-	raw, err := bootstrapTemplates.ReadFile(path.Join("bootstrap_templates", filename))
+	raw, err := fs.ReadFile(h.bootstrapTemplates, filename)
 	if err != nil {
 		return "", "", fmt.Errorf("read bootstrap template: %w", err)
 	}

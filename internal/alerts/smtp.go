@@ -4,25 +4,17 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"embed"
 	"encoding/json"
 	"fmt"
 	htmltemplate "html/template"
 	"io"
+	"io/fs"
 	"strings"
 	texttemplate "text/template"
 	"time"
 
 	"github.com/invopop/jsonschema"
 	"github.com/knadh/smtppool/v2"
-)
-
-//go:embed templates/*.tmpl
-var emailTemplates embed.FS
-
-var (
-	htmlTmpl = htmltemplate.Must(htmltemplate.ParseFS(emailTemplates, "templates/email.html.tmpl"))
-	textTmpl = texttemplate.Must(texttemplate.ParseFS(emailTemplates, "templates/email.text.tmpl"))
 )
 
 type emailData struct {
@@ -64,10 +56,22 @@ type SMTPNotifier struct {
 	from         string
 	pool         *smtppool.Pool
 	resolveGroup GroupEmailResolver
+	htmlTmpl     *htmltemplate.Template
+	textTmpl     *texttemplate.Template
 }
 
-func NewSMTPNotifier(relay SMTPRelay, resolveGroup GroupEmailResolver) (*SMTPNotifier, error) {
-	n := &SMTPNotifier{from: relay.From, resolveGroup: resolveGroup}
+// NewSMTPNotifier parses the email templates from the supplied filesystem and wires the SMTP connection pool
+func NewSMTPNotifier(relay SMTPRelay, resolveGroup GroupEmailResolver, templates fs.FS) (*SMTPNotifier, error) {
+	htmlTmpl, err := htmltemplate.ParseFS(templates, "email.html.tmpl")
+	if err != nil {
+		return nil, fmt.Errorf("parse html email template: %w", err)
+	}
+	textTmpl, err := texttemplate.ParseFS(templates, "email.text.tmpl")
+	if err != nil {
+		return nil, fmt.Errorf("parse text email template: %w", err)
+	}
+
+	n := &SMTPNotifier{from: relay.From, resolveGroup: resolveGroup, htmlTmpl: htmlTmpl, textTmpl: textTmpl}
 	if !relay.Enabled() {
 		return n, nil
 	}
@@ -134,11 +138,11 @@ func (s *SMTPNotifier) Send(ctx context.Context, kind EventKind, target Target, 
 	}
 
 	data := buildEmailData(kind, rule, alerts)
-	text, err := render(textTmpl, data)
+	text, err := render(s.textTmpl, data)
 	if err != nil {
 		return fmt.Errorf("render text body: %w", err)
 	}
-	html, err := render(htmlTmpl, data)
+	html, err := render(s.htmlTmpl, data)
 	if err != nil {
 		return fmt.Errorf("render html body: %w", err)
 	}
