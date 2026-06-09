@@ -38,9 +38,18 @@ const (
 func (h *Handler) acquireSession(c echo.Context) (*simplesessions.Session, error) {
 	sess, err := h.sessMgr.Acquire(c.Request().Context(), c, c)
 	if errors.Is(err, simplesessions.ErrInvalidSession) {
+		return h.sessMgr.NewSession(c, c) // no cookie at all
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Acquire defers store validation, so a stale cookie
+	// yields a session whose ID no longer exists. Probe it; if invalid, mint a
+	// fresh session (which also writes a new cookie) so callers can write to it.
+	if _, err := sess.Get(sessionKeyUser); errors.Is(err, simplesessions.ErrInvalidSession) {
 		return h.sessMgr.NewSession(c, c)
 	}
-	return sess, err
+	return sess, nil
 }
 
 // Authenticate guards human-facing routes: it requires a valid session, re-verifies
@@ -65,6 +74,9 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 
 		raw, err := sess.Get(sessionKeyUser)
 		if err != nil || raw == nil {
+			if errors.Is(err, simplesessions.ErrInvalidSession) {
+				_ = sess.ClearCookie()
+			}
 			return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
 		}
 
