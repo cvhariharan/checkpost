@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="{{ config.description }}" />
+        <title>{{ config.title }}</title>
+        <link rel="icon" href="{{ get_url(path='checkpost-mark.svg') }}" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://unpkg.com/@knadh/oat/oat.min.css"
+        />
+        <link rel="stylesheet" href="{{ get_url(path='theme.css') }}" />
+        <script src="https://unpkg.com/@knadh/oat/oat.min.js" defer></script>
+        <style>
+            :root {
+                --brand-font: "Poppins", var(--font-sans);
+                --brand-accent: #a0c461;
+                --page-max: 1080px;
+            }
+
+            body {
+                min-height: 100vh;
+            }
+
+            .container {
+                max-width: var(--page-max);
+            }
+
+            .site-header {
+                border-bottom: 1px solid var(--border);
+                background: var(--background);
+            }
+
+            .nav-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-4);
+                min-height: 3.75rem;
+            }
+
+            .brand {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.625rem;
+                color: var(--foreground);
+                line-height: 1;
+                text-decoration: none;
+            }
+
+            .brand img {
+                width: 1.5rem;
+                height: 1.5rem;
+                flex: 0 0 auto;
+                transform: translateY(0.025rem);
+            }
+
+            .brand span {
+                display: block;
+                font-family: var(--brand-font);
+                font-size: 1.34rem;
+                font-weight: 600;
+                letter-spacing: 0;
+                line-height: 1;
+                white-space: nowrap;
+            }
+
+            .brand:hover {
+                color: var(--primary);
+            }
+
+            .nav-links {
+                display: flex;
+                align-items: center;
+                gap: var(--space-2);
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+
+            .nav-links a {
+                display: inline-flex;
+                align-items: center;
+                min-height: 2rem;
+                padding: 0 var(--space-3);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-medium);
+                background: var(--card);
+                color: var(--foreground);
+                font-size: var(--text-7);
+                font-weight: var(--font-medium);
+                text-decoration: none;
+            }
+
+            .nav-links a:hover {
+                border-color: var(--primary);
+                color: var(--primary);
+            }
+
+            .hero {
+                position: relative;
+                padding: clamp(5.5rem, 10vw, 9.5rem) 0 var(--space-18);
+                overflow: hidden;
+                background:
+                    linear-gradient(
+                        90deg,
+                        rgb(from var(--border) r g b / 0.18) 1px,
+                        transparent 1px
+                    ),
+                    linear-gradient(
+                        0deg,
+                        rgb(from var(--border) r g b / 0.14) 1px,
+                        transparent 1px
+                    );
+                background-size: 4rem 4rem;
+            }
+
+            .hero::before,
+            .hero::after {
+                content: "";
+                position: absolute;
+                z-index: 0;
+                border: 1px solid rgb(from var(--primary) r g b / 0.2);
+                pointer-events: none;
+            }
+
+            .hero::before {
+                width: clamp(11rem, 24vw, 20rem);
+                height: clamp(11rem, 24vw, 20rem);
+                top: 11%;
+                left: max(-8rem, calc((100vw - var(--page-max)) / 2 - 9rem));
+                border-radius: 8px;
+                background: color-mix(in srgb, var(--primary) 13%, transparent);
+                transform: rotate(8deg);
+                animation: float-left 14s ease-in-out infinite;
+            }
+
+            .hero::after {
+                width: clamp(9rem, 20vw, 16rem);
+                height: clamp(9rem, 20vw, 16rem);
+                right: max(-7rem, calc((100vw - var(--page-max)) / 2 - 7rem));
+                bottom: 10%;
+                border-radius: var(--radius-full);
+                background: color-mix(
+                    in srgb,
+                    var(--brand-accent) 18%,
+                    transparent
+                );
+                animation: float-right 16s ease-in-out infinite;
+            }
+
+            .hero-shape {
+                position: absolute;
+                z-index: 0;
+                pointer-events: none;
+            }
+
+            .hero-shape-a {
+                width: clamp(6rem, 12vw, 10rem);
+                height: clamp(6rem, 12vw, 10rem);
+                top: 13%;
+                right: max(1rem, calc((100vw - var(--page-max)) / 2 + 10rem));
+                border: 1px solid
+                    color-mix(in srgb, var(--brand-accent) 32%, transparent);
+                border-radius: 8px;
+                background: color-mix(
+                    in srgb,
+                    var(--brand-accent) 11%,
+                    transparent
+                );
+                transform: rotate(-12deg);
+                animation: float-small 12s ease-in-out infinite;
+            }
+
+            .hero-shape-b {
+                width: clamp(8rem, 16vw, 13rem);
+                height: clamp(3rem, 7vw, 5.5rem);
+                left: max(2rem, calc((100vw - var(--page-max)) / 2 + 8rem));
+                bottom: 12%;
+                border: 1px solid rgb(from var(--primary) r g b / 0.18);
+                border-radius: var(--radius-full);
+                background: color-mix(
+                    in srgb,
+                    var(--secondary) 70%,
+                    transparent
+                );
+                transform: rotate(-9deg);
+                animation: float-wide 15s ease-in-out infinite;
+            }
+
+            .hero-grid {
+                position: relative;
+                z-index: 1;
+                max-width: 62rem;
+                margin-inline: auto;
+                text-align: center;
+            }
+
+            .hero-grid::before {
+                content: "";
+                position: absolute;
+                z-index: -1;
+                inset: -2.5rem -3rem;
+                background: radial-gradient(
+                    ellipse at center,
+                    rgb(from var(--background) r g b / 0.9) 0%,
+                    rgb(from var(--background) r g b / 0.58) 45%,
+                    transparent 72%
+                );
+                pointer-events: none;
+            }
+
+            .hero h1 {
+                max-width: 20ch;
+                margin: 0 auto var(--space-5);
+                font-size: clamp(3rem, 5.2vw, 4.8rem);
+                line-height: 0.98;
+                letter-spacing: 0;
+            }
+
+            .hero-copy {
+                max-width: 50rem;
+                margin-inline: auto;
+                color: var(--muted-foreground);
+                font-size: var(--text-5);
+            }
+
+            .hero-actions {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: var(--space-3);
+                margin-block-start: var(--space-6);
+            }
+
+            .section {
+                padding: var(--space-16) 0;
+                border-top: 1px solid var(--border);
+            }
+
+            .section h2 {
+                margin: 0 0 var(--space-3);
+                font-size: clamp(2rem, 4vw, 3rem);
+                letter-spacing: 0;
+            }
+
+            .section-intro {
+                max-width: 42rem;
+                color: var(--muted-foreground);
+                font-size: var(--text-5);
+            }
+
+            .feature-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: var(--space-4);
+                margin-block-start: var(--space-8);
+            }
+
+            .feature-item {
+                padding-block-start: var(--space-4);
+                border-top: 1px solid var(--border);
+            }
+
+            .feature-item h3 {
+                margin: 0 0 var(--space-2);
+                font-size: var(--text-5);
+            }
+
+            .feature-item p {
+                color: var(--muted-foreground);
+            }
+
+            .site-footer {
+                padding: var(--space-8) 0;
+                border-top: 1px solid var(--border);
+                color: var(--muted-foreground);
+            }
+
+            .site-footer .container {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-4);
+            }
+
+            @keyframes float-left {
+                0% {
+                    transform: translate3d(0, 0, 0) rotate(8deg);
+                }
+                28% {
+                    transform: translate3d(2.4rem, -1.6rem, 0) rotate(17deg);
+                }
+                58% {
+                    transform: translate3d(-1.2rem, 1.1rem, 0) rotate(2deg);
+                }
+                78% {
+                    transform: translate3d(1rem, 0.45rem, 0) rotate(12deg);
+                }
+                100% {
+                    transform: translate3d(0, 0, 0) rotate(8deg);
+                }
+            }
+
+            @keyframes float-right {
+                0% {
+                    transform: translate3d(0, 0, 0) scale(1);
+                }
+                30% {
+                    transform: translate3d(-2.2rem, 1.8rem, 0) scale(1.08);
+                }
+                62% {
+                    transform: translate3d(1.1rem, -1.2rem, 0) scale(0.98);
+                }
+                82% {
+                    transform: translate3d(-0.7rem, -0.4rem, 0) scale(1.04);
+                }
+                100% {
+                    transform: translate3d(0, 0, 0) scale(1);
+                }
+            }
+
+            @keyframes float-small {
+                0% {
+                    transform: translate3d(0, 0, 0) rotate(-12deg);
+                }
+                24% {
+                    transform: translate3d(-1.8rem, -1.4rem, 0) rotate(-28deg);
+                }
+                52% {
+                    transform: translate3d(1.4rem, 0.9rem, 0) rotate(-3deg);
+                }
+                76% {
+                    transform: translate3d(-0.5rem, 1.3rem, 0) rotate(-20deg);
+                }
+                100% {
+                    transform: translate3d(0, 0, 0) rotate(-12deg);
+                }
+            }
+
+            @keyframes float-wide {
+                0% {
+                    transform: translate3d(0, 0, 0) rotate(-9deg);
+                }
+                25% {
+                    transform: translate3d(1.8rem, 1rem, 0) rotate(-1deg);
+                }
+                55% {
+                    transform: translate3d(-1.5rem, -0.8rem, 0) rotate(-16deg);
+                }
+                80% {
+                    transform: translate3d(0.8rem, -1.1rem, 0) rotate(-5deg);
+                }
+                100% {
+                    transform: translate3d(0, 0, 0) rotate(-9deg);
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation-duration: 1ms !important;
+                    animation-iteration-count: 1 !important;
+                }
+            }
+
+            @media (max-width: 820px) {
+                .feature-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            @media (max-width: 640px) {
+                .nav-links {
+                    display: none;
+                }
+
+                .hero {
+                    padding: var(--space-14) 0 var(--space-16);
+                }
+
+                .hero::before {
+                    left: -9rem;
+                }
+
+                .hero::after {
+                    right: -8rem;
+                    bottom: 8%;
+                }
+
+                .hero-shape-a {
+                    right: -4rem;
+                    top: 18%;
+                }
+
+                .hero-shape-b {
+                    left: -4rem;
+                    bottom: 10%;
+                }
+
+                .hero h1 {
+                    max-width: 11ch;
+                }
+
+                .site-footer .container {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <header class="site-header">
+            <div class="container">
+                <nav class="nav-row" aria-label="Main navigation">
+                    <a
+                        class="brand"
+                        href="{{ get_url(path='/') }}"
+                        aria-label="checkpost home"
+                    >
+                        <img
+                            src="{{ get_url(path='checkpost-mark.svg') }}"
+                            alt=""
+                        />
+                        <span>checkpost</span>
+                    </a>
+                    <ul class="nav-links">
+                        <li><a href="#features">Features</a></li>
+                        <li>
+                            <a href="{{ config.extra.github_url }}">GitHub</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <section class="hero">
+                <span class="hero-shape hero-shape-a" aria-hidden="true"></span>
+                <span class="hero-shape hero-shape-b" aria-hidden="true"></span>
+                <div class="container">
+                    <div class="hero-grid">
+                        <h1>Operate osquery at scale.</h1>
+                        <p class="hero-copy">
+                            Checkpost is open source osquery management in a
+                            single binary.<br />
+                            Supports policies, scheduled queries, YARA scans and
+                            more.
+                        </p>
+                        <div class="hero-actions">
+                            <a
+                                class="button"
+                                href="{{ config.extra.github_url }}"
+                                >GitHub</a
+                            >
+                            <a class="button outline" href="#features"
+                                >Features</a
+                            >
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="features" class="section">
+                <div class="container">
+                    <h2>Features</h2>
+                    <div class="feature-grid">
+                        <article class="feature-item">
+                            <h3>Easy Enrollment</h3>
+                            <p>
+                                Bootstrap scripts for macOS, Linux, and Windows
+                                hosts.
+                            </p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>Inventory</h3>
+                            <p>
+                                Track hosts, owners, asset IDs, groups, and
+                                last-seen state.
+                            </p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>Scheduled queries</h3>
+                            <p>
+                                Run queries on schedule and send results to
+                                multiple targets for storage.
+                            </p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>Policies</h3>
+                            <p>
+                                Use policies to perform checks across enrolled
+                                hosts for device posture.
+                            </p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>YARA</h3>
+                            <p>Scan files for YARA matches.</p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>Alerts</h3>
+                            <p>Configure alerts for policy failures</p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>Access control</h3>
+                            <p>
+                                Use roles, user groups, API tokens, and optional
+                                OIDC.
+                            </p>
+                        </article>
+                        <article class="feature-item">
+                            <h3>GitOps</h3>
+                            <p>
+                                Use checkpost CLI to manage resources defined in
+                                YAML.
+                            </p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div class="container">
+                <span>checkpost</span>
+            </div>
+        </footer>
+    </body>
+</html>

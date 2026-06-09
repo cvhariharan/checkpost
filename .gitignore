@@ -1,5 +1,6 @@
 # Local configuration
 config.toml
+!docs/site/config.toml
 .env
 .env.*
 !.env.example
@@ -18,6 +19,7 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/.svelte-kit/
+docs/site/public/
 
 # Local development TLS material
 testdata/server_cert.pem

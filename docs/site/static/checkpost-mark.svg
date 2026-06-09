@@ -1,0 +1,6 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">checkpost mark</title>
+  <desc id="desc">Rounded dark green square icon with a light green ring.</desc>
+  <rect x="32" y="32" width="192" height="192" rx="28" fill="#1A2E2A"/>
+  <circle cx="128" cy="128" r="54" fill="none" stroke="#A0C461" stroke-width="16"/>
+</svg>

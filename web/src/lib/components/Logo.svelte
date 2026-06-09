@@ -33,7 +33,7 @@
   .checkpost-logo {
     --logo-gap: var(--space-2);
     --logo-mark-size: 2rem;
-    --logo-title-size: 1.8rem;
+    --logo-title-size: 1.7rem;
     --logo-mark-offset: 0.06rem;
     --logo-bg: #1a2e2a;
     --logo-ring: #a0c461;
@@ -51,17 +51,17 @@
   }
   .checkpost-logo-sm {
     --logo-mark-size: 1.5rem;
-    --logo-title-size: 1.45rem;
+    --logo-title-size: 1.34rem;
     --logo-mark-offset: 0.04rem;
   }
   .checkpost-logo-md {
     --logo-mark-size: 2rem;
-    --logo-title-size: 1.8rem;
+    --logo-title-size: 1.7rem;
   }
   .checkpost-logo-lg {
     --logo-gap: var(--space-3);
     --logo-mark-size: 2.75rem;
-    --logo-title-size: 2.25rem;
+    --logo-title-size: 2.1rem;
     --logo-mark-offset: 0.08rem;
   }
   .checkpost-logo-mark {
@@ -81,10 +81,11 @@
   }
   .checkpost-logo-title {
     display: block;
-    font-family: 'Libre Baskerville', Georgia, 'Times New Roman', serif;
+    font-family: 'Poppins', var(--font-sans);
     font-size: var(--logo-title-size);
     font-weight: 600;
-    line-height: 0.9;
+    letter-spacing: 0;
+    line-height: 1;
     white-space: nowrap;
   }
 </style>

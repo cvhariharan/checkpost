@@ -1,0 +1,10 @@
+base_url = "/"
+title = "checkpost"
+description = "An osquery manager for enrollment, schedules, policies, results, and alerts."
+compile_sass = false
+build_search_index = false
+generate_feeds = false
+minify_html = true
+
+[extra]
+github_url = "https://github.com/cvhariharan/checkpost"
