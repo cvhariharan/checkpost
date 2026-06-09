@@ -21,7 +21,7 @@ import (
 
 const (
 	// TokenSecretPrefix makes leaked tokens greppable by secret scanners.
-	TokenSecretPrefix = "wtch_pat_"
+	TokenSecretPrefix = "chkpt_pat_"
 	TokenSourceSelf   = "self"
 
 	defaultTokenTTL       = 7 * 24 * time.Hour
