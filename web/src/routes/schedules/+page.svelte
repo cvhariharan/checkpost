@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { goto } from '$app/navigation'
+  import { untrack } from 'svelte'
+  import { page } from '$app/state'
+  import { goto, replaceState } from '$app/navigation'
   import {
     deleteSchedule as apiDeleteSchedule,
     fetchSchedules,
@@ -17,7 +18,7 @@
   import { canFrom, me } from '$lib/auth'
 
   let loadedSchedules = $state<Schedule[]>([])
-  let currentPage = $state(1)
+  const currentPage = $derived(Math.max(1, Number(page.url.searchParams.get('page')) || 1))
   let pageCount = $state(1)
   let totalCount = $state(0)
   const countPerPage = 10
@@ -37,7 +38,11 @@
   $effect(() => {
     if (!initialized || searchTerm === previousSearch) return
     previousSearch = searchTerm
-    currentPage = 1
+    if (currentPage !== 1) {
+      const url = new URL(page.url)
+      url.searchParams.delete('page')
+      replaceState(url, {})
+    }
     clearTimeout(searchTimer)
     searchTimer = setTimeout(() => void loadSchedules(), 250)
   })
@@ -48,7 +53,10 @@
   const canUpdateSchedule = $derived(canFrom($me, 'schedule', 'update'))
   const canDeleteSchedule = $derived(canFrom($me, 'schedule', 'delete'))
 
-  onMount(loadSchedules)
+  $effect(() => {
+    currentPage
+    untrack(() => void loadSchedules())
+  })
 
   async function loadSchedules() {
     loading = true
@@ -64,13 +72,6 @@
       previousSearch = searchTerm
       initialized = true
       loading = false
-    }
-  }
-
-  async function changePage(page: number) {
-    if (page > 0 && page <= pageCount) {
-      currentPage = page
-      await loadSchedules()
     }
   }
 
@@ -184,7 +185,7 @@
         Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of
         <strong>{totalCount}</strong> results
       </p>
-      <Pagination {currentPage} {pageCount} onPageChange={changePage} />
+      <Pagination {currentPage} {pageCount} param="page" />
     </footer>
   {/if}
 </section>

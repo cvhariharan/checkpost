@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { untrack } from 'svelte'
+  import { page } from '$app/state'
+  import { replaceState } from '$app/navigation'
   import { deletePolicy as apiDeletePolicy, fetchPolicies, type Policy } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
@@ -13,7 +15,7 @@
   import { canFrom, me } from '$lib/auth'
 
   let loadedPolicies = $state<Policy[]>([])
-  let currentPage = $state(1)
+  const currentPage = $derived(Math.max(1, Number(page.url.searchParams.get('page')) || 1))
   let pageCount = $state(1)
   let totalCount = $state(0)
   const countPerPage = 10
@@ -35,7 +37,11 @@
   $effect(() => {
     if (!initialized || searchTerm === previousSearch) return
     previousSearch = searchTerm
-    currentPage = 1
+    if (currentPage !== 1) {
+      const url = new URL(page.url)
+      url.searchParams.delete('page')
+      replaceState(url, {})
+    }
     clearTimeout(searchTimer)
     searchTimer = setTimeout(() => void loadPolicies(), 250)
   })
@@ -46,7 +52,10 @@
   const canUpdatePolicy = $derived(canFrom($me, 'policy', 'update'))
   const canDeletePolicy = $derived(canFrom($me, 'policy', 'delete'))
 
-  onMount(loadPolicies)
+  $effect(() => {
+    currentPage
+    untrack(() => void loadPolicies())
+  })
 
   async function loadPolicies() {
     loading = true
@@ -62,13 +71,6 @@
       previousSearch = searchTerm
       initialized = true
       loading = false
-    }
-  }
-
-  async function changePage(page: number) {
-    if (page > 0 && page <= pageCount) {
-      currentPage = page
-      await loadPolicies()
     }
   }
 
@@ -207,7 +209,7 @@
         Showing <strong>{startResult}</strong> to <strong>{endResult}</strong> of
         <strong>{totalCount}</strong> results
       </p>
-      <Pagination {currentPage} {pageCount} onPageChange={changePage} />
+      <Pagination {currentPage} {pageCount} param="page" />
     </footer>
   {/if}
 </section>

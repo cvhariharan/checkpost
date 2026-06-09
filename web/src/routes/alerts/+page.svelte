@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, untrack } from "svelte";
+    import { page } from "$app/state";
     import {
         deleteAlertRule,
         deleteAlertTarget,
@@ -30,7 +31,7 @@
 
     // Rules
     let rules = $state<AlertRule[]>([]);
-    let rulePage = $state(1);
+    const rulePage = $derived(Math.max(1, Number(page.url.searchParams.get("rules")) || 1));
     let rulePageCount = $state(1);
     let ruleTotalCount = $state(0);
     let loadingRules = $state(true);
@@ -42,7 +43,7 @@
 
     // Targets
     let targets = $state<AlertTarget[]>([]);
-    let targetPage = $state(1);
+    const targetPage = $derived(Math.max(1, Number(page.url.searchParams.get("targets")) || 1));
     let targetPageCount = $state(1);
     let targetTotalCount = $state(0);
     let loadingTargets = $state(true);
@@ -79,6 +80,29 @@
     $effect(() => {
         if (!tabs || tabs.activeIndex === activeTabIndex) return;
         tabs.activeIndex = activeTabIndex;
+    });
+
+    // Reload when a page param changes (pagination links). The first run is the
+    // initial mount, which the onMount loads already cover, so skip it. `untrack`
+    // keeps the effect from depending on state read inside the loaders.
+    let ruleReloadReady = false;
+    $effect(() => {
+        rulePage;
+        if (!ruleReloadReady) {
+            ruleReloadReady = true;
+            return;
+        }
+        untrack(() => void loadRules());
+    });
+
+    let targetReloadReady = false;
+    $effect(() => {
+        targetPage;
+        if (!targetReloadReady) {
+            targetReloadReady = true;
+            return;
+        }
+        if (canViewTarget) untrack(() => void loadTargets());
     });
 
     function handleTabChange(event: CustomEvent<{ index: number }>) {
@@ -118,20 +142,6 @@
             error = (err as Error).message || "Failed to fetch alert targets";
         } finally {
             loadingTargets = false;
-        }
-    }
-
-    async function changeRulePage(page: number) {
-        if (page > 0 && page <= rulePageCount) {
-            rulePage = page;
-            await loadRules();
-        }
-    }
-
-    async function changeTargetPage(page: number) {
-        if (page > 0 && page <= targetPageCount) {
-            targetPage = page;
-            await loadTargets();
         }
     }
 
@@ -403,7 +413,7 @@
                         <Pagination
                             currentPage={rulePage}
                             pageCount={rulePageCount}
-                            onPageChange={changeRulePage}
+                            param="rules"
                         />
                     </footer>
                 {/if}
@@ -548,7 +558,7 @@
                             <Pagination
                                 currentPage={targetPage}
                                 pageCount={targetPageCount}
-                                onPageChange={changeTargetPage}
+                                param="targets"
                             />
                         </footer>
                     {/if}

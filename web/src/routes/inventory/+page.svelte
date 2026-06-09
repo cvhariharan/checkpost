@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
+  import { page } from '$app/state'
+  import { replaceState } from '$app/navigation'
   import {
     createOwner,
     deleteOwner,
@@ -41,10 +43,10 @@
   let loadingMachines = $state(true)
   let loadingOwners = $state(true)
   let loadingOwnerOptions = $state(true)
-  let currentMachinePage = $state(1)
+  const currentMachinePage = $derived(Math.max(1, Number(page.url.searchParams.get('devices')) || 1))
   let machinePageCount = $state(1)
   let machineTotalCount = $state(0)
-  let currentOwnerPage = $state(1)
+  const currentOwnerPage = $derived(Math.max(1, Number(page.url.searchParams.get('owners')) || 1))
   let ownerPageCount = $state(1)
   let ownerTotalCount = $state(0)
   let initialized = $state(false)
@@ -107,12 +109,43 @@
     tabs.activeIndex = activeTabIndex
   })
 
+  // Reload when the page param changes (pagination links). The first run is the
+  // initial mount, which `initialize()` already covers, so skip it. `untrack`
+  // keeps the effect from depending on the filter/search state read inside the
+  // loaders — that would bypass the debounce below.
+  let machineReloadReady = false
+  $effect(() => {
+    currentMachinePage
+    if (!machineReloadReady) {
+      machineReloadReady = true
+      return
+    }
+    untrack(() => void loadMachines())
+  })
+
+  let ownerReloadReady = false
+  $effect(() => {
+    currentOwnerPage
+    if (!ownerReloadReady) {
+      ownerReloadReady = true
+      return
+    }
+    untrack(() => void loadOwners())
+  })
+
+  function resetPageParam(name: string) {
+    if (!page.url.searchParams.has(name)) return
+    const url = new URL(page.url)
+    url.searchParams.delete(name)
+    replaceState(url, {})
+  }
+
   $effect(() => {
     if (!initialized) return
     const nextFilterKey = JSON.stringify([selectedPlatform, selectedOwner, assignmentFilter])
     if (nextFilterKey !== previousMachineFilterKey) {
       previousMachineFilterKey = nextFilterKey
-      currentMachinePage = 1
+      resetPageParam('devices')
       void loadMachines()
     }
   })
@@ -120,7 +153,7 @@
   $effect(() => {
     if (!initialized || searchTerm === previousMachineSearch) return
     previousMachineSearch = searchTerm
-    currentMachinePage = 1
+    resetPageParam('devices')
     clearTimeout(machineSearchTimer)
     machineSearchTimer = setTimeout(() => {
       void loadMachines()
@@ -130,7 +163,7 @@
   $effect(() => {
     if (!initialized || ownerSearchTerm === previousOwnerSearch) return
     previousOwnerSearch = ownerSearchTerm
-    currentOwnerPage = 1
+    resetPageParam('owners')
     clearTimeout(ownerSearchTimer)
     ownerSearchTimer = setTimeout(() => {
       void loadOwners()
@@ -171,12 +204,12 @@
     }
   }
 
-  async function loadMachines() {
+  async function loadMachines(targetPage = currentMachinePage) {
     loadingMachines = true
     error = ''
     try {
       const data = await fetchMachines({
-        page: currentMachinePage,
+        page: targetPage,
         countPerPage: machineCountPerPage,
         query: searchTerm,
         platform: selectedPlatform,
@@ -186,9 +219,12 @@
       machines = data.machines || []
       machinePageCount = Math.max(1, data.page_count || 1)
       machineTotalCount = data.total_count || 0
-      if (currentMachinePage > machinePageCount) {
-        currentMachinePage = machinePageCount
-        await loadMachines()
+      if (targetPage > machinePageCount) {
+        const url = new URL(page.url)
+        if (machinePageCount <= 1) url.searchParams.delete('devices')
+        else url.searchParams.set('devices', String(machinePageCount))
+        replaceState(url, {})
+        await loadMachines(machinePageCount)
       }
     } catch (err) {
       machines = []
@@ -200,21 +236,24 @@
     }
   }
 
-  async function loadOwners() {
+  async function loadOwners(targetPage = currentOwnerPage) {
     loadingOwners = true
     error = ''
     try {
       const data = await fetchOwners({
-        page: currentOwnerPage,
+        page: targetPage,
         countPerPage: ownerCountPerPage,
         query: ownerSearchTerm
       })
       owners = data.owners || []
       ownerPageCount = Math.max(1, data.page_count || 1)
       ownerTotalCount = data.total_count || 0
-      if (currentOwnerPage > ownerPageCount) {
-        currentOwnerPage = ownerPageCount
-        await loadOwners()
+      if (targetPage > ownerPageCount) {
+        const url = new URL(page.url)
+        if (ownerPageCount <= 1) url.searchParams.delete('owners')
+        else url.searchParams.set('owners', String(ownerPageCount))
+        replaceState(url, {})
+        await loadOwners(ownerPageCount)
       }
     } catch (err) {
       owners = []
@@ -333,17 +372,6 @@
     }
   }
 
-  async function changeMachinePage(page: number) {
-    if (page < 1 || page > machinePageCount || page === currentMachinePage) return
-    currentMachinePage = page
-    await loadMachines()
-  }
-
-  async function changeOwnerPage(page: number) {
-    if (page < 1 || page > ownerPageCount || page === currentOwnerPage) return
-    currentOwnerPage = page
-    await loadOwners()
-  }
 </script>
 
 <section class="vstack gap-4">
@@ -482,7 +510,7 @@
                 pageCount={machinePageCount}
                 disabled={loadingMachines}
                 label="Devices pagination"
-                onPageChange={changeMachinePage}
+                param="devices"
               />
             </footer>
           {/if}
@@ -561,7 +589,7 @@
                 pageCount={ownerPageCount}
                 disabled={loadingOwners}
                 label="Owners pagination"
-                onPageChange={changeOwnerPage}
+                param="owners"
               />
             </footer>
           {/if}

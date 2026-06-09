@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
+  import { page } from '$app/state'
+  import { replaceState } from '$app/navigation'
   import {
     createYaraScan,
     createYaraSignatureSource,
@@ -38,10 +40,10 @@
   let targets = $state<YaraScanTarget[]>([])
   let selectedScan = $state<YaraScan | null>(null)
 
-  let scanPage = $state(1)
+  const scanPage = $derived(Math.max(1, Number(page.url.searchParams.get('scans')) || 1))
   let scanPageCount = $state(1)
   let scanTotal = $state(0)
-  let matchPage = $state(1)
+  const matchPage = $derived(Math.max(1, Number(page.url.searchParams.get('matches')) || 1))
   let matchPageCount = $state(1)
   let matchTotal = $state(0)
   let targetTotal = $state(0)
@@ -96,6 +98,36 @@
     tabs.activeIndex = activeTabIndex
   })
 
+  // Reload when the page params change (pagination links). The first run is the
+  // initial mount, which `loadAll`/`selectScan` already cover, so skip it.
+  // `untrack` keeps the effect from depending on state read inside the loaders.
+  let scanReloadReady = false
+  $effect(() => {
+    scanPage
+    if (!scanReloadReady) {
+      scanReloadReady = true
+      return
+    }
+    untrack(() => void loadScans())
+  })
+
+  let matchReloadReady = false
+  $effect(() => {
+    matchPage
+    if (!matchReloadReady) {
+      matchReloadReady = true
+      return
+    }
+    if (selectedScan) untrack(() => void loadMatches())
+  })
+
+  function resetMatchesParam() {
+    if (!page.url.searchParams.has('matches')) return
+    const url = new URL(page.url)
+    url.searchParams.delete('matches')
+    replaceState(url, {})
+  }
+
   $effect(() => {
     if (!scanDialogOpen || !scanDialog || scanDialog.open) return
     scanDialog.showModal()
@@ -130,7 +162,7 @@
       ])
       groups = groupData.groups || []
       sources = sourceData.sources || []
-      await loadScans(1)
+      await loadScans(scanPage)
     } catch (err) {
       error = (err as Error).message || 'Failed to load YARA'
     } finally {
@@ -143,13 +175,12 @@
     sources = data.sources || []
   }
 
-  async function loadScans(page = scanPage) {
+  async function loadScans(targetPage = scanPage) {
     scansLoading = true
     error = ''
     try {
-      const data = await fetchYaraScans({ page, countPerPage: scanCountPerPage })
+      const data = await fetchYaraScans({ page: targetPage, countPerPage: scanCountPerPage })
       scans = data.scans || []
-      scanPage = page
       scanPageCount = data.page_count || 1
       scanTotal = data.total_count || scans.length
       if (selectedScan) {
@@ -164,7 +195,7 @@
     }
   }
 
-  async function loadMatches(page = matchPage) {
+  async function loadMatches(targetPage = matchPage) {
     if (!selectedScan) {
       matches = []
       matchTotal = 0
@@ -173,9 +204,8 @@
     matchesLoading = true
     error = ''
     try {
-      const data = await fetchYaraScanMatches(selectedScan.uuid, { page, countPerPage: matchCountPerPage })
+      const data = await fetchYaraScanMatches(selectedScan.uuid, { page: targetPage, countPerPage: matchCountPerPage })
       matches = data.matches || []
-      matchPage = page
       matchPageCount = data.page_count || 1
       matchTotal = data.total_count || matches.length
     } catch (err) {
@@ -341,6 +371,7 @@
   function selectScan(scan: YaraScan, showResults = true) {
     selectedScan = scan
     loadTargets()
+    resetMatchesParam()
     loadMatches(1)
     if (showResults) {
       activeTabIndex = 0
@@ -457,7 +488,7 @@
               <p class="text-light">
                 Showing <strong>{scanStart}</strong> to <strong>{scanEnd}</strong> of <strong>{scanTotal}</strong> scans
               </p>
-              <Pagination currentPage={scanPage} pageCount={scanPageCount} onPageChange={loadScans} />
+              <Pagination currentPage={scanPage} pageCount={scanPageCount} param="scans" />
             </footer>
           {/if}
           </section>
@@ -507,7 +538,7 @@
               <p class="text-light">
                 Showing <strong>{matchStart}</strong> to <strong>{matchEnd}</strong> of <strong>{matchTotal}</strong> matches
               </p>
-              <Pagination currentPage={matchPage} pageCount={matchPageCount} disabled={!selectedScan || matchesLoading} onPageChange={loadMatches} />
+              <Pagination currentPage={matchPage} pageCount={matchPageCount} disabled={!selectedScan || matchesLoading} param="matches" />
             </footer>
           </section>
 
