@@ -24,6 +24,7 @@ docs/site/public/
 # Local development TLS material
 testdata/server_cert.pem
 testdata/server_key.pem
-
+testdata/ca_cert.pem
+testdata/ca_key.pem
 # Logs
 *.log
