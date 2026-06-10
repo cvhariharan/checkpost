@@ -19,6 +19,7 @@
     import AlertRuleFormDialog from "$lib/components/AlertRuleFormDialog.svelte";
     import AlertTargetFormDialog from "$lib/components/AlertTargetFormDialog.svelte";
     import { canFrom, me } from "$lib/auth";
+    import Plus from "@lucide/svelte/icons/plus";
 
     type OatTabsElement = HTMLElement & { activeIndex: number };
 
@@ -287,9 +288,10 @@
                         </p>
                     </div>
                     {#if canCreateRule}
-                        <button type="button" onclick={openCreateRule}
-                            >Create Rule</button
-                        >
+                        <button type="button" class="gap-1" onclick={openCreateRule}>
+                            <Plus size={16} aria-hidden="true" />
+                            Create Rule
+                        </button>
                     {/if}
                 </div>
 
@@ -431,9 +433,10 @@
                             </p>
                         </div>
                         {#if canCreateTarget}
-                            <button type="button" onclick={openCreateTarget}
-                                >Create Target</button
-                            >
+                            <button type="button" class="gap-1" onclick={openCreateTarget}>
+                                <Plus size={16} aria-hidden="true" />
+                                Create Target
+                            </button>
                         {/if}
                     </div>
 

@@ -57,3 +57,11 @@
     --ring: #6faa9a;
   }
 }
+
+/* Required-field marker: a small asterisk shown beside the label of a
+   required form field. Unlayered so it sits above oat's layered styles. */
+.req {
+  color: var(--danger);
+  margin-inline-start: 0.15em;
+  font-weight: 600;
+}

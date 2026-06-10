@@ -57,11 +57,11 @@
 
     <form onsubmit={handleSubmit} class="vstack gap-3">
       <label data-field>
-        Username
+        Username <span class="req" aria-hidden="true">*</span>
         <input bind:value={username} required autocomplete="username" placeholder="Username" />
       </label>
       <label data-field>
-        Password
+        Password <span class="req" aria-hidden="true">*</span>
         <input
           type="password"
           bind:value={password}

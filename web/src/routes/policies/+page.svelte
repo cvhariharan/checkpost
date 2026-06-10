@@ -13,6 +13,7 @@
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   let loadedPolicies = $state<Policy[]>([])
   const currentPage = $derived(Math.max(1, Number(page.url.searchParams.get('page')) || 1))
@@ -131,7 +132,10 @@
       <p class="text-light">Evaluate osquery-backed posture checks across enrolled machines</p>
     </div>
     {#if canCreatePolicy}
-      <button type="button" onclick={openCreate}>Create Policy</button>
+      <button type="button" class="gap-1" onclick={openCreate}>
+        <Plus size={16} aria-hidden="true" />
+        Create Policy
+      </button>
     {/if}
   </header>
 

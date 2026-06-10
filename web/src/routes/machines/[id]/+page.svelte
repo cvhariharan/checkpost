@@ -25,6 +25,7 @@
   import { rootShape, type JSONSchema } from '$lib/metricSchema'
   import MetricRenderer from '$lib/components/MetricRenderer.svelte'
   import MultiSelectDropdown from '$lib/components/MultiSelectDropdown.svelte'
+  import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
@@ -32,6 +33,9 @@
   import BadgeList from '$lib/components/BadgeList.svelte'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Pencil from '@lucide/svelte/icons/pencil'
+  import Save from '@lucide/svelte/icons/save'
+  import Play from '@lucide/svelte/icons/play'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
 
@@ -462,11 +466,15 @@
         {#if editing}
           <button type="button" class="outline" onclick={cancelEdit} disabled={saving}>Cancel</button>
           <button type="button" class="gap-1" onclick={saveOverview} disabled={saving} aria-busy={saving ? 'true' : undefined} data-spinner="small">
+            <Save size={16} aria-hidden="true" />
             {saving ? 'Saving...' : 'Save'}
           </button>
         {:else}
           {#if canEditOverview}
-            <button type="button" onclick={startEdit}>Update</button>
+            <button type="button" class="gap-1" onclick={startEdit}>
+              <Pencil size={16} aria-hidden="true" />
+              Edit
+            </button>
           {/if}
         {/if}
       </div>
@@ -494,15 +502,17 @@
               {#if canUpdateInventory}
                 <div class="row">
                   <div class="col-6">
-                    <label data-field>
-                      Owner
-                      <select bind:value={selectedOwnerId}>
-                        <option value="">Unassigned</option>
-                        {#each availableOwners as owner}
-                          <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
-                        {/each}
-                      </select>
-                    </label>
+                    <SelectDropdown
+                      label="Owner"
+                      options={[
+                        { value: '', label: 'Unassigned' },
+                        ...availableOwners.map((owner) => ({
+                          value: owner.uuid,
+                          label: owner.display_name || owner.email || owner.uuid
+                        }))
+                      ]}
+                      bind:value={selectedOwnerId}
+                    />
                   </div>
                   <div class="col-6">
                     <label data-field>
@@ -639,6 +649,7 @@
                   aria-busy={executing ? 'true' : undefined}
                   data-spinner="small"
                 >
+                  <Play size={16} aria-hidden="true" />
                   {executing ? 'Executing...' : 'Run Query'}
                 </button>
               </footer>

@@ -17,7 +17,9 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   let users = $state<User[]>([])
   let userRoles = $state<Record<string, string>>({})
@@ -213,7 +215,10 @@
       <p class="text-light">SSO accounts and the bootstrap admin</p>
     </div>
     {#if canCreateUser}
-      <button type="button" onclick={openCreate}>Create User</button>
+      <button type="button" class="gap-1" onclick={openCreate}>
+        <Plus size={16} aria-hidden="true" />
+        Create User
+      </button>
     {/if}
   </header>
 
@@ -289,7 +294,7 @@
         <input bind:value={name} placeholder="Full name" />
       </label>
       <label data-field>
-        Email
+        Email {#if editing?.login_type !== 'standard'}<span class="req" aria-hidden="true">*</span>{/if}
         <input
           type="email"
           bind:value={email}
@@ -298,15 +303,12 @@
         />
       </label>
       {#if canManageRoleBindings}
-        <label data-field>
-          Role
-          <select bind:value={selectedRole} disabled={loadingRole}>
-            <option value="">No role</option>
-            {#each roleOptions as role}
-              <option value={role}>{role}</option>
-            {/each}
-          </select>
-        </label>
+        <SelectDropdown
+          label="Role"
+          options={[{ value: '', label: 'No role' }, ...roleOptions.map((role) => ({ value: role, label: role }))]}
+          bind:value={selectedRole}
+          disabled={loadingRole}
+        />
       {/if}
       {#if editing}
         <label data-field class="hstack gap-2 align-center">

@@ -16,6 +16,7 @@
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import Truncate from '$lib/components/Truncate.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   let loadedSchedules = $state<Schedule[]>([])
   const currentPage = $derived(Math.max(1, Number(page.url.searchParams.get('page')) || 1))
@@ -126,7 +127,10 @@
       <p class="text-light">Schedule queries to run on specific machines</p>
     </div>
     {#if canCreateSchedule}
-      <button type="button" onclick={openCreate}>Create Schedule</button>
+      <button type="button" class="gap-1" onclick={openCreate}>
+        <Plus size={16} aria-hidden="true" />
+        Create Schedule
+      </button>
     {/if}
   </header>
 
@@ -162,15 +166,17 @@
                 <Truncate text={descriptionFor(schedule)} lines={2} />
               </td>
               <td class="col-actions">
-                <ActionsMenu label={`Actions for ${schedule.title || 'schedule'}`}>
-                  {#if canUpdateSchedule}
-                    <button role="menuitem" type="button" onclick={() => openEdit(schedule)}>Edit</button>
-                  {/if}
-                  {#if canUpdateSchedule && canDeleteSchedule}<hr />{/if}
-                  {#if canDeleteSchedule}
-                    <button role="menuitem" type="button" onclick={() => confirmDelete(schedule)}>Delete</button>
-                  {/if}
-                </ActionsMenu>
+                {#if canUpdateSchedule || canDeleteSchedule}
+                  <ActionsMenu label={`Actions for ${schedule.title || 'schedule'}`}>
+                    {#if canUpdateSchedule}
+                      <button role="menuitem" type="button" onclick={() => openEdit(schedule)}>Edit</button>
+                    {/if}
+                    {#if canUpdateSchedule && canDeleteSchedule}<hr />{/if}
+                    {#if canDeleteSchedule}
+                      <button role="menuitem" type="button" onclick={() => confirmDelete(schedule)}>Delete</button>
+                    {/if}
+                  </ActionsMenu>
+                {/if}
               </td>
             </tr>
           {:else}

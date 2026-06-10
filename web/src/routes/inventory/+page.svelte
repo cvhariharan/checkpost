@@ -19,9 +19,11 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
+  import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import OsqueryBootstrapDialog from '$lib/components/OsqueryBootstrapDialog.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
   type FilterOption = { value: string; label: string }
@@ -525,7 +527,10 @@
               <p class="text-light">{ownerTotalCount} owners</p>
             </div>
             {#if canCreateInventory}
-              <button type="button" onclick={openCreateOwner}>Create Owner</button>
+              <button type="button" class="gap-1" onclick={openCreateOwner}>
+                <Plus size={16} aria-hidden="true" />
+                Create Owner
+              </button>
             {/if}
           </div>
 
@@ -609,15 +614,17 @@
     </header>
 
     <div class="vstack">
-      <label data-field>
-        Owner
-        <select bind:value={inventoryOwnerID}>
-          <option value="">Unassigned</option>
-          {#each ownerOptions as owner}
-            <option value={owner.uuid}>{owner.display_name || owner.email || owner.uuid}</option>
-          {/each}
-        </select>
-      </label>
+      <SelectDropdown
+        label="Owner"
+        options={[
+          { value: '', label: 'Unassigned' },
+          ...ownerOptions.map((owner) => ({
+            value: owner.uuid,
+            label: owner.display_name || owner.email || owner.uuid
+          }))
+        ]}
+        bind:value={inventoryOwnerID}
+      />
 
       <label data-field>
         Internal tracking ID
@@ -653,12 +660,12 @@
 
     <div class="vstack">
       <label data-field>
-        Display name
+        Display name <span class="req" aria-hidden="true">*</span>
         <input bind:value={ownerDisplayName} required />
       </label>
 
       <label data-field>
-        Email
+        Email <span class="req" aria-hidden="true">*</span>
         <input bind:value={ownerEmail} type="email" required />
       </label>
 

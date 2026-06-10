@@ -4,13 +4,15 @@
     value = $bindable<string[]>(['']),
     placeholder = '',
     addLabel = 'Add',
-    disabled = false
+    disabled = false,
+    required = false
   }: {
     label?: string
     value?: string[]
     placeholder?: string
     addLabel?: string
     disabled?: boolean
+    required?: boolean
   } = $props()
 
   $effect(() => {
@@ -36,7 +38,7 @@
 
 <div class="text-list-input">
   <div class="text-list-input-header">
-    {#if label}<span>{label}</span>{/if}
+    {#if label}<span>{label}{#if required}<span class="req" aria-hidden="true">*</span>{/if}</span>{/if}
     <button
       type="button"
       class="small outline icon-button"

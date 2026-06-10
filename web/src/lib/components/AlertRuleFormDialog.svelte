@@ -209,7 +209,7 @@
 
     <div class="vstack">
       <label data-field>
-        Name
+        Name <span class="req" aria-hidden="true">*</span>
         <input bind:value={name} required placeholder="Rule name" />
       </label>
 
@@ -279,16 +279,19 @@
       {/each}
 
       <div class="row">
-        <label data-field class="col-6">
-          Severity
-          <select bind:value={severity}>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-            <option value="info">Info</option>
-          </select>
-        </label>
+        <div class="col-6">
+          <SelectDropdown
+            label="Severity"
+            options={[
+              { value: 'critical', label: 'Critical' },
+              { value: 'high', label: 'High' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'low', label: 'Low' },
+              { value: 'info', label: 'Info' }
+            ]}
+            bind:value={severity}
+          />
+        </div>
         <label data-field class="col-6">
           Evaluation interval (s)
           <input type="number" min="60" bind:value={evalInterval} />

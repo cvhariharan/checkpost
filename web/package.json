@@ -19,6 +19,7 @@
     "@codemirror/view": "6.43.0",
     "@knadh/oat": "0.6.1",
     "@lezer/highlight": "1.2.3",
+    "@lucide/svelte": "^1.17.0",
     "svelte": "5.55.9"
   },
   "devDependencies": {

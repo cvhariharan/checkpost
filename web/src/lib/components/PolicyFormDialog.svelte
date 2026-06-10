@@ -115,12 +115,12 @@
 
     <div class="vstack">
       <label data-field>
-        Name
+        Name <span class="req" aria-hidden="true">*</span>
         <input bind:value={title} required placeholder="Policy name" />
       </label>
 
       <label data-field>
-        Query
+        Query <span class="req" aria-hidden="true">*</span>
         <SqlEditor
           bind:value={query}
           minLines={7}

@@ -11,6 +11,7 @@
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   let loadedGroups = $state<Group[]>([])
   const currentPage = $derived(Math.max(1, Number(page.url.searchParams.get('page')) || 1))
@@ -117,7 +118,10 @@
       <p class="text-light">Organize machines and target policies to specific collections</p>
     </div>
     {#if canCreateGroup}
-      <button type="button" onclick={openCreate}>Create Group</button>
+      <button type="button" class="gap-1" onclick={openCreate}>
+        <Plus size={16} aria-hidden="true" />
+        Create Group
+      </button>
     {/if}
   </header>
 

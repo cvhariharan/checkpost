@@ -1,5 +1,6 @@
 <script lang="ts">
   import Pagination from './Pagination.svelte'
+  import Search from '@lucide/svelte/icons/search'
   import { formatTimestamp } from '$lib/util'
   import type { Schedule, ScheduleResultRow } from '$lib/api'
 
@@ -108,7 +109,10 @@
         placeholder="Search results (e.g. name:sudo machine:laptop)"
         disabled={loading}
       />
-      <button type="submit" disabled={loading || !!queryError}>Search</button>
+      <button type="submit" class="gap-1" disabled={loading || !!queryError}>
+        <Search size={16} aria-hidden="true" />
+        Search
+      </button>
     </fieldset>
   </form>
   {#if queryError}

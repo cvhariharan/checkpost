@@ -129,12 +129,12 @@
 
     <div class="vstack">
       <label data-field>
-        Title
+        Title <span class="req" aria-hidden="true">*</span>
         <input bind:value={title} required placeholder="Schedule title" />
       </label>
 
       <label data-field>
-        Query
+        Query <span class="req" aria-hidden="true">*</span>
         <SqlEditor
           bind:value={query}
           minLines={4}
@@ -150,7 +150,7 @@
       </label>
 
       <label data-field>
-        Interval (seconds)
+        Interval (seconds) <span class="req" aria-hidden="true">*</span>
         <input type="number" bind:value={interval} required min="1" max="604800" />
       </label>
 

@@ -27,6 +27,7 @@
   import TextListInput from '$lib/components/TextListInput.svelte'
   import { formatTimestamp } from '$lib/util'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
 
@@ -588,7 +589,10 @@
           <div class="hstack justify-between">
             <p class="text-light">{sources.length} source configs</p>
             {#if canCreateSource}
-              <button type="button" onclick={openCreateSource}>Add Source Config</button>
+              <button type="button" class="gap-1" onclick={openCreateSource}>
+                <Plus size={16} aria-hidden="true" />
+                Add Source Config
+              </button>
             {/if}
           </div>
 
@@ -659,6 +663,7 @@
         placeholder="/tmp/%"
         addLabel="Add path"
         disabled={startingScan}
+        required
       />
 
       <SelectDropdown label="Group" options={groupOptions} bind:value={scanGroupID} disabled={startingScan} />
@@ -669,6 +674,7 @@
         placeholder="https://rules.example.com/rule.yar"
         addLabel="Add rule URL"
         disabled={startingScan}
+        required
       />
     </div>
 
@@ -699,7 +705,7 @@
       <SelectDropdown label="Scope" options={groupOptions} bind:value={sourceGroupID} disabled={savingSource} />
 
       <label data-field>
-        URL
+        URL <span class="req" aria-hidden="true">*</span>
         <input bind:value={sourceURL} placeholder="https://rules.example.com/.*" disabled={savingSource} />
       </label>
 

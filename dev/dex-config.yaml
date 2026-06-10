@@ -24,7 +24,7 @@ enablePasswordDB: true
 
 staticPasswords:
   - email: "user@checkpost.internal"
-    # Password: checkpost
-    hash: "$2a$10$OsKBctWYwSczSpMx4vvEsOcOomBuJImEV8fqwjt5fWDMyXDj5PKjS"
+    # Password: password
+    hash: "$2a$10$8nXvIjEX1CaE2KOWr9WNBOJ84NPp0/.LRBJ5GwgHSNixwh7VU3r.S"
     username: "user"
     userID: "5f8d3c2a-1b4e-4d7a-9c6f-2e3a4b5c6d7e"

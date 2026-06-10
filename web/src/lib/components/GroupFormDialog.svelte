@@ -175,7 +175,7 @@
 
     <div class="vstack">
       <label data-field>
-        Name
+        Name <span class="req" aria-hidden="true">*</span>
         <input bind:value={title} required placeholder="Group name" />
       </label>
 

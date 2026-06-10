@@ -8,6 +8,8 @@
     import { toast } from "$lib/util";
     import ErrorMessage from "./ErrorMessage.svelte";
     import Spinner from "./Spinner.svelte";
+    import Copy from "@lucide/svelte/icons/copy";
+    import Download from "@lucide/svelte/icons/download";
 
     let {
         open = $bindable(false),
@@ -168,12 +170,14 @@
                                     </div>
                                     <button
                                         type="button"
+                                        class="gap-1"
                                         onclick={() =>
                                             copyText(
                                                 platform.command,
                                                 "Command",
                                             )}
                                     >
+                                        <Copy size={16} aria-hidden="true" />
                                         Copy command
                                     </button>
                                 </div>
@@ -249,7 +253,7 @@
                                                                 >
                                                                     <button
                                                                         type="button"
-                                                                        class="small outline"
+                                                                        class="small outline gap-1"
                                                                         onclick={() =>
                                                                             copyText(
                                                                                 pkg.url,
@@ -258,11 +262,12 @@
                                                                         disabled={!profile.ready ||
                                                                             !pkg.url}
                                                                     >
+                                                                        <Copy size={14} aria-hidden="true" />
                                                                         Copy URL
                                                                     </button>
                                                                     <button
                                                                         type="button"
-                                                                        class="small outline"
+                                                                        class="small outline gap-1"
                                                                         onclick={() =>
                                                                             copyText(
                                                                                 pkg.sha256,
@@ -271,6 +276,7 @@
                                                                         disabled={!profile.ready ||
                                                                             !pkg.sha256}
                                                                     >
+                                                                        <Copy size={14} aria-hidden="true" />
                                                                         Copy
                                                                         checksum
                                                                     </button>
@@ -301,7 +307,7 @@
                                         <h4>Manual configuration</h4>
                                         <button
                                             type="button"
-                                            class="small outline"
+                                            class="small outline gap-1"
                                             onclick={() =>
                                                 copyText(
                                                     platform.secret,
@@ -309,6 +315,7 @@
                                                 )}
                                             disabled={!profile.ready}
                                         >
+                                            <Copy size={14} aria-hidden="true" />
                                             Copy secret
                                         </button>
                                     </div>
@@ -327,7 +334,7 @@
                                         </p>
                                         <button
                                             type="button"
-                                            class="small outline"
+                                            class="small outline gap-1"
                                             onclick={() =>
                                                 copyText(
                                                     platform.flagfile,
@@ -335,6 +342,7 @@
                                                 )}
                                             disabled={!profile.ready}
                                         >
+                                            <Copy size={14} aria-hidden="true" />
                                             Copy flags
                                         </button>
                                     </div>
@@ -344,7 +352,7 @@
                                         <p><strong>Restart</strong></p>
                                         <button
                                             type="button"
-                                            class="small outline"
+                                            class="small outline gap-1"
                                             onclick={() =>
                                                 copyText(
                                                     platform.restart_command,
@@ -352,6 +360,7 @@
                                                 )}
                                             disabled={!profile.ready}
                                         >
+                                            <Copy size={14} aria-hidden="true" />
                                             Copy restart
                                         </button>
                                     </div>
@@ -398,11 +407,12 @@
                                         {/if}
                                         <button
                                             type="button"
-                                            class="small outline"
+                                            class="small outline gap-1"
                                             onclick={() =>
                                                 downloadScript(platform)}
                                             disabled={!profile.ready}
                                         >
+                                            <Download size={14} aria-hidden="true" />
                                             Download script
                                         </button>
                                     </div>

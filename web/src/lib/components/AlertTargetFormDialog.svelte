@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createAlertTarget, updateAlertTarget, type AlertTarget } from '$lib/api'
   import ErrorMessage from './ErrorMessage.svelte'
+  import SelectDropdown from './SelectDropdown.svelte'
 
   let {
     open = false,
@@ -17,7 +18,7 @@
   let dialog = $state<HTMLDialogElement>()
   let preparedFor = $state<string | null>(null)
   let name = $state('')
-  let targetType = $state<'smtp' | 'webhook'>('smtp')
+  let targetType = $state('smtp')
   let enabled = $state(true)
   let recipients = $state('')
   let webhookUrl = $state('')
@@ -97,7 +98,7 @@
 
     <div class="vstack">
       <label data-field>
-        Name
+        Name <span class="req" aria-hidden="true">*</span>
         <input bind:value={name} required placeholder="Target name" />
       </label>
 
@@ -107,18 +108,19 @@
           <input value={targetType === 'webhook' ? 'Webhook' : 'Email'} disabled />
         </label>
       {:else}
-        <label data-field>
-          Type
-          <select bind:value={targetType}>
-            <option value="smtp">Email</option>
-            <option value="webhook">Webhook</option>
-          </select>
-        </label>
+        <SelectDropdown
+          label="Type"
+          options={[
+            { value: 'smtp', label: 'Email' },
+            { value: 'webhook', label: 'Webhook' }
+          ]}
+          bind:value={targetType}
+        />
       {/if}
 
       {#if targetType === 'webhook'}
         <label data-field>
-          Webhook URL
+          Webhook URL <span class="req" aria-hidden="true">*</span>
           <input bind:value={webhookUrl} required type="url" placeholder="https://example.com/checkpost-alerts" />
         </label>
       {:else}

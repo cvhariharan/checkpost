@@ -12,6 +12,8 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import Plus from '@lucide/svelte/icons/plus'
+  import Copy from '@lucide/svelte/icons/copy'
 
   let tokens = $state<APIToken[]>([])
   let loading = $state(true)
@@ -128,7 +130,10 @@
         Bearer tokens for the CLI and scripts. A token acts as you, with your permissions.
       </p>
     </div>
-    <button type="button" onclick={openCreate}>Create token</button>
+    <button type="button" class="gap-1" onclick={openCreate}>
+      <Plus size={16} aria-hidden="true" />
+      Create token
+    </button>
   </header>
 
   <ErrorMessage message={error} onClose={() => (error = '')} />
@@ -189,7 +194,7 @@
         <input bind:value={name} placeholder="cli@laptop" />
       </label>
       <label data-field>
-        Expires in (days)
+        Expires in (days) <span class="req" aria-hidden="true">*</span>
         <input type="number" min="1" bind:value={expiresInDays} required />
       </label>
     </div>
@@ -212,7 +217,10 @@
       </div>
       <div class="hstack gap-2 items-center">
         <code class="token-secret">{issued?.secret}</code>
-        <button type="button" class="small" onclick={copySecret}>Copy</button>
+        <button type="button" class="small gap-1" onclick={copySecret}>
+          <Copy size={14} aria-hidden="true" />
+          Copy
+        </button>
       </div>
     </div>
     <footer>

@@ -22,7 +22,10 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import SelectDropdown from '$lib/components/SelectDropdown.svelte'
+  import MultiSelectDropdown from '$lib/components/MultiSelectDropdown.svelte'
   import { canFrom, me } from '$lib/auth'
+  import Plus from '@lucide/svelte/icons/plus'
 
   let groups = $state<UserGroup[]>([])
   let groupRoles = $state<Record<string, string>>({})
@@ -46,11 +49,9 @@
   let selected = $state<UserGroup | null>(null)
   let isDeleting = $state(false)
 
-  let membersDialog = $state<HTMLDialogElement>()
-  let membersGroup = $state<UserGroup | null>(null)
   let members = $state<UserGroupMember[]>([])
   let allUsers = $state<User[]>([])
-  let addUserId = $state('')
+  let addUserIds = $state<string[]>([])
   let membersError = $state('')
   let membersSaving = $state(false)
   const canCreateUserGroup = $derived(canFrom($me, 'user_group', 'create'))
@@ -129,6 +130,10 @@
     selectedRole = 'viewer'
     loadingRole = false
     formError = ''
+    members = []
+    allUsers = []
+    addUserIds = []
+    membersError = ''
     formDialog?.showModal()
   }
 
@@ -142,7 +147,12 @@
     selectedRole = ''
     loadingRole = true
     formError = ''
+    members = []
+    allUsers = []
+    addUserIds = []
+    membersError = ''
     formDialog?.showModal()
+    void loadMembers(group.uuid)
     if (canViewRoleBindings) {
       try {
         const data = await fetchRoleBindings('usergroup', group.uuid)
@@ -211,15 +221,10 @@
     }
   }
 
-  async function openMembers(group: UserGroup) {
-    membersGroup = group
-    members = []
-    addUserId = ''
-    membersError = ''
-    membersDialog?.showModal()
+  async function loadMembers(groupId: string) {
     try {
       const [m, u] = await Promise.all([
-        fetchUserGroupMembers(group.uuid),
+        fetchUserGroupMembers(groupId),
         fetchUsers({ page: 1, countPerPage: 500 })
       ])
       members = m.members || []
@@ -232,30 +237,32 @@
   const memberIds = $derived(members.map((m) => m.user_uuid))
   const candidateUsers = $derived(allUsers.filter((u) => !memberIds.includes(u.uuid)))
 
-  async function addMember() {
-    if (!membersGroup || !addUserId || !canUpdateUserGroup) return
+  async function addMembers() {
+    if (!editing || !addUserIds.length || !canUpdateUserGroup) return
     membersSaving = true
     membersError = ''
     try {
-      await addUserGroupMember(membersGroup.uuid, addUserId)
-      addUserId = ''
-      const m = await fetchUserGroupMembers(membersGroup.uuid)
+      for (const userUUID of addUserIds) {
+        await addUserGroupMember(editing.uuid, userUUID)
+      }
+      addUserIds = []
+      const m = await fetchUserGroupMembers(editing.uuid)
       members = m.members || []
       await load()
     } catch (err) {
-      membersError = (err as Error).message || 'Failed to add member'
+      membersError = (err as Error).message || 'Failed to add members'
     } finally {
       membersSaving = false
     }
   }
 
   async function removeMember(userUUID: string) {
-    if (!membersGroup || !canUpdateUserGroup) return
+    if (!editing || !canUpdateUserGroup) return
     membersSaving = true
     membersError = ''
     try {
-      await removeUserGroupMember(membersGroup.uuid, userUUID)
-      const m = await fetchUserGroupMembers(membersGroup.uuid)
+      await removeUserGroupMember(editing.uuid, userUUID)
+      const m = await fetchUserGroupMembers(editing.uuid)
       members = m.members || []
       await load()
     } catch (err) {
@@ -273,7 +280,10 @@
       <p class="text-light">Collections of users for role assignment. Membership can sync from the OIDC groups claim.</p>
     </div>
     {#if canCreateUserGroup}
-      <button type="button" onclick={openCreate}>Create User Group</button>
+      <button type="button" class="gap-1" onclick={openCreate}>
+        <Plus size={16} aria-hidden="true" />
+        Create User Group
+      </button>
     {/if}
   </header>
 
@@ -313,7 +323,6 @@
                   {#if canUpdateUserGroup}
                     <button role="menuitem" type="button" onclick={() => openEdit(group)}>Edit</button>
                   {/if}
-                  <button role="menuitem" type="button" onclick={() => openMembers(group)}>Members</button>
                   {#if canDeleteUserGroup}<hr />{/if}
                   {#if canDeleteUserGroup}
                     <button role="menuitem" type="button" onclick={() => confirmDelete(group)}>Delete</button>
@@ -336,7 +345,7 @@
     <ErrorMessage message={formError} onClose={() => (formError = '')} />
     <div class="vstack">
       <label data-field>
-        Name
+        Name <span class="req" aria-hidden="true">*</span>
         <input bind:value={name} required placeholder="Group name" />
       </label>
       <label data-field>
@@ -348,15 +357,64 @@
         <input bind:value={oidcClaim} placeholder="Matches an entry in the groups claim (optional)" />
       </label>
       {#if canManageRoleBindings}
-        <label data-field>
-          Role
-          <select bind:value={selectedRole} disabled={loadingRole}>
-            <option value="">No role</option>
-            {#each roleOptions as role}
-              <option value={role}>{role}</option>
-            {/each}
-          </select>
-        </label>
+        <SelectDropdown
+          label="Role"
+          options={[{ value: '', label: 'No role' }, ...roleOptions.map((role) => ({ value: role, label: role }))]}
+          bind:value={selectedRole}
+          disabled={loadingRole}
+        />
+      {/if}
+
+      {#if editing}
+        <div class="vstack gap-2">
+          <span>Members</span>
+          {#if canUpdateUserGroup}
+            <div class="hstack gap-2 add-row">
+              <MultiSelectDropdown
+                options={candidateUsers.map((user) => ({ value: user.uuid, label: user.username }))}
+                bind:value={addUserIds}
+                placeholder="Select users to add"
+                searchPlaceholder="Search users..."
+                emptyLabel="No users available"
+                disabled={membersSaving}
+              />
+              <button type="button" onclick={addMembers} disabled={!addUserIds.length || membersSaving}>Add</button>
+            </div>
+          {/if}
+          <ErrorMessage message={membersError} onClose={() => (membersError = '')} />
+          <div class="table">
+            <table>
+              <thead>
+                <tr><th>Username</th><th>Source</th><th class="align-right"><span class="sr-only">Actions</span></th></tr>
+              </thead>
+              <tbody>
+                {#each members as member}
+                  <tr>
+                    <td>{member.username}</td>
+                    <td>{member.source}</td>
+                    <td class="align-right">
+                      {#if member.source === 'manual' && canUpdateUserGroup}
+                        <button
+                          type="button"
+                          class="small outline"
+                          data-variant="danger"
+                          disabled={membersSaving}
+                          onclick={() => removeMember(member.user_uuid)}
+                        >
+                          Remove
+                        </button>
+                      {:else}
+                        <span class="text-light">{member.source === 'manual' ? 'manual' : 'synced'}</span>
+                      {/if}
+                    </td>
+                  </tr>
+                {:else}
+                  <tr><td colspan="3" class="align-center text-light">No members</td></tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
       {/if}
     </div>
     <footer>
@@ -364,61 +422,6 @@
       <button type="submit" class="gap-1" disabled={saving || loadingRole} aria-busy={saving ? 'true' : undefined} data-spinner="small">
         {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
       </button>
-    </footer>
-  </form>
-</dialog>
-
-<dialog bind:this={membersDialog} closedby="any">
-  <form method="dialog">
-    <header><h2>Members — {membersGroup?.name}</h2></header>
-    <ErrorMessage message={membersError} onClose={() => (membersError = '')} />
-    <div class="vstack gap-3">
-      {#if canUpdateUserGroup}
-        <div class="hstack gap-2 add-row">
-          <select bind:value={addUserId} disabled={membersSaving}>
-            <option value="">Select a user to add</option>
-            {#each candidateUsers as user}
-              <option value={user.uuid}>{user.username}</option>
-            {/each}
-          </select>
-          <button type="button" onclick={addMember} disabled={!addUserId || membersSaving}>Add</button>
-        </div>
-      {/if}
-      <div class="table">
-        <table>
-          <thead>
-            <tr><th>Username</th><th>Source</th><th class="align-right"><span class="sr-only">Actions</span></th></tr>
-          </thead>
-          <tbody>
-            {#each members as member}
-              <tr>
-                <td>{member.username}</td>
-                <td>{member.source}</td>
-                <td class="align-right">
-                  {#if member.source === 'manual' && canUpdateUserGroup}
-                    <button
-                      type="button"
-                      class="small outline"
-                      data-variant="danger"
-                      disabled={membersSaving}
-                      onclick={() => removeMember(member.user_uuid)}
-                    >
-                      Remove
-                    </button>
-                  {:else}
-                    <span class="text-light">{member.source === 'manual' ? 'manual' : 'synced'}</span>
-                  {/if}
-                </td>
-              </tr>
-            {:else}
-              <tr><td colspan="3" class="align-center text-light">No members</td></tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <footer>
-      <button type="button" class="outline" onclick={() => membersDialog?.close()}>Close</button>
     </footer>
   </form>
 </dialog>
@@ -434,7 +437,10 @@
 />
 
 <style>
-  .add-row select {
+  .add-row {
+    align-items: flex-start;
+  }
+  .add-row :global(.multiselect) {
     flex: 1;
   }
 </style>
