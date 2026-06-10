@@ -32,7 +32,9 @@
 
     // Rules
     let rules = $state<AlertRule[]>([]);
-    const rulePage = $derived(Math.max(1, Number(page.url.searchParams.get("rules")) || 1));
+    const rulePage = $derived(
+        Math.max(1, Number(page.url.searchParams.get("rules")) || 1),
+    );
     let rulePageCount = $state(1);
     let ruleTotalCount = $state(0);
     let loadingRules = $state(true);
@@ -44,7 +46,9 @@
 
     // Targets
     let targets = $state<AlertTarget[]>([]);
-    const targetPage = $derived(Math.max(1, Number(page.url.searchParams.get("targets")) || 1));
+    const targetPage = $derived(
+        Math.max(1, Number(page.url.searchParams.get("targets")) || 1),
+    );
     let targetPageCount = $state(1);
     let targetTotalCount = $state(0);
     let loadingTargets = $state(true);
@@ -243,7 +247,7 @@
     <header class="mb-4">
         <h1 class="mb-2">Alerts</h1>
         <p class="text-light">
-            Rules that watch the fleet and the targets they notify
+            Send alerts to targets based on rule evaluations
         </p>
     </header>
 
@@ -283,12 +287,13 @@
                 <div class="hstack justify-between">
                     <div>
                         <h4 class="mb-2">Rules</h4>
-                        <p class="text-light">
-                            Conditions evaluated against the fleet
-                        </p>
                     </div>
                     {#if canCreateRule}
-                        <button type="button" class="gap-1" onclick={openCreateRule}>
+                        <button
+                            type="button"
+                            class="gap-1"
+                            onclick={openCreateRule}
+                        >
                             <Plus size={16} aria-hidden="true" />
                             Create Rule
                         </button>
@@ -433,7 +438,11 @@
                             </p>
                         </div>
                         {#if canCreateTarget}
-                            <button type="button" class="gap-1" onclick={openCreateTarget}>
+                            <button
+                                type="button"
+                                class="gap-1"
+                                onclick={openCreateTarget}
+                            >
                                 <Plus size={16} aria-hidden="true" />
                                 Create Target
                             </button>
