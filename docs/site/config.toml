@@ -8,9 +8,10 @@ minify_html = true
 
 [extra]
 github_url = "https://github.com/cvhariharan/checkpost"
+preview_image = "social-card.png"
+preview_image_width = "1200"
+preview_image_height = "630"
 
-# Screenshots rendered by the templates/partials/screenshots.html carousel.
-# `src` is resolved with get_url(); images live under static/screenshots/.
 screenshots = [
     { src = "screenshots/inventory.png", caption = "Device inventory", alt = "Checkpost inventory listing enrolled hosts with status, owner, and platform" },
     { src = "screenshots/host-details.png", caption = "Host details", alt = "Checkpost host detail page showing owner, group, and live device metrics" },

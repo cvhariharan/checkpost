@@ -1,0 +1,16 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">checkpost social preview</title>
+  <desc id="desc">Branded checkpost preview card with the checkpost mark and product tagline.</desc>
+  <rect width="1200" height="630" fill="#F7FAF3"/>
+  <path d="M0 80H1200M0 160H1200M0 240H1200M0 320H1200M0 400H1200M0 480H1200M0 560H1200M0 630H1200M120 0V630M240 0V630M360 0V630M480 0V630M600 0V630M720 0V630M840 0V630M960 0V630M1080 0V630" stroke="#DDE8D2" stroke-width="1"/>
+  <circle cx="982" cy="134" r="96" fill="#A0C461" fill-opacity="0.24" stroke="#A0C461" stroke-opacity="0.4"/>
+  <rect x="72" y="432" width="180" height="112" rx="14" fill="#A0C461" fill-opacity="0.18" stroke="#A0C461" stroke-opacity="0.45"/>
+  <rect x="886" y="396" width="210" height="132" rx="18" fill="#1A2E2A" fill-opacity="0.08" stroke="#1A2E2A" stroke-opacity="0.16"/>
+  <g transform="translate(104 112)">
+    <rect width="96" height="96" rx="16" fill="#1A2E2A"/>
+    <circle cx="48" cy="48" r="27" fill="none" stroke="#A0C461" stroke-width="9"/>
+  </g>
+  <text x="232" y="176" fill="#15201D" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="700">checkpost</text>
+  <text x="104" y="330" fill="#15201D" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="700">Manage osquery with ease.</text>
+  <text x="108" y="402" fill="#4D5A53" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="500">An open-source osquery manager in a single binary.</text>
+</svg>

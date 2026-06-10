@@ -3,9 +3,15 @@
 ZOLA_VERSION = v0.21.0
 ZOLA_URL = https://github.com/getzola/zola/releases/download/$(ZOLA_VERSION)/zola-$(ZOLA_VERSION)-x86_64-unknown-linux-gnu.tar.gz
 ZOLA_BIN = ./zola
+BASE_URL ?=
+ZOLA_BUILD_FLAGS = --minify
+
+ifneq ($(strip $(BASE_URL)),)
+ZOLA_BUILD_FLAGS += --base-url $(BASE_URL)
+endif
 
 build: install
-	@$(ZOLA_BIN) build --minify
+	@$(ZOLA_BIN) build $(ZOLA_BUILD_FLAGS)
 
 install:
 	@echo "Installing Zola $(ZOLA_VERSION)..."
