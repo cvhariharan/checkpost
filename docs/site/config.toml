@@ -1,6 +1,6 @@
 base_url = "/"
 title = "checkpost"
-description = "An osquery manager for enrollment, schedules, policies, results, and alerts."
+description = "An open-source osquery manager."
 compile_sass = false
 build_search_index = false
 generate_feeds = false
