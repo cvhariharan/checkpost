@@ -8,3 +8,15 @@ minify_html = true
 
 [extra]
 github_url = "https://github.com/cvhariharan/checkpost"
+
+# Screenshots rendered by the templates/partials/screenshots.html carousel.
+# `src` is resolved with get_url(); images live under static/screenshots/.
+screenshots = [
+    { src = "screenshots/inventory.png", caption = "Fleet inventory", alt = "Checkpost inventory listing enrolled hosts with status, owner, and platform" },
+    { src = "screenshots/host-details.png", caption = "Host details", alt = "Checkpost host detail page showing owner, group, and live device metrics" },
+    { src = "screenshots/host-policies.png", caption = "Host compliance", alt = "Checkpost host policy results showing passing and failing posture checks for one machine" },
+    { src = "screenshots/policies.png", caption = "Compliance policies", alt = "Checkpost policies page with passing and failing posture checks per platform" },
+    { src = "screenshots/schedules.png", caption = "Scheduled queries", alt = "Checkpost scheduled query list with descriptions" },
+    { src = "screenshots/query-results.png", caption = "Query results", alt = "Checkpost scheduled query results showing collected Linux package inventory" },
+    { src = "screenshots/alerts.png", caption = "Alerting", alt = "Checkpost alert rules with severity and delivery targets" },
+]

@@ -1,0 +1,254 @@
+{% if config.extra.screenshots %}
+<section id="screenshots" class="section shots">
+    <div class="container">
+        <h2>See it in action</h2>
+        <p class="section-intro">
+            A tour of the dashboard
+        </p>
+
+        <div class="shots-carousel" data-shots>
+            <ul class="shots-track" data-shots-track>
+                {% for shot in config.extra.screenshots %}
+                <li class="shots-slide">
+                    <figure class="shots-frame">
+                        <div class="shots-bar" aria-hidden="true">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <img
+                            src="{{ get_url(path=shot.src) }}"
+                            alt="{{ shot.alt }}"
+                            width="1600"
+                            height="861"
+                            loading="lazy"
+                            decoding="async"
+                        />
+                    </figure>
+                    <p class="shots-caption">{{ shot.caption }}</p>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <div class="shots-controls">
+                <button
+                    type="button"
+                    class="button outline icon shots-arrow"
+                    data-shots-prev
+                    aria-label="Previous screenshot"
+                >
+                    &lsaquo;
+                </button>
+                <div class="shots-dots" data-shots-dots role="tablist">
+                    {% for shot in config.extra.screenshots %}
+                    <button
+                        type="button"
+                        class="shots-dot"
+                        data-shots-dot="{{ loop.index0 }}"
+                        role="tab"
+                        aria-label="Show {{ shot.caption }}"
+                    ></button>
+                    {% endfor %}
+                </div>
+                <button
+                    type="button"
+                    class="button outline icon shots-arrow"
+                    data-shots-next
+                    aria-label="Next screenshot"
+                >
+                    &rsaquo;
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .shots-carousel {
+            margin-block-start: var(--space-8);
+        }
+
+        .shots-track {
+            display: flex;
+            gap: var(--space-6);
+            margin: 0;
+            padding: var(--space-1) var(--space-1) var(--space-2);
+            list-style: none;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scroll-behavior: smooth;
+            scrollbar-width: none;
+        }
+
+        .shots-track::-webkit-scrollbar {
+            display: none;
+        }
+
+        .shots-slide {
+            position: relative;
+            flex: 0 0 100%;
+            scroll-snap-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .shots-frame {
+            width: 100%;
+            margin: 0;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-large);
+            background: var(--card);
+            overflow: hidden;
+            box-shadow:
+                0 1px 2px rgb(from var(--foreground) r g b / 0.05),
+                0 18px 40px -20px rgb(from var(--foreground) r g b / 0.28);
+        }
+
+        .shots-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--secondary);
+        }
+
+        .shots-bar span {
+            width: 0.6rem;
+            height: 0.6rem;
+            border-radius: var(--radius-full);
+            background: rgb(from var(--muted-foreground) r g b / 0.35);
+        }
+
+        .shots-frame img {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1600 / 861;
+            object-fit: cover;
+            object-position: top center;
+            background: var(--background);
+        }
+
+        .shots-caption {
+            margin: 0;
+            color: var(--muted-foreground);
+            font-size: var(--text-6);
+            font-weight: var(--font-medium);
+        }
+
+        .shots-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-4);
+            margin-block-start: var(--space-6);
+        }
+
+        .shots-arrow {
+            font-size: 1.4rem;
+            line-height: 1;
+        }
+
+        .shots-dots {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .shots-dot {
+            width: 0.55rem;
+            height: 0.55rem;
+            padding: 0;
+            border: 0;
+            border-radius: var(--radius-full);
+            background: rgb(from var(--foreground) r g b / 0.18);
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .shots-dot:hover {
+            background: rgb(from var(--foreground) r g b / 0.35);
+        }
+
+        .shots-dot[aria-selected="true"] {
+            background: var(--primary);
+        }
+    </style>
+
+    <script>
+        (function () {
+            var root = document.querySelector("[data-shots]");
+            if (!root) return;
+            var track = root.querySelector("[data-shots-track]");
+            var slides = Array.prototype.slice.call(track.children);
+            var dots = Array.prototype.slice.call(
+                root.querySelectorAll("[data-shots-dot]"),
+            );
+            var prev = root.querySelector("[data-shots-prev]");
+            var next = root.querySelector("[data-shots-next]");
+            if (slides.length < 2) {
+                root.querySelector(".shots-controls").style.display = "none";
+                return;
+            }
+            var base = slides[0].offsetLeft;
+            var current = 0;
+
+            function setActive(i) {
+                current = Math.max(0, Math.min(slides.length - 1, i));
+                dots.forEach(function (d, idx) {
+                    d.setAttribute(
+                        "aria-selected",
+                        idx === current ? "true" : "false",
+                    );
+                });
+            }
+
+            function go(i) {
+                if (i < 0) i = slides.length - 1;
+                if (i > slides.length - 1) i = 0;
+                setActive(i);
+                track.scrollTo({
+                    left: slides[i].offsetLeft - base,
+                    behavior: "smooth",
+                });
+            }
+
+            prev.addEventListener("click", function () {
+                go(current - 1);
+            });
+            next.addEventListener("click", function () {
+                go(current + 1);
+            });
+            dots.forEach(function (d, idx) {
+                d.addEventListener("click", function () {
+                    go(idx);
+                });
+            });
+
+            var raf;
+            track.addEventListener("scroll", function () {
+                cancelAnimationFrame(raf);
+                raf = requestAnimationFrame(function () {
+                    var pos = track.scrollLeft + base;
+                    var nearest = 0,
+                        dist = Infinity;
+                    slides.forEach(function (s, idx) {
+                        var d = Math.abs(s.offsetLeft - pos);
+                        if (d < dist) {
+                            dist = d;
+                            nearest = idx;
+                        }
+                    });
+                    setActive(nearest);
+                });
+            });
+
+            window.addEventListener("resize", function () {
+                base = slides[0].offsetLeft;
+            });
+
+            setActive(0);
+        })();
+    </script>
+</section>
+{% endif %}
