@@ -35,13 +35,24 @@ The system is read-only by design: Checkpost only observes endpoints and doesn't
 
 ## Quick start
 
-Requires Docker. Starts Checkpost + Postgres over HTTPS:
+Requires Docker. Starts Checkpost + Postgres:
 
 ```sh
 docker compose up
 ```
 
-Open https://localhost:1323 and log in with the default credentials (`checkpost_admin` / `checkpost_password`). Enrollment key defaults to `secret-key`.
+Open http://localhost:1323 and log in with the default credentials (`checkpost_admin` / `checkpost_password`). Enrollment key defaults to `secret-key`.
+
+### TLS
+
+The default Compose configuration serves Checkpost over HTTP. Osquery agents require an HTTPS endpoint, so enable TLS before enrolling agents.
+
+Choose one of these options:
+
+- Enable Checkpost's built-in TLS and mount the certificate and private key into the container. Set `CHECKPOST_APP__USE_TLS=true`, configure `CHECKPOST_APP__HTTP_TLS_CERT` and `CHECKPOST_APP__HTTP_TLS_KEY`, and set `CHECKPOST_APP__ROOT_URL` to the HTTPS URL agents will use.
+- Put Checkpost behind a TLS-terminating reverse proxy such as Caddy. Set `CHECKPOST_APP__ROOT_URL` to the proxy's public HTTPS URL.
+
+The commented Caddy service in `docker-compose.yml` shows a minimal reverse-proxy setup. Replace `checkpost.example.com` with a domain that resolves to the Docker host, update `CHECKPOST_APP__ROOT_URL` to match, and uncomment the Caddy service and volumes. Caddy will obtain and renew a publicly trusted certificate automatically.
 
 ### Configuration
 

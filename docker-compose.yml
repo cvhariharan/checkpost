@@ -1,16 +1,12 @@
 services:
   checkpost:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/cvhariharan/checkpost:unstable
     restart: unless-stopped
     ports:
       - "1323:1323"
     environment:
-      - CHECKPOST_APP__ROOT_URL=https://localhost:1323
-      - CHECKPOST_APP__USE_TLS=true
-      - CHECKPOST_APP__HTTP_TLS_CERT=/etc/checkpost/tls/server_cert.pem
-      - CHECKPOST_APP__HTTP_TLS_KEY=/etc/checkpost/tls/server_key.pem
+      - CHECKPOST_APP__ROOT_URL=http://localhost:1323
+      - CHECKPOST_APP__USE_TLS=false
       - CHECKPOST_APP__ENROLLMENT_KEY=secret-key
       - CHECKPOST_DB__HOST=postgres
       - CHECKPOST_DB__PORT=5432
@@ -38,6 +34,22 @@ services:
         aliases:
           - checkpost
 
+  # Uncomment this service after pointing checkpost.example.com to this host.
+  # Also set CHECKPOST_APP__ROOT_URL=https://checkpost.example.com above.
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   restart: unless-stopped
+  #   command: caddy reverse-proxy --from https://checkpost.example.com --to checkpost:1323
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - caddy-data:/data
+  #     - caddy-config:/config
+  #   depends_on:
+  #     - checkpost
+
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
@@ -59,3 +71,6 @@ services:
 
 volumes:
   checkpost-db-data:
+  # Uncomment when enabling the Caddy service.
+  # caddy-data:
+  # caddy-config:
