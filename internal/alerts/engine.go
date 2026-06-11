@@ -15,12 +15,11 @@ const tickInterval = 30 * time.Second
 
 // Store is the subset of repo access the engine needs.
 type Store interface {
-	ListDueAlertRules(ctx context.Context) ([]repo.AlertRule, error)
+	ClaimDueAlertRules(ctx context.Context) ([]repo.AlertRule, error)
 	ListTargetsForRule(ctx context.Context, ruleID int64) ([]repo.AlertTarget, error)
 	ListAlertStateByRule(ctx context.Context, ruleID int64) ([]repo.AlertState, error)
 	UpsertAlertState(ctx context.Context, arg repo.UpsertAlertStateParams) error
 	DeleteAlertState(ctx context.Context, arg repo.DeleteAlertStateParams) error
-	UpdateAlertRuleEvaluatedAt(ctx context.Context, id int64) error
 }
 
 type Engine struct {
@@ -77,7 +76,11 @@ func (e *Engine) run(ctx context.Context) {
 }
 
 func (e *Engine) tick(ctx context.Context) error {
-	rules, err := e.store.ListDueAlertRules(ctx)
+	// ClaimDueAlertRules atomically bumps last_evaluated_at as it selects, so a
+	// rule is claimed by at most one instance per interval. The trade-off is that
+	// a rule is marked evaluated before evaluateRule runs: a failed evaluation is
+	// not retried until the next interval rather than on the next tick.
+	rules, err := e.store.ClaimDueAlertRules(ctx)
 	if err != nil {
 		return err
 	}
@@ -101,7 +104,7 @@ func (e *Engine) evaluateRule(ctx context.Context, rule repo.AlertRule) error {
 
 	matches, err := source.Evaluate(ctx, rule.Params)
 	if err != nil {
-		return err // retried next tick; last_evaluated_at untouched
+		return err
 	}
 	current := make(map[string]Alert, len(matches))
 	for _, a := range matches {
@@ -185,7 +188,7 @@ func (e *Engine) evaluateRule(ctx context.Context, rule repo.AlertRule) error {
 		e.dispatch(ctx, rule, targets, EventResolved, resolved)
 	}
 
-	return e.store.UpdateAlertRuleEvaluatedAt(ctx, rule.ID)
+	return nil
 }
 
 // dispatch groups alerts by host label and sends one delivery per host × target.

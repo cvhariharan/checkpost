@@ -54,14 +54,13 @@ FROM alert_rules
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
 
--- name: ListDueAlertRules :many
-SELECT * FROM alert_rules
+-- name: ClaimDueAlertRules :many
+UPDATE alert_rules
+SET last_evaluated_at = now()
 WHERE enabled = true
   AND (last_evaluated_at IS NULL
-       OR now() - last_evaluated_at >= make_interval(secs => evaluation_interval_seconds));
-
--- name: UpdateAlertRuleEvaluatedAt :exec
-UPDATE alert_rules SET last_evaluated_at = now() WHERE id = $1;
+       OR now() - last_evaluated_at >= make_interval(secs => evaluation_interval_seconds))
+RETURNING *;
 
 -- name: CreateAlertRuleTarget :exec
 INSERT INTO alert_rule_targets (rule_id, target_id) VALUES ($1, $2)
