@@ -1,0 +1,115 @@
+version: 2
+
+project_name: checkpost
+
+before:
+  hooks:
+    - go mod tidy
+    # Build the embedded frontend. Version metadata is served at runtime by the
+    # /info endpoint (from the binary's ldflags), so no build-time injection here.
+    - sh -c "cd web && npm ci"
+    - sh -c "cd web && npm run build"
+
+builds:
+  - id: checkpost
+    main: ./cmd/checkpost
+    binary: checkpost
+    # CGO is required: the results engine links DuckDB's static library.
+    env:
+      - CGO_ENABLED=1
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    overrides:
+      # arm64 is cross-compiled from the amd64 runner using the GNU
+      # aarch64 toolchain, whose ABI matches DuckDB's prebuilt static lib.
+      - goos: linux
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=aarch64-linux-gnu-gcc
+          - CXX=aarch64-linux-gnu-g++
+
+archives:
+  - id: checkpost
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+dockers:
+  - image_templates:
+      - "ghcr.io/cvhariharan/checkpost:{{ .Version }}-amd64"
+    use: buildx
+    dockerfile: Dockerfile.goreleaser
+    extra_files:
+      - config.toml.example
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source=https://github.com/cvhariharan/checkpost"
+    goos: linux
+    goarch: amd64
+
+  - image_templates:
+      - "ghcr.io/cvhariharan/checkpost:{{ .Version }}-arm64"
+    use: buildx
+    dockerfile: Dockerfile.goreleaser
+    extra_files:
+      - config.toml.example
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source=https://github.com/cvhariharan/checkpost"
+    goos: linux
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/cvhariharan/checkpost:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/cvhariharan/checkpost:{{ .Version }}-amd64"
+      - "ghcr.io/cvhariharan/checkpost:{{ .Version }}-arm64"
+
+  # Stable releases get :latest; pre-releases (v0.1.0-beta.0) get :unstable.
+  - name_template: "ghcr.io/cvhariharan/checkpost:{{ if .Prerelease }}unstable{{ else }}latest{{ end }}"
+    image_templates:
+      - "ghcr.io/cvhariharan/checkpost:{{ .Version }}-amd64"
+      - "ghcr.io/cvhariharan/checkpost:{{ .Version }}-arm64"
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-alpha"
+
+release:
+  # Tags like v0.1.0-beta.0 / -alpha / -rc are marked as GitHub pre-releases.
+  prerelease: auto
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "^wip:"
+      - "^Merge "

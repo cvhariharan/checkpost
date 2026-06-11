@@ -1,9 +1,11 @@
-# Checkpost developer tasks. Run `make` (or `make help`) to list targets.
-
 BINARY      := checkpost
 COMPOSE_DEV := docker compose -f dev/docker-compose.yml
 
-# Inputs that, when changed, should trigger a rebuild.
+VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE        ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS     := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+
 WEB_DIST    := web/dist/index.html
 WEB_STAMP   := web/node_modules/.install-stamp
 WEB_SRC     := $(shell find web/src -type f) web/package.json web/svelte.config.js web/vite.config.js web/tsconfig.json
@@ -11,37 +13,34 @@ GO_SRC      := $(shell find . -type f -name '*.go' -not -path './web/node_module
 
 .PHONY: build build-go web dev dev-down up down clean
 
-build: $(BINARY) ## Build the frontend + checkpost binary (needs CGO toolchain; see dev/README.md)
+build: $(BINARY)
 
-web: $(WEB_DIST) ## Build the frontend bundle (embedded into the binary)
+web: $(WEB_DIST)
 
-build-go: ## Force-build only the Go binary (assumes web/dist already built)
-	CGO_ENABLED=1 go build -o $(BINARY) ./cmd/checkpost
+build-go:
+	CGO_ENABLED=1 go build -ldflags '$(LDFLAGS)' -o $(BINARY) ./cmd/checkpost
 
-# Install node deps only when the manifest/lockfile change.
 $(WEB_STAMP): web/package.json web/package-lock.json
 	cd web && npm install
 	@touch $@
 
-# Rebuild the frontend bundle only when its sources or deps change.
 $(WEB_DIST): $(WEB_SRC) $(WEB_STAMP)
 	cd web && npm run build
 
-# Rebuild the binary only when Go sources, modules, or the embedded bundle change.
 $(BINARY): $(GO_SRC) go.mod go.sum $(WEB_DIST)
-	CGO_ENABLED=1 go build -o $@ ./cmd/checkpost
+	CGO_ENABLED=1 go build -ldflags '$(LDFLAGS)' -o $@ ./cmd/checkpost
 
-dev: ## Start the full dev stack (checkpost, postgres, dex, mailhog, osquery agents)
+dev:
 	$(COMPOSE_DEV) up --build -d
 
-dev-down: ## Stop the dev stack and remove its volumes
+dev-down:
 	$(COMPOSE_DEV) down -v
 
-up: ## Quick start: checkpost + postgres over HTTPS
+up:
 	docker compose up --build
 
-down: ## Stop the quick-start stack
+down:
 	docker compose down
 
-clean: ## Remove the built binary and frontend bundle
+clean:
 	rm -rf $(BINARY) web/dist

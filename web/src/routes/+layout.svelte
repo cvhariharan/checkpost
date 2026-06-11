@@ -2,12 +2,12 @@
   import '@knadh/oat/oat.min.css'
   import '$lib/styles/theme.css'
   import '@knadh/oat/oat.min.js'
-  import type { Component, Snippet } from 'svelte'
+  import { onMount, type Component, type Snippet } from 'svelte'
   import { page } from '$app/state'
   import { goto } from '$app/navigation'
   import Logo from '$lib/components/Logo.svelte'
   import ThemeToggle from '$lib/components/ThemeToggle.svelte'
-  import { logout as apiLogout, type Me } from '$lib/api'
+  import { logout as apiLogout, fetchInfo, type BuildInfo, type Me } from '$lib/api'
   import { canFrom, setMe } from '$lib/auth'
   import Server from '@lucide/svelte/icons/server'
   import Boxes from '@lucide/svelte/icons/boxes'
@@ -29,6 +29,13 @@
   })
 
   const user = $derived(data?.me?.user ?? null)
+
+  let info = $state<BuildInfo | null>(null)
+  onMount(() => {
+    fetchInfo()
+      .then((i) => (info = i))
+      .catch(() => {})
+  })
 
   type NavItem = {
     href: string
@@ -157,6 +164,10 @@
         {/if}
       </nav>
 
+      {#if info}
+        <span class="app-version text-light">{info.version}-{info.commit}</span>
+      {/if}
+
       <footer class="sidebar-footer vstack gap-2">
         {#if user}
           <div class="user-block">
@@ -228,6 +239,15 @@
   .w-full {
     width: 100%;
   }
+  .app-version {
+    display: block;
+    font-size: var(--font-sm, 0.8rem);
+    padding-inline: var(--space-3);
+    padding-block-end: var(--space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .topnav-toggle {
     display: none;
@@ -241,6 +261,10 @@
   /* Sidebar links: vertically center icon + label */
   :global([data-sidebar] nav a) {
     align-items: center;
+  }
+
+  :global([data-sidebar] > nav) {
+    overflow-x: hidden;
   }
 
   /* oat draws a border box on [data-sidebar-toggle]; keep the footer toggle a clean ghost icon */
@@ -279,6 +303,7 @@
     :global([data-sidebar-open] .nav-label),
     :global([data-sidebar-open] .admin-heading),
     :global([data-sidebar-open] .logout-label),
+    :global([data-sidebar-open] .app-version),
     :global([data-sidebar-open] .user-block) {
       display: none;
     }

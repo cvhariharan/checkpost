@@ -151,6 +151,15 @@ func runServer(flags *rootFlags) error {
 	}
 	e.HTTPErrorHandler = h.ErrorHandler
 
+	e.GET("/api/v1/info", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
+			"name":    "checkpost",
+			"version": version,
+			"commit":  commit,
+			"date":    date,
+		})
+	})
+
 	// Public auth routes (no session required).
 	e.POST("/login", h.HandleLogin)
 	e.POST("/logout", h.HandleLogout)

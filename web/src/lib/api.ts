@@ -281,6 +281,17 @@ export function fetchOsqueryBootstrapProfile() {
   return fetch('/bootstrap').then((r) => handleResponse<OsqueryBootstrapProfile>(r))
 }
 
+export type BuildInfo = {
+  name: string
+  version: string
+  commit: string
+  date: string
+}
+
+export function fetchInfo() {
+  return fetch(`${BASE_URL}/info`).then((r) => handleResponse<BuildInfo>(r))
+}
+
 // Schedules
 export function fetchSchedules(opts: PageOpts & { query?: string } = {}) {
   const { page = 1, countPerPage = 10, query = '' } = opts

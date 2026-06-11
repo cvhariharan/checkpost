@@ -1,0 +1,14 @@
+FROM debian:trixie-slim
+
+WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY checkpost /usr/local/bin/checkpost
+COPY config.toml.example /etc/checkpost/config.toml
+
+EXPOSE 1323
+
+ENTRYPOINT ["checkpost"]
+CMD ["server", "--config", "/etc/checkpost/config.toml"]
