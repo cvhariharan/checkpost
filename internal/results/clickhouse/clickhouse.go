@@ -5,13 +5,16 @@ package clickhouse
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync/atomic"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 )
@@ -21,6 +24,18 @@ const (
 	maxBatch      = 1000
 	flushInterval = 5 * time.Second
 )
+
+// SchemaStore records observed columns into query_schemas so the reader can
+// resolve a schedule's columns; this lets ClickHouse serve reads when Parquet
+// (the usual recorder) is disabled. repo.Store satisfies it.
+type SchemaStore interface {
+	UpsertQuerySchema(ctx context.Context, arg repo.UpsertQuerySchemaParams) (repo.QuerySchema, error)
+}
+
+type schemaKey struct {
+	scheduleUUID uuid.UUID
+	sqlVersion   int32
+}
 
 type row struct {
 	scheduleUUID uuid.UUID
@@ -42,11 +57,17 @@ type Sink struct {
 	done    chan struct{}
 	logger  *slog.Logger
 	dropped atomic.Uint64
+
+	schema SchemaStore
+	// seen tracks already-recorded columns per bucket; touched only by run(), so
+	// it needs no synchronization.
+	seen map[schemaKey]map[string]struct{}
 }
 
 // New connects to ClickHouse, ensures the results table exists, and starts the
 // batch inserter. table defaults to "query_results"; ttlDays > 0 sets a TTL.
-func New(dsn, table string, ttlDays int, logger *slog.Logger) (*Sink, error) {
+// schema records observed columns into query_schemas (nil disables recording).
+func New(dsn, table string, ttlDays int, schema SchemaStore, logger *slog.Logger) (*Sink, error) {
 	if table == "" {
 		table = "query_results"
 	}
@@ -76,6 +97,8 @@ func New(dsn, table string, ttlDays int, logger *slog.Logger) (*Sink, error) {
 		in:     make(chan row, queueSize),
 		done:   make(chan struct{}),
 		logger: logger.WithGroup("results.clickhouse"),
+		schema: schema,
+		seen:   make(map[schemaKey]map[string]struct{}),
 	}
 	go s.run()
 	return s, nil
@@ -126,6 +149,7 @@ func (s *Sink) run() {
 		if len(buf) == 0 {
 			return
 		}
+		s.recordSchema(buf)
 		if err := s.insert(buf); err != nil {
 			s.logger.Error("insert batch", "rows", len(buf), "error", err)
 		}
@@ -173,7 +197,79 @@ func (s *Sink) insert(rows []row) error {
 	return batch.Send()
 }
 
+// recordSchema upserts columns in buf not yet seen for their (schedule,
+// sql_version). The merge is cumulative and idempotent across instances; seen
+// advances only on success, so failures retry on the next flush.
+func (s *Sink) recordSchema(rows []row) {
+	if s.schema == nil {
+		return
+	}
+	fresh := make(map[schemaKey]map[string]struct{})
+	for _, r := range rows {
+		key := schemaKey{scheduleUUID: r.scheduleUUID, sqlVersion: r.sqlVersion}
+		known := s.seen[key]
+		for col := range r.columns {
+			if col == "" {
+				continue
+			}
+			if _, ok := known[col]; ok {
+				continue
+			}
+			cols := fresh[key]
+			if cols == nil {
+				cols = make(map[string]struct{})
+				fresh[key] = cols
+			}
+			cols[col] = struct{}{}
+		}
+	}
+	if len(fresh) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for key, cols := range fresh {
+		observed := make([]string, 0, len(cols))
+		for col := range cols {
+			observed = append(observed, col)
+		}
+		sort.Strings(observed)
+		raw, err := json.Marshal(observed)
+		if err != nil {
+			s.logger.Warn("encode query schema columns", "error", err)
+			continue
+		}
+		if _, err := s.schema.UpsertQuerySchema(ctx, repo.UpsertQuerySchemaParams{
+			ScheduleUuid: key.scheduleUUID,
+			SqlVersion:   key.sqlVersion,
+			Columns:      raw,
+		}); err != nil {
+			s.logger.Warn("record query schema", "schedule_uuid", key.scheduleUUID, "error", err)
+			continue
+		}
+		seen := s.seen[key]
+		if seen == nil {
+			seen = make(map[string]struct{})
+			s.seen[key] = seen
+		}
+		for col := range cols {
+			seen[col] = struct{}{}
+		}
+	}
+}
+
+// ensureTable probes for the table first (needs no DDL) and creates it only
+// when missing, so deployments where the user lacks DDL still work.
 func ensureTable(ctx context.Context, conn driver.Conn, table string, ttlDays int) error {
+	exists, err := tableExists(ctx, conn, table)
+	if err != nil {
+		return fmt.Errorf("check table exists: %w", err)
+	}
+	if exists {
+		return nil
+	}
+
 	ttl := ""
 	if ttlDays > 0 {
 		ttl = fmt.Sprintf("\nTTL toDateTime(unix_time) + INTERVAL %d DAY", ttlDays)
@@ -192,5 +288,18 @@ func ensureTable(ctx context.Context, conn driver.Conn, table string, ttlDays in
 ) ENGINE = MergeTree
 PARTITION BY (schedule_uuid, toYYYYMM(unix_time))
 ORDER BY (schedule_uuid, sql_version, node_id, unix_time)%s`, table, ttl)
-	return conn.Exec(ctx, ddl)
+	if err := conn.Exec(ctx, ddl); err != nil {
+		return fmt.Errorf("create table %s (user may lack DDL permission; create the table out of band): %w", table, err)
+	}
+	return nil
+}
+
+// tableExists checks via EXISTS, which needs only read access. table may be
+// qualified as db.name.
+func tableExists(ctx context.Context, conn driver.Conn, table string) (bool, error) {
+	var n uint8
+	if err := conn.QueryRow(ctx, "EXISTS TABLE "+table).Scan(&n); err != nil {
+		return false, err
+	}
+	return n == 1, nil
 }

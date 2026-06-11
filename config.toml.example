@@ -73,9 +73,19 @@ password = 'checkpost'
 port = 5432
 user = 'checkpost'
 
+[results]
+# Which backend powers the in-app results browser. Both parquet
+# and clickhouse can serve reads; ndjson is write-only. The named backend must
+# be enabled, otherwise startup fails.
+#   ''           auto: prefer parquet, else clickhouse
+#   'parquet'    local Parquet+DuckDB
+#   'clickhouse' ClickHouse (for stateless/multi-instance deploys)
+reader = ''
+
 [results.parquet]
-# Local Parquet+DuckDB backend. Powers the in-app results browser. Disable for
-# external-only logging (the browser then reports browsing as unavailable).
+# Local Parquet+DuckDB backend. Serves the in-app results browser when selected
+# by results.reader. With no reader-capable backend enabled, the
+# browser reports browsing as unavailable.
 enabled = true
 # Root directory where scheduled-query Parquet files are written.
 # An absolute path is recommended in production.

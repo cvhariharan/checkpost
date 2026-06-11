@@ -51,13 +51,18 @@
     lastSyncedQuery = query
   })
   const templateColumns = $derived(`220px 180px repeat(${columns.length}, 220px)`)
+  const bodyHeight = $derived(headerHeight + rows.length * rowHeight)
+  // Clamp the scroll offset to the real scrollable range. When the result set
+  // shrinks (e.g. after a search), the browser pins the element's scrollTop but
+  // our tracked value can lag; an un-clamped stale offset pushes startIndex past
+  // rows.length, leaving visibleRows empty and the body blank.
+  const clampedScroll = $derived(Math.min(scrollTop, Math.max(0, bodyHeight - viewportHeight)))
   const startIndex = $derived(
-    Math.max(0, Math.floor(Math.max(0, scrollTop - headerHeight) / rowHeight) - overscan)
+    Math.max(0, Math.floor(Math.max(0, clampedScroll - headerHeight) / rowHeight) - overscan)
   )
   const visibleCount = $derived(Math.ceil(viewportHeight / rowHeight) + overscan * 2)
   const endIndex = $derived(Math.min(rows.length, startIndex + visibleCount))
   const visibleRows = $derived(rows.slice(startIndex, endIndex))
-  const bodyHeight = $derived(headerHeight + rows.length * rowHeight)
   const rangeStart = $derived(total === 0 ? 0 : (page - 1) * countPerPage + 1)
   const rangeEnd = $derived(Math.min(page * countPerPage, total))
   const queryError = $derived(validateQuery(draftQuery))

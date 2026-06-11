@@ -300,11 +300,10 @@ func runServer(flags *rootFlags) error {
 }
 
 // buildResultsSink fans the configured backends into a MultiSink and returns
-// the frontend reader (the parquet backend, or nil when it's disabled). The
-// parquet backend is required; external backends default to best-effort.
+// the reader that powers the in-app results browser, chosen per rc.Reader
 func buildResultsSink(rc config.ResultsConfig, store repo.Store, logger *slog.Logger) (results.Sink, results.Reader, error) {
 	sink := results.NewMultiSink(logger)
-	var reader results.Reader
+	var parquetReader, clickhouseReader results.Reader
 
 	if rc.Parquet.Enabled {
 		backend, err := parquet.New(rc.Parquet.Root, rc.Parquet.DuckDBPath, store, logger)
@@ -312,7 +311,7 @@ func buildResultsSink(rc config.ResultsConfig, store repo.Store, logger *slog.Lo
 			return nil, nil, fmt.Errorf("could not initialize parquet backend: %w", err)
 		}
 		sink.Add(backend, true)
-		reader = backend
+		parquetReader = backend
 	}
 	if rc.NDJSON.Enabled {
 		s, err := ndjson.New(rc.NDJSON.Path, logger)
@@ -322,16 +321,50 @@ func buildResultsSink(rc config.ResultsConfig, store repo.Store, logger *slog.Lo
 		sink.Add(s, rc.NDJSON.Required)
 	}
 	if rc.ClickHouse.Enabled {
-		s, err := clickhouse.New(rc.ClickHouse.DSN, rc.ClickHouse.Table, rc.ClickHouse.TTLDays, logger)
+		s, err := clickhouse.New(rc.ClickHouse.DSN, rc.ClickHouse.Table, rc.ClickHouse.TTLDays, store, logger)
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not initialize clickhouse backend: %w", err)
 		}
 		sink.Add(s, rc.ClickHouse.Required)
+		clickhouseReader = s
 	}
+
+	reader, err := selectReader(rc.Reader, parquetReader, clickhouseReader)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if sink.Len() == 0 {
 		logger.Warn("no result backends configured; scheduled-query results will be discarded")
 	}
+	if reader == nil {
+		logger.Warn("no reader-capable result backend enabled; the in-app results browser is unavailable")
+	}
 	return sink, reader, nil
+}
+
+// selectReader resolves the reader choice against the enabled reader-capable
+// backends. Empty auto-selects (parquet, then clickhouse)
+func selectReader(choice string, parquetReader, clickhouseReader results.Reader) (results.Reader, error) {
+	switch choice {
+	case "parquet":
+		if parquetReader == nil {
+			return nil, fmt.Errorf("results.reader is %q but the parquet backend is not enabled", choice)
+		}
+		return parquetReader, nil
+	case "clickhouse":
+		if clickhouseReader == nil {
+			return nil, fmt.Errorf("results.reader is %q but the clickhouse backend is not enabled", choice)
+		}
+		return clickhouseReader, nil
+	case "":
+		if parquetReader != nil {
+			return parquetReader, nil
+		}
+		return clickhouseReader, nil // may be nil when neither is enabled
+	default:
+		return nil, fmt.Errorf("unknown results.reader %q (want parquet or clickhouse)", choice)
+	}
 }
 
 func runDBMigration(db *sql.DB) error {

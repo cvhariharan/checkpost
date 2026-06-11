@@ -168,6 +168,20 @@ func TestConfigValidateResults(t *testing.T) {
 				cfg.ResultsConfig.NDJSON.Path = ""
 			},
 		},
+		{
+			name: "invalid reader backend",
+			mutate: func(cfg *Config) {
+				cfg.ResultsConfig.Reader = "ndjson"
+			},
+			wantErr: "Config.ResultsConfig.Reader",
+		},
+		{
+			// oneof passes; enabled-ness is enforced at wiring time, not here.
+			name: "clickhouse reader accepted by validation",
+			mutate: func(cfg *Config) {
+				cfg.ResultsConfig.Reader = "clickhouse"
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()

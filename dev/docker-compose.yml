@@ -34,9 +34,10 @@ services:
       - CHECKPOST_APP__HTTP_TLS_KEY=/etc/checkpost/tls/server_key.pem
       - CHECKPOST_APP__ENROLLMENT_KEY=secret-key
       - CHECKPOST_APP__POLICY_UPDATE_INTERVAL=5s
-      # Result backends: local parquet (powers the frontend browser) and NDJSON
-      # to stdout (visible via `docker compose logs checkpost`).
+      - CHECKPOST_RESULTS__READER=clickhouse
       - CHECKPOST_RESULTS__PARQUET__ENABLED=true
+      - CHECKPOST_RESULTS__CLICKHOUSE__ENABLED=true
+      - CHECKPOST_RESULTS__CLICKHOUSE__DSN=clickhouse://checkpost:checkpost@clickhouse:9000/checkpost
       - CHECKPOST_RESULTS__NDJSON__ENABLED=false
       - CHECKPOST_RESULTS__NDJSON__PATH=stdout
       # SSO via dex. The canonical issuer/token host (dex:5556) is reachable from
@@ -77,6 +78,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
       dex:
         condition: service_healthy
       mailhog:
@@ -104,6 +107,32 @@ services:
       - type: volume
         source: checkpost-db-data
         target: /var/lib/postgresql
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    restart: unless-stopped
+    ports:
+      - "8123:8123" # HTTP
+      - "9000:9000" # native protocol (used by checkpost)
+    environment:
+      - CLICKHOUSE_DB=checkpost
+      - CLICKHOUSE_USER=checkpost
+      - CLICKHOUSE_PASSWORD=checkpost
+      # Lets the checkpost user run the table DDL it issues on startup.
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user checkpost --password checkpost --query 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    volumes:
+      - type: volume
+        source: checkpost-clickhouse-data
+        target: /var/lib/clickhouse
 
   dex:
     image: dexidp/dex:v2.44.0-alpine
@@ -153,5 +182,6 @@ services:
 
 volumes:
   checkpost-db-data:
+  checkpost-clickhouse-data:
   osquery-fedora-db:
   osquery-debian-db:

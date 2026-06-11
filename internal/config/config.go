@@ -74,6 +74,10 @@ type DBConfig struct {
 
 // ResultsConfig selects which backends receive scheduled-query results.
 type ResultsConfig struct {
+	// Reader names the backend that powers the in-app results browser. Empty
+	// means auto-select (prefer parquet, then clickhouse). The named backend
+	// must be enabled; ndjson is write-only and cannot be a reader.
+	Reader     string `validate:"omitempty,oneof=parquet clickhouse"`
 	Parquet    ParquetConfig
 	NDJSON     NDJSONConfig
 	ClickHouse ClickHouseConfig

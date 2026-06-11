@@ -87,6 +87,8 @@ type rawDBConfig struct {
 }
 
 type rawResultsConfig struct {
+	Reader string `koanf:"results.reader"`
+
 	ParquetEnabled    bool   `koanf:"results.parquet.enabled"`
 	ParquetRoot       string `koanf:"results.parquet.root"`
 	ParquetDuckDBPath string `koanf:"results.parquet.duckdb_path"`
@@ -204,6 +206,7 @@ func (r rawConfig) toConfig() (Config, error) {
 			Password: r.DBConfig.Password,
 		},
 		ResultsConfig: ResultsConfig{
+			Reader: strings.ToLower(strings.TrimSpace(r.ResultsConfig.Reader)),
 			Parquet: ParquetConfig{
 				Enabled:    r.ResultsConfig.ParquetEnabled,
 				Root:       r.ResultsConfig.ParquetRoot,
