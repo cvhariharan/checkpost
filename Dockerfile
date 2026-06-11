@@ -1,19 +1,37 @@
-FROM node:26-bookworm AS web-builder
+ARG TARGETARCH
+
+FROM --platform=$BUILDPLATFORM node:26-bookworm AS web-builder
 
 WORKDIR /src/web
 COPY web/package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM golang:1.25-trixie AS go-builder
+FROM --platform=$BUILDPLATFORM golang:1.25-trixie AS go-builder-base
 
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+FROM go-builder-base AS go-builder-amd64
+ENV CC=gcc CXX=g++
+
+FROM go-builder-base AS go-builder-arm64
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    && rm -rf /var/lib/apt/lists/*
+ENV CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
+
+FROM go-builder-${TARGETARCH} AS go-builder
+
+ARG TARGETARCH
+
 COPY . .
 COPY --from=web-builder /src/web/dist ./web/dist
-RUN CGO_ENABLED=1 GOOS=linux go build -o /out/checkpost ./cmd/checkpost
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 GOOS=linux GOARCH="$TARGETARCH" go build -o /out/checkpost ./cmd/checkpost
 
 FROM debian:trixie-slim
 
