@@ -22,6 +22,8 @@ Checkpost is an osquery manager that implements the osquery remote configuration
 
 The system is read-only by design: Checkpost only observes endpoints and doesn't make any changes. Use it to automate posture checks, audit endpoint configurations, investigate hosts with ad-hoc queries, and scan files with YARA.
 
+[Documentation](https://checkpost.dev/docs)
+
 ## Features
 
 - **Inventory**: track hosts, owners, asset IDs, groups, and last-seen state.

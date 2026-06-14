@@ -29,7 +29,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
 
       - name: Setup Pages
@@ -39,6 +38,16 @@ jobs:
       - name: Build site
         working-directory: ./docs/site
         run: make build BASE_URL="${{ steps.pages.outputs.base_url }}"
+
+      - name: Build documentation
+        working-directory: ./docs/docs
+        run: make build
+
+      - name: Add documentation to site
+        run: |
+          rm -rf ./docs/site/public/docs
+          mkdir -p ./docs/site/public/docs
+          cp -a ./docs/docs/site/. ./docs/site/public/docs/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

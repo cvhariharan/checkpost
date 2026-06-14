@@ -1,0 +1,17 @@
+body[data-md-color-scheme="default"]
+  .md-logo
+  img.checkpost-logo--dark,
+body[data-md-color-scheme="slate"]
+  .md-logo
+  img.checkpost-logo--light {
+  display: none;
+}
+
+body[data-md-color-scheme="default"]
+  .md-logo
+  img.checkpost-logo--light,
+body[data-md-color-scheme="slate"]
+  .md-logo
+  img.checkpost-logo--dark {
+  display: block;
+}
