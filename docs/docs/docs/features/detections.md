@@ -39,6 +39,8 @@ Select a schedule to browse collected rows. Search and pagination run against th
 
 The **Scans** tab starts file scans and shows their targets and matches. Provide one or more paths and rule URLs, then optionally limit the scan to a machine group.
 
+![YARA scans](../assets/images/screenshots/yara-scans.png){ loading=lazy }
+
 **Sources Config** is used to configure osquery `signature_urls`. This is an array of URLs (could be point to a single file or multiple paths using regex), that is used by osquery to constraint what rules are allowed while scanning.
 
 Checkpost sends YARA work through osquery and records the returned matches. It does not quarantine or delete files.
