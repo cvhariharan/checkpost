@@ -96,6 +96,21 @@ select_tarball() {
   fi
 }
 
+relabel_selinux() {
+  command -v selinuxenabled >/dev/null 2>&1 || return 0
+  selinuxenabled || return 0
+
+  if command -v semanage >/dev/null 2>&1; then
+    semanage fcontext -a -t bin_t "${OSQUERY_PREFIX}(/.*)?" 2>/dev/null || true
+  fi
+  if command -v restorecon >/dev/null 2>&1; then
+    restorecon -R "${OSQUERY_PREFIX}" 2>/dev/null || true
+  fi
+  if command -v chcon >/dev/null 2>&1; then
+    chcon -R -t bin_t "${OSQUERY_PREFIX}" 2>/dev/null || true
+  fi
+}
+
 link_binaries() {
   if ! mkdir -p "${BIN_DIR}" 2>/dev/null; then
     echo "Could not create ${BIN_DIR}; skipping convenience symlinks (osqueryd still runs from ${OSQUERY_PREFIX}/bin)."
@@ -135,6 +150,7 @@ install_osquery_if_missing() {
   # The tarball stores files under the build account; osquery refuses to run unless the
   # binary and its parent directories are owned by root (safePermissions check).
   chown -R 0:0 "${OSQUERY_PREFIX}"
+  relabel_selinux
   link_binaries
   mkdir -p /var/osquery /var/log/osquery
 }
@@ -148,6 +164,7 @@ write_checkpost_config() {
 --host_identifier=uuid
 --enroll_secret_path=${SECRET_PATH}
 --tls_hostname=${TLS_HOSTNAME}
+--tls_server_certs=${OSQUERY_PREFIX}/share/osquery/certs/certs.pem
 --enroll_tls_endpoint=/api/v1/osquery/enroll
 --config_plugin=tls
 --config_tls_endpoint=/api/v1/osquery/config
