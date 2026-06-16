@@ -6,7 +6,8 @@ ENROLL_SECRET={{ sh .EnrollmentKey }}
 FLAGS_PATH="/etc/osquery/osquery.flags"
 SECRET_PATH="/etc/osquery/enroll_secret"
 SERVICE_PATH="/etc/systemd/system/osqueryd.service"
-OSQUERY_PREFIX="/opt/osquery"
+OSQUERY_PREFIX="/var/lib/osquery"
+BIN_DIR="/usr/local/bin"
 TARBALL_AMD64_URL={{ sh .LinuxTarballAMD64URL }}
 TARBALL_AMD64_SHA256={{ sh .LinuxTarballAMD64SHA256 }}
 TARBALL_ARM64_URL={{ sh .LinuxTarballARM64URL }}
@@ -95,6 +96,16 @@ select_tarball() {
   fi
 }
 
+link_binaries() {
+  if ! mkdir -p "${BIN_DIR}" 2>/dev/null; then
+    echo "Could not create ${BIN_DIR}; skipping convenience symlinks (osqueryd still runs from ${OSQUERY_PREFIX}/bin)."
+    return
+  fi
+  ln -sf "${OSQUERY_PREFIX}/bin/osqueryd" "${BIN_DIR}/osqueryd" 2>/dev/null || true
+  ln -sf "${OSQUERY_PREFIX}/bin/osqueryd" "${BIN_DIR}/osqueryi" 2>/dev/null || true
+  ln -sf "${OSQUERY_PREFIX}/bin/osqueryctl" "${BIN_DIR}/osqueryctl" 2>/dev/null || true
+}
+
 install_osquery_if_missing() {
   if [[ -x "${OSQUERY_PREFIX}/bin/osqueryd" ]] || command -v osqueryd >/dev/null 2>&1; then
     echo "osquery is already installed; reconfiguring Checkpost enrollment."
@@ -124,9 +135,7 @@ install_osquery_if_missing() {
   # The tarball stores files under the build account; osquery refuses to run unless the
   # binary and its parent directories are owned by root (safePermissions check).
   chown -R 0:0 "${OSQUERY_PREFIX}"
-  ln -sf "${OSQUERY_PREFIX}/bin/osqueryd" /usr/bin/osqueryd
-  ln -sf "${OSQUERY_PREFIX}/bin/osqueryd" /usr/bin/osqueryi
-  ln -sf "${OSQUERY_PREFIX}/bin/osqueryctl" /usr/bin/osqueryctl
+  link_binaries
   mkdir -p /var/osquery /var/log/osquery
 }
 
