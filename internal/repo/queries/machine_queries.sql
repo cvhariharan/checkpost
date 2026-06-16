@@ -2,9 +2,10 @@
 INSERT INTO machine_query_results (
     uuid,
     node_id,
-    query
+    query,
+    run_id
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4
 )
 RETURNING *;
 

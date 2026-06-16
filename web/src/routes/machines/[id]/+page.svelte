@@ -32,18 +32,13 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import BadgeList from '$lib/components/BadgeList.svelte'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
+  import QueryResultTable from '$lib/components/QueryResultTable.svelte'
   import { canFrom, me } from '$lib/auth'
   import Pencil from '@lucide/svelte/icons/pencil'
   import Save from '@lucide/svelte/icons/save'
   import Play from '@lucide/svelte/icons/play'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
-
-  type ResultView =
-    | { type: 'pending' }
-    | { type: 'empty'; message: string }
-    | { type: 'table'; rows: Record<string, unknown>[]; columns: string[] }
-    | { type: 'fallback'; text: string }
 
   let machine = $state<Machine | null>(null)
   let metrics = $state<NodeMetrics>({})
@@ -55,7 +50,6 @@
   let historyLoading = $state(false)
   let executing = $state(false)
   let error = $state('')
-  let expandedResultRowKey = $state('')
   let currentQueryPage = $state(1)
   let queryPageCount = $state(1)
   let queryTotalCount = $state(0)
@@ -158,7 +152,6 @@
     try {
       const data = await fetchMachineQueries(machineId, { page: targetPage, countPerPage: queryCountPerPage })
       currentQueryPage = targetPage
-      expandedResultRowKey = ''
       setQueryHistory(data)
     } catch (err) {
       error = (err as Error).message || 'Failed to load query history'
@@ -260,102 +253,6 @@
     } finally {
       deletingQuery = false
     }
-  }
-
-  function formatResults(results: unknown): string {
-    if (results === undefined || results === null) return 'Awaiting results...'
-    try {
-      return typeof results === 'string' ? results : JSON.stringify(results, null, 2)
-    } catch {
-      return String(results)
-    }
-  }
-
-  function queryResultView(query: MachineQueryRecord): ResultView {
-    if (query?.results === undefined || query?.results === null) return { type: 'pending' }
-    return resultView(query.results)
-  }
-
-  function resultView(results: unknown): ResultView {
-    const parsed = parseStringResult(results)
-    if (parsed !== results) return resultView(parsed)
-
-    if (Array.isArray(results)) {
-      if (results.length === 0) return { type: 'empty', message: 'No rows returned' }
-      if (results.every(isRowObject)) return tableView(results as Record<string, unknown>[])
-      return { type: 'fallback', text: formatResults(results) }
-    }
-
-    if (isPlainObject(results)) {
-      const obj = results as Record<string, unknown>
-      for (const key of ['rows', 'results', 'data']) {
-        if (Array.isArray(obj[key])) return resultView(obj[key])
-      }
-      if (isRowObject(results)) return tableView([obj])
-      return { type: 'fallback', text: formatResults(results) }
-    }
-
-    return { type: 'fallback', text: formatResults(results) }
-  }
-
-  function tableView(rows: Record<string, unknown>[]): ResultView {
-    const columns = resultColumns(rows)
-    if (columns.length === 0) return { type: 'empty', message: 'Rows returned without columns' }
-    return { type: 'table', rows, columns }
-  }
-
-  function resultColumns(rows: Record<string, unknown>[]): string[] {
-    const seen = new Set<string>()
-    const columns: string[] = []
-    rows.forEach((row) => {
-      Object.keys(row).forEach((column) => {
-        if (!seen.has(column)) {
-          seen.add(column)
-          columns.push(column)
-        }
-      })
-    })
-    return columns
-  }
-
-  function formatCellValue(value: unknown): string {
-    if (value === undefined) return ''
-    if (value === null) return 'null'
-    if (typeof value === 'object') return formatResults(value)
-    return String(value)
-  }
-
-  function resultRowKey(query: MachineQueryRecord, rowIndex: number): string {
-    return `${query?.id || query?.timestamp || query?.query || 'query'}:${rowIndex}`
-  }
-
-  function toggleResultRowByKey(key: string) {
-    expandedResultRowKey = expandedResultRowKey === key ? '' : key
-  }
-
-  function handleResultRowKeydown(event: KeyboardEvent, query: MachineQueryRecord, rowIndex: number) {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    toggleResultRowByKey(resultRowKey(query, rowIndex))
-  }
-
-  function parseStringResult(value: unknown): unknown {
-    if (typeof value !== 'string') return value
-    const trimmed = value.trim()
-    if (!trimmed || !['[', '{'].includes(trimmed[0])) return value
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      return value
-    }
-  }
-
-  function isPlainObject(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-  }
-
-  function isRowObject(value: unknown): boolean {
-    return isPlainObject(value) && Object.values(value).every((cell) => cell === null || typeof cell !== 'object')
   }
 
   function handleTabChange(event: CustomEvent<{ index: number }>) {
@@ -688,57 +585,11 @@
                     {/if}
                   </div>
                 </div>
-                {#if query.error}
-                  <pre class="result-fallback"><code>{query.error}</code></pre>
-                {:else}
-                  {@const result = queryResultView(query)}
-                  {#if result.type === 'pending'}
-                    <p class="text-light result-message">Awaiting results...</p>
-                  {:else if result.type === 'empty'}
-                    <p class="text-light result-message">{result.message}</p>
-                  {:else if result.type === 'table'}
-                    <div class="table query-results-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            {#each result.columns as column}
-                              <th class="result-header">{column}</th>
-                            {/each}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {#each result.rows as row, rowIndex}
-                            {@const rowKey = resultRowKey(query, rowIndex)}
-                            <tr
-                              class="result-row"
-                              class:expanded-result-row={expandedResultRowKey === rowKey}
-                              tabindex="0"
-                              aria-expanded={expandedResultRowKey === rowKey}
-                              title="Click to show full row"
-                              onclick={() => toggleResultRowByKey(rowKey)}
-                              onkeydown={(e) => handleResultRowKeydown(e, query, rowIndex)}
-                            >
-                              {#each result.columns as column}
-                                <td class="result-cell" title={formatCellValue(row[column])}>
-                                  <span class="result-cell-content">{formatCellValue(row[column])}</span>
-                                </td>
-                              {/each}
-                            </tr>
-                            {#if expandedResultRowKey === rowKey}
-                              <tr class="result-row-details">
-                                <td colspan={result.columns.length}>
-                                  <pre class="result-row-json"><code>{formatResults(row)}</code></pre>
-                                </td>
-                              </tr>
-                            {/if}
-                          {/each}
-                        </tbody>
-                      </table>
-                    </div>
-                  {:else}
-                    <pre class="result-fallback"><code>{result.text}</code></pre>
-                  {/if}
-                {/if}
+                <QueryResultTable
+                  results={query.results}
+                  error={query.error}
+                  keyPrefix={String(query.id || query.timestamp || query.query || 'query')}
+                />
               </article>
             {:else}
               <article class="card align-center text-light">No queries executed yet</article>
@@ -776,52 +627,6 @@
     align-items: flex-start;
   }
   .query-text {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .query-results-table {
-    margin-top: var(--space-3, 1rem);
-  }
-  .query-results-table table {
-    width: max-content;
-    min-width: 100%;
-    table-layout: fixed;
-  }
-  .result-header,
-  .result-cell {
-    width: 14rem;
-    min-width: 14rem;
-    max-width: 14rem;
-  }
-  .expanded-result-row {
-    background-color: rgb(from var(--muted) r g b / 0.35);
-  }
-  .result-row {
-    cursor: pointer;
-  }
-  .result-row:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: -2px;
-  }
-  .result-cell {
-    vertical-align: top;
-  }
-  .result-cell-content {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .result-row-json {
-    margin: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-  .result-message {
-    margin-top: var(--space-3, 1rem);
-  }
-  .result-fallback {
-    margin-top: var(--space-3, 1rem);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }

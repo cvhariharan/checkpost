@@ -184,6 +184,34 @@ type MachineQueriesResponse struct {
 	PageCount  int                         `json:"page_count"`
 }
 
+type CreateQueryRunRequest struct {
+	Query     string   `json:"query" validate:"required"`
+	HostIDs   []string `json:"host_ids" validate:"omitempty,dive,uuid"`
+	GroupIDs  []string `json:"group_ids" validate:"omitempty,dive,uuid"`
+	Platforms []string `json:"platforms" validate:"omitempty,dive,oneof=darwin linux posix windows any all"`
+}
+
+type QueryRunsListRequest struct {
+	Page  int `query:"page" validate:"gte=0"`
+	Count int `query:"count_per_page" validate:"gte=0"`
+}
+
+type QueryRunsResponse struct {
+	Runs       []models.QueryRun `json:"runs"`
+	TotalCount int               `json:"total_count"`
+	PageCount  int               `json:"page_count"`
+}
+
+type PreviewQueryTargetsRequest struct {
+	HostIDs   []string `json:"host_ids" validate:"omitempty,dive,uuid"`
+	GroupIDs  []string `json:"group_ids" validate:"omitempty,dive,uuid"`
+	Platforms []string `json:"platforms" validate:"omitempty,dive,oneof=darwin linux posix windows any all"`
+}
+
+type PreviewQueryTargetsResponse struct {
+	HostCount int `json:"host_count"`
+}
+
 type CreateScheduleRequest struct {
 	Query       string   `json:"query" validate:"required"`
 	Description string   `json:"description"`

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { goto } from '$app/navigation'
   import { page } from '$app/state'
   import {
     fetchSchedule,
@@ -63,10 +62,6 @@
     }
   }
 
-  function close() {
-    goto('/schedules')
-  }
-
   function refresh() {
     loadResults(currentPage, query)
   }
@@ -101,7 +96,6 @@
     loading={resultsLoading}
     {query}
     {lastRefreshed}
-    onClose={close}
     onRefresh={refresh}
     onApplyQuery={applyQuery}
     onPageChange={changePage}

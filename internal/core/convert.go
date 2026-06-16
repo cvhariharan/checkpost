@@ -635,6 +635,79 @@ func decodeMachineQueryResults(raw pqtype.NullRawMessage) interface{} {
 	return out
 }
 
+func decodeQueryTargets(raw json.RawMessage) models.QueryTargets {
+	var targets models.QueryTargets
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &targets)
+	}
+	return targets
+}
+
+// resultRowCount reports the number of result rows when the decoded results are
+// a JSON array, otherwise 0.
+func resultRowCount(results interface{}) int {
+	if rows, ok := results.([]interface{}); ok {
+		return len(rows)
+	}
+	return 0
+}
+
+func toModelQueryRunListRow(row repo.ListQueryRunsRow) models.QueryRun {
+	return models.QueryRun{
+		ID:            row.Uuid.String(),
+		Query:         row.Query,
+		Targets:       decodeQueryTargets(row.Targets),
+		HostCount:     int(row.HostCount),
+		PendingCount:  int(row.PendingCount),
+		CompleteCount: int(row.CompleteCount),
+		ErrorCount:    int(row.ErrorCount),
+		CreatedAt:     row.CreatedAt,
+	}
+}
+
+func toModelQueryRunHost(row repo.ListMachineQueryResultsByRunUUIDRow) models.QueryRunHost {
+	timestamp := row.CreatedAt
+	if row.CompletedAt.Valid {
+		timestamp = row.CompletedAt.Time
+	}
+	results := decodeMachineQueryResults(row.Results)
+	return models.QueryRunHost{
+		QueryID:   row.Uuid.String(),
+		NodeUUID:  row.NodeUuid.String(),
+		Hostname:  row.Hostname,
+		Platform:  row.Platform,
+		Status:    row.Status,
+		RowCount:  resultRowCount(results),
+		Results:   results,
+		Error:     row.Error,
+		Timestamp: timestamp,
+	}
+}
+
+func toModelQueryRun(run repo.QueryRun, hostRows []repo.ListMachineQueryResultsByRunUUIDRow) models.QueryRun {
+	out := models.QueryRun{
+		ID:        run.Uuid.String(),
+		Query:     run.Query,
+		Targets:   decodeQueryTargets(run.Targets),
+		HostCount: len(hostRows),
+		CreatedAt: run.CreatedAt,
+		Hosts:     make([]models.QueryRunHost, 0, len(hostRows)),
+	}
+	for _, row := range hostRows {
+		host := toModelQueryRunHost(row)
+		switch host.Status {
+		case "complete":
+			out.CompleteCount++
+		case "error":
+			out.ErrorCount++
+		default:
+			out.PendingCount++
+		}
+		out.Hosts = append(out.Hosts, host)
+	}
+	return out
+}
+
 func toModelAlertTarget(t repo.AlertTarget) models.AlertTarget {
 	return models.AlertTarget{
 		UUID:      t.Uuid.String(),

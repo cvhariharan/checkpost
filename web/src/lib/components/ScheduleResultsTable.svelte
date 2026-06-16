@@ -15,7 +15,6 @@
     loading = false,
     query = '',
     lastRefreshed = '',
-    onClose = () => {},
     onRefresh = () => {},
     onApplyQuery = () => {},
     onPageChange = () => {}
@@ -30,7 +29,6 @@
     loading?: boolean
     query?: string
     lastRefreshed?: string
-    onClose?: () => void
     onRefresh?: () => void
     onApplyQuery?: (query: string) => void
     onPageChange?: (page: number) => void
@@ -101,7 +99,6 @@
     </div>
     <menu class="buttons">
       <li><button type="button" class="small outline" disabled={loading} onclick={onRefresh}>Refresh</button></li>
-      <li><button type="button" class="small outline" onclick={onClose}>Close</button></li>
     </menu>
   </header>
 

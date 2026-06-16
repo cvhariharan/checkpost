@@ -24,6 +24,7 @@ type Store interface {
 	UpdateScheduleTx(ctx context.Context, params UpdateScheduleTxParams) (Schedule, error)
 	CreateAlertRuleTx(ctx context.Context, params CreateAlertRuleTxParams) (AlertRule, error)
 	UpdateAlertRuleTx(ctx context.Context, params UpdateAlertRuleTxParams) (AlertRule, error)
+	CreateQueryRunTx(ctx context.Context, params CreateQueryRunTxParams) (QueryRun, error)
 }
 
 type PostgresStore struct {
@@ -500,6 +501,45 @@ func (s *PostgresStore) UpdateAlertRuleTx(ctx context.Context, params UpdateAler
 		return AlertRule{}, fmt.Errorf("commit update alert rule transaction: %w", err)
 	}
 	return rule, nil
+}
+
+type CreateQueryRunTxParams struct {
+	Run     CreateQueryRunParams
+	NodeIDs []int64
+}
+
+// CreateQueryRunTx inserts the query_run row plus one pending ad-hoc
+// machine_query_results row per targeted node, all in a single transaction.
+func (s *PostgresStore) CreateQueryRunTx(ctx context.Context, params CreateQueryRunTxParams) (QueryRun, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return QueryRun{}, fmt.Errorf("begin create query run transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+	run, err := q.CreateQueryRun(ctx, params.Run)
+	if err != nil {
+		return QueryRun{}, fmt.Errorf("create query run: %w", err)
+	}
+
+	runID := sql.NullInt64{Int64: run.ID, Valid: true}
+	for _, nodeID := range params.NodeIDs {
+		if _, err := q.CreateMachineQueryResult(ctx, CreateMachineQueryResultParams{
+			Uuid:   uuid.New(),
+			NodeID: nodeID,
+			Query:  run.Query,
+			RunID:  runID,
+		}); err != nil {
+			return QueryRun{}, fmt.Errorf("create query run execution: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return QueryRun{}, fmt.Errorf("commit create query run transaction: %w", err)
+	}
+
+	return run, nil
 }
 
 func linkAlertTargetsTx(ctx context.Context, q *Queries, ruleID int64, targetUUIDs []uuid.UUID) error {

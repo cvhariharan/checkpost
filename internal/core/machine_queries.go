@@ -101,6 +101,7 @@ func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryR
 		Uuid:   queryID,
 		NodeID: node.ID,
 		Query:  query,
+		RunID:  sql.NullInt64{},
 	})
 	if err != nil {
 		return models.MachineQueryResult{}, fmt.Errorf("create machine query result: %w", err)

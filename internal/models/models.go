@@ -455,6 +455,48 @@ type MachineQueryResult struct {
 	Error     string      `json:"error,omitempty"`
 }
 
+// QueryTargets is the set of selectors that resolve to the hosts a query run
+// targets. The three selectors are unioned (a host matching any is included).
+type QueryTargets struct {
+	HostIDs   []string `json:"host_ids"`
+	GroupIDs  []string `json:"group_ids"`
+	Platforms []string `json:"platforms"`
+}
+
+// QueryRunRequest is the input for creating a multi-host query run.
+type QueryRunRequest struct {
+	Query         string
+	Targets       QueryTargets
+	CreatedByUUID string
+}
+
+// QueryRunHost is a single host's execution within a query run.
+type QueryRunHost struct {
+	QueryID   string      `json:"query_id"`
+	NodeUUID  string      `json:"node_uuid"`
+	Hostname  string      `json:"hostname"`
+	Platform  string      `json:"platform"`
+	Status    string      `json:"status"`
+	RowCount  int         `json:"row_count"`
+	Results   interface{} `json:"results,omitempty"`
+	Error     string      `json:"error,omitempty"`
+	Timestamp time.Time   `json:"timestamp"`
+}
+
+// QueryRun groups one SQL submission fanned out to many hosts. Hosts is
+// populated only on the single-run (detail) view.
+type QueryRun struct {
+	ID            string         `json:"id"`
+	Query         string         `json:"query"`
+	Targets       QueryTargets   `json:"targets"`
+	HostCount     int            `json:"host_count"`
+	PendingCount  int            `json:"pending_count"`
+	CompleteCount int            `json:"complete_count"`
+	ErrorCount    int            `json:"error_count"`
+	CreatedAt     time.Time      `json:"created_at"`
+	Hosts         []QueryRunHost `json:"hosts,omitempty"`
+}
+
 type YaraSignatureSource struct {
 	ID        string    `json:"id"`
 	UUID      string    `json:"uuid"`

@@ -88,6 +88,36 @@ export type MachineQueryRecord = {
   timestamp?: string
 }
 
+export type QueryTargets = {
+  host_ids?: string[]
+  group_ids?: string[]
+  platforms?: string[]
+}
+
+export type QueryRunHost = {
+  query_id: string
+  node_uuid: string
+  hostname?: string
+  platform?: string
+  status?: string
+  row_count?: number
+  results?: unknown
+  error?: string
+  timestamp?: string
+}
+
+export type QueryRun = {
+  id: string
+  query?: string
+  targets?: QueryTargets
+  host_count?: number
+  pending_count?: number
+  complete_count?: number
+  error_count?: number
+  created_at?: string
+  hosts?: QueryRunHost[]
+}
+
 export type YaraSignatureSource = {
   id: string
   uuid: string
@@ -558,6 +588,39 @@ export function updateMachineGroups(id: string, group_ids: string[]) {
 
 export function executeMachineQuery(id: string, query: string) {
   return jsonRequest<MachineQueryRecord>(`/machines/${encodeURIComponent(id)}/queries`, 'POST', { query })
+}
+
+// Multi-host query runs
+export type QueryRunPayload = {
+  query: string
+  host_ids?: string[]
+  group_ids?: string[]
+  platforms?: string[]
+}
+
+export function fetchQueryRuns(opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 10 } = opts
+  return fetch(apiUrl('/query-runs', { page, count_per_page: countPerPage })).then((r) =>
+    handleResponse<Paginated<QueryRun, 'runs'>>(r)
+  )
+}
+
+export function fetchQueryRun(id: string) {
+  return fetch(`${BASE_URL}/query-runs/${encodeURIComponent(id)}`).then((r) => handleResponse<QueryRun>(r))
+}
+
+export function createQueryRun(payload: QueryRunPayload) {
+  return jsonRequest<QueryRun>('/query-runs', 'POST', payload)
+}
+
+export function deleteQueryRun(id: string) {
+  return fetch(`${BASE_URL}/query-runs/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
+export function previewQueryTargets(payload: Omit<QueryRunPayload, 'query'>) {
+  return jsonRequest<{ host_count: number }>('/query-runs/preview', 'POST', payload)
 }
 
 export function fetchMachineMetrics(id: string) {

@@ -231,6 +231,12 @@ func runServer(flags *rootFlags) error {
 	api.POST("/machines/:id/queries", h.HandleExecuteMachineQuery, h.Authorize(core.ResourceMachine, core.ActionExecute))
 	api.GET("/machines/:id", h.HandleGetMachine, h.Authorize(core.ResourceMachine, core.ActionView))
 
+	api.POST("/query-runs", h.HandleCreateQueryRun, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.POST("/query-runs/preview", h.HandlePreviewQueryTargets, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.GET("/query-runs", h.HandleQueryRuns, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.GET("/query-runs/:id", h.HandleGetQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.DELETE("/query-runs/:id", h.HandleDeleteQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
+
 	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources, h.Authorize(core.ResourceYaraSource, core.ActionView))
 	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionCreate))
 	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionUpdate))

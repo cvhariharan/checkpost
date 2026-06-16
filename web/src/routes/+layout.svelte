@@ -10,6 +10,7 @@
   import { logout as apiLogout, fetchInfo, type BuildInfo, type Me } from '$lib/api'
   import { canFrom, setMe } from '$lib/auth'
   import Server from '@lucide/svelte/icons/server'
+  import TerminalSquare from '@lucide/svelte/icons/terminal-square'
   import Boxes from '@lucide/svelte/icons/boxes'
   import ShieldCheck from '@lucide/svelte/icons/shield-check'
   import CalendarClock from '@lucide/svelte/icons/calendar-clock'
@@ -48,6 +49,7 @@
 
   const navItems: NavItem[] = [
     { href: '/inventory', label: 'Inventory', section: 'inventory', resource: 'machine', action: 'view', icon: Server },
+    { href: '/query', label: 'Query', section: 'query', resource: 'machine', action: 'execute', icon: TerminalSquare },
     { href: '/groups', label: 'Groups', section: 'groups', resource: 'machine_group', action: 'view', icon: Boxes },
     { href: '/policies', label: 'Policies', section: 'policies', resource: 'policy', action: 'view', icon: ShieldCheck },
     { href: '/schedules', label: 'Schedules', section: 'schedules', resource: 'schedule', action: 'view', icon: CalendarClock },
