@@ -32,7 +32,6 @@ type AppConfig struct {
 	TLSKeyPath           string `validate:"required_if=UseTLS true"`
 	RootURL              string `validate:"required,http_url"`
 	UseTLS               bool
-	SecureCookieKey      string        `validate:"required"`
 	EnrollmentKey        string        `validate:"required"`
 	PolicyUpdateInterval time.Duration `validate:"gt=0"`
 	PolicyStaleAfter     time.Duration `validate:"gt=0"`

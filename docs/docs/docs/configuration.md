@@ -35,7 +35,6 @@ Settings under `[app]` control the HTTP server, built-in administrator, and poli
 | `app.http_tls_cert` | `server_cert.pem` | Certificate file used when `app.use_tls` is true. |
 | `app.http_tls_key` | `server_key.pem` | Private key used when `app.use_tls` is true. |
 | `app.root_url` | `http://localhost:1323` | Public URL used for OIDC callbacks, links, and osquery bootstrap scripts. |
-| `app.secure_cookie_key` | Generated | Required secret retained in the server config. The current PostgreSQL session store does not use it. |
 | `app.enrollment_key` | Generated | Shared secret accepted when an osquery host enrolls. |
 | `app.use_tls` | `false` | Serves HTTPS directly from Checkpost instead of plain HTTP. |
 | `app.policy_update_interval` | `1h` | How often hosts receive policy queries in their osquery configuration. |

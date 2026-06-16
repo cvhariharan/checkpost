@@ -4,7 +4,6 @@ admin_username = 'checkpost_admin'
 http_tls_cert = 'testdata/server_cert.pem'
 http_tls_key = 'testdata/server_key.pem'
 root_url = 'http://localhost:1323'
-secure_cookie_key = 'cddc196bdf9e76c9a343ed8fb33a553e'
 enrollment_key = 'replace-with-a-random-secret'
 use_tls = false
 policy_update_interval = '1h'

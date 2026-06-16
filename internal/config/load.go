@@ -53,7 +53,6 @@ type rawAppConfig struct {
 	TLSKeyPath           string `koanf:"app.http_tls_key"`
 	RootURL              string `koanf:"app.root_url"`
 	UseTLS               bool   `koanf:"app.use_tls"`
-	SecureCookieKey      string `koanf:"app.secure_cookie_key"`
 	EnrollmentKey        string `koanf:"app.enrollment_key"`
 	PolicyUpdateInterval string `koanf:"app.policy_update_interval"`
 	PolicyStaleAfter     string `koanf:"app.policy_stale_after"`
@@ -163,7 +162,6 @@ func (r rawConfig) toConfig() (Config, error) {
 			TLSKeyPath:           r.AppConfig.TLSKeyPath,
 			RootURL:              r.AppConfig.RootURL,
 			UseTLS:               r.AppConfig.UseTLS,
-			SecureCookieKey:      r.AppConfig.SecureCookieKey,
 			EnrollmentKey:        r.AppConfig.EnrollmentKey,
 			PolicyUpdateInterval: policyUpdateInterval,
 			PolicyStaleAfter:     policyStaleAfter,
@@ -318,10 +316,6 @@ func loadEnvConfig(k *koanf.Koanf) error {
 }
 
 func loadDefaults(k *koanf.Koanf) error {
-	key, err := generateSecret()
-	if err != nil {
-		return fmt.Errorf("generate secure cookie key: %w", err)
-	}
 	enrollmentKey, err := generateSecret()
 	if err != nil {
 		return fmt.Errorf("generate enrollment key: %w", err)
@@ -334,7 +328,6 @@ func loadDefaults(k *koanf.Koanf) error {
 		"app.http_tls_key":                             "server_key.pem",
 		"app.use_tls":                                  false,
 		"app.root_url":                                 "http://localhost:1323",
-		"app.secure_cookie_key":                        key,
 		"app.enrollment_key":                           enrollmentKey,
 		"app.policy_update_interval":                   "1h",
 		"app.policy_stale_after":                       "2h",

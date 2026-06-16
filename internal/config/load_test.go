@@ -23,9 +23,6 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 	if cfg.AppConfig.PolicyStaleAfter != 2*time.Hour {
 		t.Fatalf("PolicyStaleAfter = %v, want %v", cfg.AppConfig.PolicyStaleAfter, 2*time.Hour)
 	}
-	if cfg.AppConfig.SecureCookieKey == "" {
-		t.Fatal("SecureCookieKey should not be empty")
-	}
 	if cfg.AppConfig.EnrollmentKey == "" {
 		t.Fatal("EnrollmentKey should not be empty")
 	}
@@ -291,7 +288,6 @@ func validConfig() Config {
 			AdminUsername:        "checkpost_admin",
 			AdminPassword:        "checkpost_password",
 			RootURL:              "http://localhost:1323",
-			SecureCookieKey:      "secure-cookie-key",
 			EnrollmentKey:        "enrollment-key",
 			PolicyUpdateInterval: time.Hour,
 			PolicyStaleAfter:     2 * time.Hour,
