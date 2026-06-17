@@ -53,9 +53,10 @@ type row struct {
 
 // Sink buffers rows and inserts them in batches from a single goroutine.
 type Sink struct {
-	conn    driver.Conn
-	table   string
-	in      chan row
+	conn  driver.Conn
+	table string
+	in    chan row
+	flush   chan chan struct{}
 	done    chan struct{}
 	logger  *slog.Logger
 	dropped atomic.Uint64
@@ -97,6 +98,7 @@ func New(dsn, table string, ttlDays int, schema SchemaStore, logger *slog.Logger
 		conn:   conn,
 		table:  table,
 		in:     make(chan row, queueSize),
+		flush:  make(chan chan struct{}, 1),
 		done:   make(chan struct{}),
 		logger: logger.WithGroup("results.clickhouse"),
 		schema: schema,
@@ -137,6 +139,26 @@ func (s *Sink) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
 	)
 }
 
+// Flush inserts any buffered rows synchronously
+func (s *Sink) Flush(ctx context.Context, sourceUUID uuid.UUID) error {
+	ack := make(chan struct{})
+	select {
+	case s.flush <- ack:
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case <-ack:
+		return nil
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (s *Sink) Close() error {
 	close(s.in)
 	<-s.done
@@ -170,6 +192,26 @@ func (s *Sink) run() {
 			if len(buf) >= maxBatch {
 				flush()
 			}
+		case ack := <-s.flush:
+			// Drain everything already queued so the flush captures all rows
+			// submitted before this request, then insert them.
+		drain:
+			for {
+				select {
+				case r, ok := <-s.in:
+					if !ok {
+						flush()
+						close(ack)
+						s.conn.Close()
+						return
+					}
+					buf = append(buf, r)
+				default:
+					break drain
+				}
+			}
+			flush()
+			close(ack)
 		case <-ticker.C:
 			flush()
 			if n := s.dropped.Swap(0); n > 0 {

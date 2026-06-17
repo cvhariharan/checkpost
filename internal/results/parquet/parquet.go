@@ -88,6 +88,10 @@ func (b *Backend) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
 	return b.writer.Delete(sourceUUID)
 }
 
+func (b *Backend) Flush(ctx context.Context, sourceUUID uuid.UUID) error {
+	return b.writer.Flush(ctx, sourceUUID)
+}
+
 func (b *Backend) Read(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, columns []string, opts results.ReadOptions) (results.Result, error) {
 	return b.reader.Read(ctx, sourceUUID, sqlVersion, columns, opts)
 }

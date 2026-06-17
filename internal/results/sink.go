@@ -60,6 +60,29 @@ func (m *MultiSink) Submit(ctx context.Context, batch Batch) error {
 	return reqErr
 }
 
+// Flush fans the request out to every backend that implements Flusher. A
+// required backend's flush error propagates; best-effort errors are logged and
+// absorbed. Backends without a buffer are skipped.
+func (m *MultiSink) Flush(ctx context.Context, sourceUUID uuid.UUID) error {
+	var reqErr error
+	for _, bs := range m.sinks {
+		f, ok := bs.sink.(Flusher)
+		if !ok {
+			continue
+		}
+		if err := f.Flush(ctx, sourceUUID); err != nil {
+			if !bs.required {
+				m.logger.Warn("best-effort sink flush failed", "sink", bs.sink.Name(), "error", err)
+				continue
+			}
+			if reqErr == nil {
+				reqErr = err
+			}
+		}
+	}
+	return reqErr
+}
+
 func (m *MultiSink) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
 	for _, bs := range m.sinks {
 		if err := bs.sink.Delete(ctx, sourceUUID); err != nil {

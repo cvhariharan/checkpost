@@ -35,6 +35,8 @@
   import BadgeList from '$lib/components/BadgeList.svelte'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
+  import ActionsMenu from '$lib/components/ActionsMenu.svelte'
+  import Truncate from '$lib/components/Truncate.svelte'
   import { canFrom, me } from '$lib/auth'
   import Pencil from '@lucide/svelte/icons/pencil'
   import Save from '@lucide/svelte/icons/save'
@@ -608,40 +610,48 @@
           {#if historyLoading}
             <Spinner />
           {:else}
-            {#each queryHistory as query}
-              <article class="card">
-                <div class="hstack justify-between query-history-header">
-                  <button
-                    type="button"
-                    class="query-text-button"
-                    title="Click to show results"
-                    onclick={() => openQueryResults(query)}
-                  >
-                    <code class="query-text">{query.query}</code>
-                  </button>
-                  <div class="hstack gap-2 query-history-actions">
-                    {#if query.status}
-                      <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
-                    {/if}
-                    <small class="text-light">{query.row_count ?? 0} row{query.row_count === 1 ? '' : 's'}</small>
-                    <small class="text-light">{formatTimestamp(query.timestamp)}</small>
-                    {#if canDeleteQueryResult}
-                      <button
-                        type="button"
-                        class="small outline"
-                        data-variant="danger"
-                        onclick={() => confirmDeleteQuery(query)}
-                        aria-label="Delete query result"
-                      >
-                        Delete
-                      </button>
-                    {/if}
-                  </div>
-                </div>
-              </article>
-            {:else}
-              <article class="card align-center text-light">No queries executed yet</article>
-            {/each}
+            <div class="table">
+              <table class="queries-table">
+                <thead>
+                  <tr>
+                    <th class="col-id">ID</th>
+                    <th class="col-query">Query</th>
+                    <th>Status</th>
+                    <th>Rows</th>
+                    <th>Executed</th>
+                    <th class="col-actions"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each queryHistory as query}
+                    <tr>
+                      <td>
+                        <button type="button" class="cell-link" onclick={() => openQueryResults(query)}>
+                          <Truncate text={String(query.id ?? '')} />
+                        </button>
+                      </td>
+                      <td class="text-light"><code class="query-cell"><Truncate text={query.query || ''} /></code></td>
+                      <td>
+                        {#if query.status}
+                          <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
+                        {/if}
+                      </td>
+                      <td>{query.row_count ?? 0}</td>
+                      <td class="text-light">{formatTimestamp(query.timestamp)}</td>
+                      <td class="col-actions">
+                        {#if canDeleteQueryResult}
+                          <ActionsMenu label="Actions for query result">
+                            <button role="menuitem" type="button" onclick={() => confirmDeleteQuery(query)}>Delete</button>
+                          </ActionsMenu>
+                        {/if}
+                      </td>
+                    </tr>
+                  {:else}
+                    <tr><td colspan="6" class="align-center text-light">No queries executed yet</td></tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
           {/if}
           {#if queryTotalCount > 0}
             <footer class="hstack justify-end">
@@ -703,23 +713,34 @@
 </dialog>
 
 <style>
-  .query-history-header {
-    align-items: flex-start;
-  }
-  .query-text-button {
-    appearance: none;
-    background: none;
-    border: 0;
-    padding: 0;
-    margin: 0;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
   .query-text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .queries-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .queries-table .col-id {
+    width: 22%;
+  }
+  .queries-table .col-query {
+    width: 44%;
+  }
+  .queries-table .col-actions {
+    width: 3rem;
+    text-align: right;
+  }
+  /* .cell-link is display:inline globally, so it can't clip; make the id link
+     block-level so the UUID truncates to the column instead of overflowing. */
+  .queries-table .cell-link {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .query-cell {
+    display: block;
+    min-width: 0;
   }
   .query-results-modal {
     width: min(72rem, 94vw);

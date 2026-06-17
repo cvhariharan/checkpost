@@ -49,7 +49,8 @@ type submission struct {
 type partitionWorker struct {
 	key  PartitionKey
 	in   chan results.Row
-	done chan struct{}
+	flush chan chan struct{}
+	done  chan struct{}
 }
 
 func NewWriter(root string, store SchemaStore, logger *slog.Logger) (*Writer, error) {
@@ -160,6 +161,39 @@ func (w *Writer) Delete(sourceUUID uuid.UUID) error {
 	return nil
 }
 
+// Flush synchronously writes any buffered rows for sourceUUID
+func (w *Writer) Flush(ctx context.Context, sourceUUID uuid.UUID) error {
+	w.mu.Lock()
+	if w.closed {
+		w.mu.Unlock()
+		return ErrClosed
+	}
+	acks := make([]chan struct{}, 0, len(w.workers))
+	for key, pw := range w.workers {
+		if key.SourceUUID != sourceUUID {
+			continue
+		}
+		ack := make(chan struct{})
+		select {
+		case pw.flush <- ack:
+			acks = append(acks, ack)
+		default:
+			// A flush is already queued for this worker; it will drain and
+			// write our just-submitted rows too. Nothing more to wait on.
+		}
+	}
+	w.mu.Unlock()
+
+	for _, ack := range acks {
+		select {
+		case <-ack:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
 func (w *Writer) Root() string { return w.root }
 
 func (w *Writer) workerForLocked(key PartitionKey) *partitionWorker {
@@ -167,9 +201,10 @@ func (w *Writer) workerForLocked(key PartitionKey) *partitionWorker {
 		return pw
 	}
 	pw := &partitionWorker{
-		key:  key,
-		in:   make(chan results.Row, partitionQueueSize),
-		done: make(chan struct{}),
+		key:   key,
+		in:    make(chan results.Row, partitionQueueSize),
+		flush: make(chan chan struct{}, 1),
+		done:  make(chan struct{}),
 	}
 	w.workers[key] = pw
 	w.partitionWG.Add(1)
@@ -198,6 +233,9 @@ func (w *Writer) drainOverflow() {
 func (w *Writer) runPartition(pw *partitionWorker) {
 	defer close(pw.done)
 	defer w.partitionWG.Done()
+	// Unblock any caller waiting on a flush ack if we exit (Close/Delete) before
+	// servicing it.
+	defer w.drainPendingFlush(pw)
 
 	var buffer []results.Row
 	timer := time.NewTimer(flushInterval)
@@ -236,8 +274,40 @@ func (w *Writer) runPartition(pw *partitionWorker) {
 			if len(buffer) >= maxFlushRows {
 				flush()
 			}
+		case ack := <-pw.flush:
+			// Drain everything already queued so the flush captures all rows
+			// submitted before this request, then write them out.
+		drain:
+			for {
+				select {
+				case row, ok := <-pw.in:
+					if !ok {
+						flush()
+						close(ack)
+						return
+					}
+					buffer = append(buffer, row)
+				default:
+					break drain
+				}
+			}
+			flush()
+			close(ack)
 		case <-timer.C:
 			flush()
+		}
+	}
+}
+
+// drainPendingFlush closes any flush ack still queued for the worker so that a
+// caller blocked in Flush is released when the worker stops.
+func (w *Writer) drainPendingFlush(pw *partitionWorker) {
+	for {
+		select {
+		case ack := <-pw.flush:
+			close(ack)
+		default:
+			return
 		}
 	}
 }

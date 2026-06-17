@@ -55,6 +55,15 @@ type Sink interface {
 	Close() error
 }
 
+// Flusher is an optional Sink capability: force any buffered rows for a source
+// to durable, readable storage before returning. Backends that already write
+// synchronously (or have no buffer) need not implement it. The ad-hoc query
+// path calls this on completion so results are visible immediately instead of
+// waiting for the backend's periodic flush.
+type Flusher interface {
+	Flush(ctx context.Context, sourceUUID uuid.UUID) error
+}
+
 // Reader is the frontend query surface. May be nil when no reader-capable
 // backend is enabled (browsing disabled).
 type Reader interface {

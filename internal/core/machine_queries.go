@@ -248,6 +248,15 @@ func (c *Core) completeAdHocResult(ctx context.Context, queryID string, rows int
 		}); err != nil {
 			c.logger.Error("submit ad-hoc query result", "query_id", queryID, "error", err)
 		}
+
+		// Force the buffered rows to disk now so the results are readable the
+		// moment the query reads as complete, rather than after the backend's
+		// periodic flush interval.
+		if flusher, ok := c.sink.(results.Flusher); ok {
+			if err := flusher.Flush(ctx, parsedID); err != nil {
+				c.logger.Error("flush ad-hoc query result", "query_id", queryID, "error", err)
+			}
+		}
 	}
 
 	return toModelMachineQueryResult(completed), true, nil
