@@ -33,7 +33,11 @@ LIMIT @limit_count OFFSET @offset_count;
 
 -- name: ListMachineQueryResultsByRunUUID :many
 SELECT
-    machine_query_results.*,
+    machine_query_results.id, machine_query_results.uuid, machine_query_results.node_id,
+    machine_query_results.query, machine_query_results.status, machine_query_results.error,
+    machine_query_results.row_count, machine_query_results.dispatched_at,
+    machine_query_results.completed_at, machine_query_results.created_at,
+    machine_query_results.updated_at, machine_query_results.run_id,
     nodes.uuid AS node_uuid,
     nodes.hostname AS hostname,
     nodes.platform AS platform

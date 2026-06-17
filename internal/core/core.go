@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	ErrInvalidLogType = errors.New("invalid log type")
-	ErrInvalidQuery   = errors.New("invalid query")
+	ErrInvalidLogType         = errors.New("invalid log type")
+	ErrInvalidQuery           = errors.New("invalid query")
+	ErrResultsBackendDisabled = errors.New("results backend not configured")
 )
 
 type Core struct {

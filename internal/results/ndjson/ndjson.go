@@ -23,8 +23,9 @@ const (
 )
 
 type record struct {
-	ScheduleUUID string            `json:"schedule_uuid"`
-	ScheduleName string            `json:"schedule_name"`
+	SourceUUID   string            `json:"source_uuid"`
+	SourceName   string            `json:"source_name"`
+	Kind         string            `json:"kind"`
 	SQLVersion   int32             `json:"sql_version"`
 	NodeID       int64             `json:"node_id"`
 	UnixTime     time.Time         `json:"unix_time"`
@@ -73,8 +74,9 @@ func (s *Sink) Name() string { return "ndjson" }
 func (s *Sink) Submit(ctx context.Context, batch results.Batch) error {
 	for _, row := range batch.Rows {
 		rec := record{
-			ScheduleUUID: batch.ScheduleUUID.String(),
-			ScheduleName: batch.ScheduleName,
+			SourceUUID:   batch.SourceUUID.String(),
+			SourceName:   batch.SourceName,
+			Kind:         batch.Kind,
 			SQLVersion:   batch.SQLVersion,
 			NodeID:       row.NodeID,
 			UnixTime:     row.UnixTime.UTC(),
@@ -92,7 +94,7 @@ func (s *Sink) Submit(ctx context.Context, batch results.Batch) error {
 	return nil
 }
 
-func (s *Sink) DeleteSchedule(ctx context.Context, scheduleUUID uuid.UUID) error {
+func (s *Sink) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
 	return nil // already shipped downstream; nothing to delete
 }
 

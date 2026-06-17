@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import { page } from '$app/state'
-  import { fetchQueryRun, type QueryRun } from '$lib/api'
+  import { fetchQueryRun, fetchQueryRunHostResults, type QueryRun, type AdHocQueryResults } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
@@ -17,6 +17,8 @@
   let selectedHostId = $state('')
   let resultsOpen = $state(false)
   let resultsDialog = $state<HTMLDialogElement>()
+  let hostResults = $state<AdHocQueryResults | null>(null)
+  let hostLoading = $state(false)
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let pollAttempts = 0
   let pollEpoch = 0
@@ -80,6 +82,26 @@
   function openHostResults(queryId: string) {
     selectedHostId = queryId
     resultsOpen = true
+    loadHostResults(1)
+  }
+
+  async function loadHostResults(targetPage: number) {
+    hostLoading = true
+    try {
+      hostResults = await fetchQueryRunHostResults(runId, selectedHostId, { page: targetPage })
+    } catch (err) {
+      hostResults = {
+        columns: [],
+        rows: [],
+        total: 0,
+        page: 1,
+        count_per_page: 0,
+        page_count: 0,
+        error: (err as Error).message || 'Failed to load results'
+      }
+    } finally {
+      hostLoading = false
+    }
   }
 
   $effect(() => {
@@ -91,6 +113,7 @@
   function handleResultsClose() {
     resultsOpen = false
     selectedHostId = ''
+    hostResults = null
   }
 
   function statusVariant(status?: string): 'success' | 'danger' | 'warning' {
@@ -183,7 +206,18 @@
     </header>
     <section>
       <code class="query-text">{run?.query}</code>
-      <QueryResultTable results={selectedHost.results} error={selectedHost.error} keyPrefix={selectedHost.query_id} />
+      <QueryResultTable
+        columns={hostResults?.columns ?? []}
+        rows={hostResults?.rows ?? []}
+        total={hostResults?.total ?? 0}
+        page={hostResults?.page ?? 1}
+        pageCount={hostResults?.page_count ?? 1}
+        loading={hostLoading}
+        pending={hostResults?.pending ?? false}
+        error={hostResults?.error ?? selectedHost.error ?? ''}
+        browsingDisabled={hostResults?.browsing_disabled ?? false}
+        onPageChange={(p) => loadHostResults(p)}
+      />
     </section>
   {/if}
   <footer class="hstack justify-end">

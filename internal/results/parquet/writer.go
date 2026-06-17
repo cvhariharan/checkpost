@@ -72,18 +72,18 @@ func NewWriter(root string, store SchemaStore, logger *slog.Logger) (*Writer, er
 	return w, nil
 }
 
-func (w *Writer) Submit(scheduleUUID uuid.UUID, sqlVersion int32, rows []results.Row) error {
+func (w *Writer) Submit(sourceUUID uuid.UUID, sqlVersion int32, kind string, rows []results.Row) error {
 	if len(rows) == 0 {
 		return nil
 	}
 	for _, row := range rows {
-		key := PartitionKey{ScheduleUUID: scheduleUUID, SQLVersion: sqlVersion, NodeID: row.NodeID}
+		key := PartitionKey{SourceUUID: sourceUUID, SQLVersion: sqlVersion, NodeID: row.NodeID, Kind: kind}
 		w.mu.Lock()
 		if w.closed {
 			w.mu.Unlock()
 			return ErrClosed
 		}
-		if _, gone := w.deleting[scheduleUUID]; gone {
+		if _, gone := w.deleting[sourceUUID]; gone {
 			w.mu.Unlock()
 			// Schedule is being deleted; drop the row silently — callers
 			// (ingest path) shouldn't see a hard error for a transient
@@ -127,22 +127,20 @@ func (w *Writer) Close() error {
 	return nil
 }
 
-// DeleteSchedule drains any in-flight writes for the schedule, removes its
-// partition workers, and then deletes the parquet tree. It blocks until
-// every partition goroutine for the schedule has finished flushing, so the
-// caller can safely assume no further chunks will be created under the
-// returned directory.
-func (w *Writer) DeleteSchedule(scheduleUUID uuid.UUID) error {
+// Delete drains in-flight writes, removes the source's partition workers, then
+// deletes its parquet tree. It blocks until every partition goroutine has
+// flushed, so no further chunks are created under the directory afterward.
+func (w *Writer) Delete(sourceUUID uuid.UUID) error {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
 		return ErrClosed
 	}
-	w.deleting[scheduleUUID] = struct{}{}
+	w.deleting[sourceUUID] = struct{}{}
 
 	dones := make([]chan struct{}, 0)
 	for key, pw := range w.workers {
-		if key.ScheduleUUID != scheduleUUID {
+		if key.SourceUUID != sourceUUID {
 			continue
 		}
 		close(pw.in)
@@ -155,9 +153,9 @@ func (w *Writer) DeleteSchedule(scheduleUUID uuid.UUID) error {
 		<-d
 	}
 
-	dir := queryDir(w.root, scheduleUUID)
+	dir := queryDir(w.root, sourceUUID)
 	if err := os.RemoveAll(dir); err != nil {
-		return fmt.Errorf("remove schedule dir: %w", err)
+		return fmt.Errorf("remove source dir: %w", err)
 	}
 	return nil
 }
@@ -187,7 +185,7 @@ func (w *Writer) drainOverflow() {
 		// drains pw.in independently of w.mu, so the send completes even
 		// under load.
 		w.mu.Lock()
-		if _, gone := w.deleting[s.key.ScheduleUUID]; gone {
+		if _, gone := w.deleting[s.key.SourceUUID]; gone {
 			w.mu.Unlock()
 			continue
 		}
@@ -211,7 +209,7 @@ func (w *Writer) runPartition(pw *partitionWorker) {
 		}
 		if err := w.writeChunk(pw.key, buffer); err != nil {
 			w.logger.Error("write parquet chunk",
-				"schedule_uuid", pw.key.ScheduleUUID,
+				"source_uuid", pw.key.SourceUUID,
 				"sql_version", pw.key.SQLVersion,
 				"node_id", pw.key.NodeID,
 				"rows", len(buffer),
@@ -307,7 +305,7 @@ func (w *Writer) resolveColumns(ctx context.Context, key PartitionKey, rows []re
 	}
 	sort.Strings(observed)
 
-	final, err := w.store.MergeColumns(ctx, key.ScheduleUUID, key.SQLVersion, observed)
+	final, err := w.store.MergeColumns(ctx, key.SourceUUID, key.SQLVersion, observed, key.Kind)
 	if err != nil {
 		return nil, fmt.Errorf("merge schema: %w", err)
 	}

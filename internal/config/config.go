@@ -80,6 +80,11 @@ type ResultsConfig struct {
 	Parquet    ParquetConfig
 	NDJSON     NDJSONConfig
 	ClickHouse ClickHouseConfig
+	Adhoc      AdhocConfig
+}
+
+type AdhocConfig struct {
+	RetentionDays int `validate:"gte=1"`
 }
 
 // ParquetConfig is the local Parquet+DuckDB backend that powers the frontend

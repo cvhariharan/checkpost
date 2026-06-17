@@ -260,11 +260,12 @@ func (c *Core) ingestResultLogs(ctx context.Context, nodeID int64, logs []result
 			continue
 		}
 		if err := c.sink.Submit(ctx, results.Batch{
-			ScheduleUUID: sched.Uuid,
-			SQLVersion:   log.sqlVersion,
-			ScheduleName: sched.Name,
-			Snapshot:     sched.Snapshot,
-			Rows:         rows,
+			SourceUUID: sched.Uuid,
+			SQLVersion: log.sqlVersion,
+			SourceName: sched.Name,
+			Kind:       results.KindSchedule,
+			Snapshot:   sched.Snapshot,
+			Rows:       rows,
 		}); err != nil {
 			return fmt.Errorf("submit results for %s: %w", log.versionedName, err)
 		}

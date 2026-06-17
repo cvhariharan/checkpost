@@ -101,6 +101,8 @@ type rawResultsConfig struct {
 	ClickHouseTable    string `koanf:"results.clickhouse.table"`
 	ClickHouseTTLDays  int    `koanf:"results.clickhouse.ttl_days"`
 	ClickHouseRequired bool   `koanf:"results.clickhouse.required"`
+
+	AdhocRetentionDays int `koanf:"results.adhoc.retention_days"`
 }
 
 type rawOsqueryBootstrapConfig struct {
@@ -221,6 +223,9 @@ func (r rawConfig) toConfig() (Config, error) {
 				Table:    strings.TrimSpace(r.ResultsConfig.ClickHouseTable),
 				TTLDays:  r.ResultsConfig.ClickHouseTTLDays,
 				Required: r.ResultsConfig.ClickHouseRequired,
+			},
+			Adhoc: AdhocConfig{
+				RetentionDays: r.ResultsConfig.AdhocRetentionDays,
 			},
 		},
 		AlertsConfig: AlertsConfig{
@@ -352,6 +357,7 @@ func loadDefaults(k *koanf.Koanf) error {
 		"results.parquet.enabled":                      true,
 		"results.parquet.root":                         "./data/results",
 		"results.parquet.duckdb_path":                  "",
+		"results.adhoc.retention_days":                 30,
 		"results.ndjson.enabled":                       false,
 		"results.ndjson.path":                          "stdout",
 		"results.ndjson.required":                      false,

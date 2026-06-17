@@ -209,7 +209,7 @@ func (r *Reader) partitionGlob(scheduleUUID uuid.UUID, sqlVersion int32, nodeID 
 	if nodeID == 0 {
 		return filepath.Join(versionDir(r.root, scheduleUUID, sqlVersion), "host=*", "*.parquet")
 	}
-	return filepath.Join(partitionDir(r.root, PartitionKey{ScheduleUUID: scheduleUUID, SQLVersion: sqlVersion, NodeID: nodeID}), "*.parquet")
+	return filepath.Join(partitionDir(r.root, PartitionKey{SourceUUID: scheduleUUID, SQLVersion: sqlVersion, NodeID: nodeID}), "*.parquet")
 }
 
 func buildSelectList(columns []string) string {

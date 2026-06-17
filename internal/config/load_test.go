@@ -306,6 +306,7 @@ func validConfig() Config {
 				Enabled: true,
 				Root:    "./data/results",
 			},
+			Adhoc: AdhocConfig{RetentionDays: 30},
 		},
 		AlertsConfig: AlertsConfig{
 			SMTP: SMTPConfig{

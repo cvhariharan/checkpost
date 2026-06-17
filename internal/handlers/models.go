@@ -178,6 +178,13 @@ type DeleteMachineQueryRequest struct {
 	QueryID string `param:"query_id" validate:"required,uuid"`
 }
 
+type AdHocResultsRequest struct {
+	ID      string `param:"id" validate:"required,uuid"`
+	QueryID string `param:"query_id" validate:"required,uuid"`
+	Page    int    `query:"page" validate:"gte=0"`
+	Count   int    `query:"count_per_page" validate:"gte=0,lte=1000"`
+}
+
 type MachineQueriesResponse struct {
 	Queries    []models.MachineQueryResult `json:"queries"`
 	TotalCount int                         `json:"total_count"`

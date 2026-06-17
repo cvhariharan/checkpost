@@ -447,12 +447,25 @@ type MachineQueryRequest struct {
 }
 
 type MachineQueryResult struct {
-	ID        string      `json:"id"`
-	Query     string      `json:"query"`
-	Status    string      `json:"status"`
-	Timestamp time.Time   `json:"timestamp"`
-	Results   interface{} `json:"results,omitempty"`
-	Error     string      `json:"error,omitempty"`
+	ID        string    `json:"id"`
+	Query     string    `json:"query"`
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+	RowCount  int       `json:"row_count"`
+	Error     string    `json:"error,omitempty"`
+}
+
+// AdHocQueryResults is one page of an ad-hoc/run query's result rows.
+type AdHocQueryResults struct {
+	Columns          []string            `json:"columns"`
+	Rows             []map[string]string `json:"rows"`
+	Total            int                 `json:"total"`
+	Page             int                 `json:"page"`
+	CountPerPage     int                 `json:"count_per_page"`
+	PageCount        int                 `json:"page_count"`
+	Pending          bool                `json:"pending,omitempty"`
+	BrowsingDisabled bool                `json:"browsing_disabled,omitempty"`
+	Error            string              `json:"error,omitempty"`
 }
 
 // QueryTargets is the set of selectors that resolve to the hosts a query run
@@ -472,15 +485,14 @@ type QueryRunRequest struct {
 
 // QueryRunHost is a single host's execution within a query run.
 type QueryRunHost struct {
-	QueryID   string      `json:"query_id"`
-	NodeUUID  string      `json:"node_uuid"`
-	Hostname  string      `json:"hostname"`
-	Platform  string      `json:"platform"`
-	Status    string      `json:"status"`
-	RowCount  int         `json:"row_count"`
-	Results   interface{} `json:"results,omitempty"`
-	Error     string      `json:"error,omitempty"`
-	Timestamp time.Time   `json:"timestamp"`
+	QueryID   string    `json:"query_id"`
+	NodeUUID  string    `json:"node_uuid"`
+	Hostname  string    `json:"hostname"`
+	Platform  string    `json:"platform"`
+	Status    string    `json:"status"`
+	RowCount  int       `json:"row_count"`
+	Error     string    `json:"error,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // QueryRun groups one SQL submission fanned out to many hosts. Hosts is

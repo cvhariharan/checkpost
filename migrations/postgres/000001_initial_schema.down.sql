@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS machine_query_results;
+DROP TABLE IF EXISTS query_runs;
 DROP TABLE IF EXISTS api_tokens;
 DROP TABLE IF EXISTS alert_state;
 DROP TABLE IF EXISTS alert_rule_targets;
@@ -21,7 +23,6 @@ DROP TABLE IF EXISTS node_inventory;
 DROP TABLE IF EXISTS device_owners;
 DROP TABLE IF EXISTS group_membership;
 DROP TABLE IF EXISTS groups;
-DROP TABLE IF EXISTS machine_query_results;
 DROP TABLE IF EXISTS policy_membership;
 DROP TABLE IF EXISTS policies;
 DROP TABLE IF EXISTS osquery_status_logs;

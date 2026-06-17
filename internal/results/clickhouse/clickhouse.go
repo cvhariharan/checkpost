@@ -35,12 +35,14 @@ type SchemaStore interface {
 type schemaKey struct {
 	scheduleUUID uuid.UUID
 	sqlVersion   int32
+	kind         string
 }
 
 type row struct {
 	scheduleUUID uuid.UUID
 	scheduleName string
 	sqlVersion   int32
+	kind         string
 	nodeID       int64
 	unixTime     time.Time
 	calendarTime string
@@ -110,9 +112,10 @@ func (s *Sink) Submit(ctx context.Context, batch results.Batch) error {
 	for _, r := range batch.Rows {
 		select {
 		case s.in <- row{
-			scheduleUUID: batch.ScheduleUUID,
-			scheduleName: batch.ScheduleName,
+			scheduleUUID: batch.SourceUUID,
+			scheduleName: batch.SourceName,
 			sqlVersion:   batch.SQLVersion,
+			kind:         batch.Kind,
 			nodeID:       r.NodeID,
 			unixTime:     r.UnixTime.UTC(),
 			calendarTime: r.CalendarTime,
@@ -127,10 +130,10 @@ func (s *Sink) Submit(ctx context.Context, batch results.Batch) error {
 	return nil
 }
 
-func (s *Sink) DeleteSchedule(ctx context.Context, scheduleUUID uuid.UUID) error {
+func (s *Sink) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
 	return s.conn.Exec(ctx,
 		fmt.Sprintf("ALTER TABLE %s DELETE WHERE schedule_uuid = {id:UUID}", s.table),
-		clickhouse.Named("id", scheduleUUID),
+		clickhouse.Named("id", sourceUUID),
 	)
 }
 
@@ -206,7 +209,7 @@ func (s *Sink) recordSchema(rows []row) {
 	}
 	fresh := make(map[schemaKey]map[string]struct{})
 	for _, r := range rows {
-		key := schemaKey{scheduleUUID: r.scheduleUUID, sqlVersion: r.sqlVersion}
+		key := schemaKey{scheduleUUID: r.scheduleUUID, sqlVersion: r.sqlVersion, kind: r.kind}
 		known := s.seen[key]
 		for col := range r.columns {
 			if col == "" {
@@ -241,11 +244,12 @@ func (s *Sink) recordSchema(rows []row) {
 			continue
 		}
 		if _, err := s.schema.UpsertQuerySchema(ctx, repo.UpsertQuerySchemaParams{
-			ScheduleUuid: key.scheduleUUID,
-			SqlVersion:   key.sqlVersion,
-			Columns:      raw,
+			SourceUuid: key.scheduleUUID,
+			SqlVersion: key.sqlVersion,
+			Columns:    raw,
+			Kind:       key.kind,
 		}); err != nil {
-			s.logger.Warn("record query schema", "schedule_uuid", key.scheduleUUID, "error", err)
+			s.logger.Warn("record query schema", "source_uuid", key.scheduleUUID, "error", err)
 			continue
 		}
 		seen := s.seen[key]

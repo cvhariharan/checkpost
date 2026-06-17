@@ -3,15 +3,19 @@ package core
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 )
+
+// adHocSQLVersion is fixed: ad-hoc queries are not versioned like schedules.
+const adHocSQLVersion = 1
 
 func (c *Core) ListMachineQueries(ctx context.Context, req models.NodeIdentity, pageReq models.PageRequest) (models.Page[models.MachineQueryResult], error) {
 	node, err := c.GetNodeByID(ctx, req)
@@ -55,6 +59,64 @@ func (c *Core) ListMachineQueries(ctx context.Context, req models.NodeIdentity, 
 	}, nil
 }
 
+// GetAdHocQueryResults returns one page of result rows; browsing is disabled
+// when no reader is configured.
+func (c *Core) GetAdHocQueryResults(ctx context.Context, queryUUID string, page, count int) (models.AdHocQueryResults, error) {
+	if c.reader == nil {
+		return models.AdHocQueryResults{BrowsingDisabled: true}, nil
+	}
+
+	qUUID, err := uuid.Parse(queryUUID)
+	if err != nil {
+		return models.AdHocQueryResults{}, fmt.Errorf("parse query uuid: %w", err)
+	}
+
+	rec, err := c.store.GetMachineQueryResultByUUID(ctx, qUUID)
+	if err != nil {
+		return models.AdHocQueryResults{}, fmt.Errorf("get machine query result: %w", err)
+	}
+	if rec.Status == "pending" {
+		return models.AdHocQueryResults{Pending: true}, nil
+	}
+	if rec.Error != "" {
+		return models.AdHocQueryResults{Error: rec.Error}, nil
+	}
+
+	if count <= 0 {
+		count = 10
+	}
+	if page < 0 {
+		page = 0
+	}
+
+	columns, err := c.loadResultColumns(ctx, qUUID, adHocSQLVersion)
+	if err != nil {
+		return models.AdHocQueryResults{}, err
+	}
+
+	res, err := c.reader.Read(ctx, qUUID, adHocSQLVersion, columns, results.ReadOptions{
+		Snapshot: true,
+		Limit:    count,
+		Offset:   page * count,
+	})
+	if err != nil {
+		return models.AdHocQueryResults{}, fmt.Errorf("read ad-hoc results: %w", err)
+	}
+
+	rows := make([]map[string]string, 0, len(res.Rows))
+	for _, r := range res.Rows {
+		rows = append(rows, r.Values)
+	}
+	return models.AdHocQueryResults{
+		Columns:      res.Columns,
+		Rows:         rows,
+		Total:        res.Total,
+		Page:         page + 1,
+		CountPerPage: count,
+		PageCount:    pageCountFor(res.Total, count),
+	}, nil
+}
+
 func (c *Core) DeleteMachineQuery(ctx context.Context, nodeReq models.NodeIdentity, queryReq models.ResourceID) error {
 	node, err := c.GetNodeByID(ctx, nodeReq)
 	if err != nil {
@@ -81,11 +143,30 @@ func (c *Core) DeleteMachineQuery(ctx context.Context, nodeReq models.NodeIdenti
 	if rows == 0 {
 		return sql.ErrNoRows
 	}
+
+	c.deleteResultSource(ctx, queryUUID)
 	return nil
+}
+
+// deleteResultSource is best-effort: the lifecycle row is already gone and the
+// TTL sweep is the backstop.
+func (c *Core) deleteResultSource(ctx context.Context, sourceUUID uuid.UUID) {
+	if c.sink != nil {
+		if err := c.sink.Delete(ctx, sourceUUID); err != nil {
+			c.logger.Error("remove ad-hoc result partitions", "source_uuid", sourceUUID, "error", err)
+		}
+	}
+	if err := c.store.DeleteQuerySchemasForSource(ctx, sourceUUID); err != nil {
+		c.logger.Error("remove query_schemas for ad-hoc result", "source_uuid", sourceUUID, "error", err)
+	}
 }
 
 // ExecuteMachineQuery creates a adhoc query in the store with status as pending to be dispatched during the next node poll
 func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryRequest) (models.MachineQueryResult, error) {
+	if c.sink == nil {
+		return models.MachineQueryResult{}, ErrResultsBackendDisabled
+	}
+
 	query := strings.TrimSpace(req.Query)
 	if err := validateQuery(query); err != nil {
 		return models.MachineQueryResult{}, err
@@ -138,20 +219,12 @@ func (c *Core) completeAdHocResult(ctx context.Context, queryID string, rows int
 		return models.MachineQueryResult{}, false, nil
 	}
 
-	rowsForStorage := rows
-	if rowsForStorage == nil && errMsg == "" {
-		rowsForStorage = []interface{}{}
-	}
-
-	resultJSON, err := json.Marshal(rowsForStorage)
-	if err != nil {
-		return models.MachineQueryResult{}, true, fmt.Errorf("marshal ad-hoc query result: %w", err)
-	}
+	resultRows := toResultRows(rows)
 
 	completed, err := c.store.CompleteMachineQueryResult(ctx, repo.CompleteMachineQueryResultParams{
-		Uuid:    parsedID,
-		Results: string(resultJSON),
-		Error:   errMsg,
+		Uuid:     parsedID,
+		RowCount: int32(len(resultRows)),
+		Error:    errMsg,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -161,5 +234,40 @@ func (c *Core) completeAdHocResult(ctx context.Context, queryID string, rows int
 		return models.MachineQueryResult{}, true, fmt.Errorf("complete machine query result: %w", err)
 	}
 
+	if c.sink != nil && errMsg == "" && len(resultRows) > 0 {
+		for i := range resultRows {
+			resultRows[i].NodeID = completed.NodeID
+		}
+		if err := c.sink.Submit(ctx, results.Batch{
+			SourceUUID: parsedID,
+			SQLVersion: adHocSQLVersion,
+			SourceName: "adhoc",
+			Kind:       results.KindAdhoc,
+			Snapshot:   true,
+			Rows:       resultRows,
+		}); err != nil {
+			c.logger.Error("submit ad-hoc query result", "query_id", queryID, "error", err)
+		}
+	}
+
 	return toModelMachineQueryResult(completed), true, nil
+}
+
+// toResultRows converts an ad-hoc query payload into snapshot rows. NodeID is
+// set by the caller after the lifecycle row is resolved.
+func toResultRows(rows interface{}) []results.Row {
+	arr, ok := rows.([]interface{})
+	if !ok {
+		return nil
+	}
+	ut := time.Now().UTC()
+	out := make([]results.Row, 0, len(arr))
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		out = append(out, resultRowFromMap(m, "snapshot", 0, ut, ""))
+	}
+	return out
 }

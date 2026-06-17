@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/sqlc-dev/pqtype"
 )
 
 const createQueryRun = `-- name: CreateQueryRun :one
@@ -88,7 +87,11 @@ func (q *Queries) GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (Que
 
 const listMachineQueryResultsByRunUUID = `-- name: ListMachineQueryResultsByRunUUID :many
 SELECT
-    machine_query_results.id, machine_query_results.uuid, machine_query_results.node_id, machine_query_results.query, machine_query_results.status, machine_query_results.results, machine_query_results.error, machine_query_results.dispatched_at, machine_query_results.completed_at, machine_query_results.created_at, machine_query_results.updated_at, machine_query_results.run_id,
+    machine_query_results.id, machine_query_results.uuid, machine_query_results.node_id,
+    machine_query_results.query, machine_query_results.status, machine_query_results.error,
+    machine_query_results.row_count, machine_query_results.dispatched_at,
+    machine_query_results.completed_at, machine_query_results.created_at,
+    machine_query_results.updated_at, machine_query_results.run_id,
     nodes.uuid AS node_uuid,
     nodes.hostname AS hostname,
     nodes.platform AS platform
@@ -100,21 +103,21 @@ ORDER BY nodes.hostname ASC, nodes.uuid ASC
 `
 
 type ListMachineQueryResultsByRunUUIDRow struct {
-	ID           int64                 `db:"id" json:"id"`
-	Uuid         uuid.UUID             `db:"uuid" json:"uuid"`
-	NodeID       int64                 `db:"node_id" json:"node_id"`
-	Query        string                `db:"query" json:"query"`
-	Status       string                `db:"status" json:"status"`
-	Results      pqtype.NullRawMessage `db:"results" json:"results"`
-	Error        string                `db:"error" json:"error"`
-	DispatchedAt sql.NullTime          `db:"dispatched_at" json:"dispatched_at"`
-	CompletedAt  sql.NullTime          `db:"completed_at" json:"completed_at"`
-	CreatedAt    time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time             `db:"updated_at" json:"updated_at"`
-	RunID        sql.NullInt64         `db:"run_id" json:"run_id"`
-	NodeUuid     uuid.UUID             `db:"node_uuid" json:"node_uuid"`
-	Hostname     string                `db:"hostname" json:"hostname"`
-	Platform     string                `db:"platform" json:"platform"`
+	ID           int64         `db:"id" json:"id"`
+	Uuid         uuid.UUID     `db:"uuid" json:"uuid"`
+	NodeID       int64         `db:"node_id" json:"node_id"`
+	Query        string        `db:"query" json:"query"`
+	Status       string        `db:"status" json:"status"`
+	Error        string        `db:"error" json:"error"`
+	RowCount     int32         `db:"row_count" json:"row_count"`
+	DispatchedAt sql.NullTime  `db:"dispatched_at" json:"dispatched_at"`
+	CompletedAt  sql.NullTime  `db:"completed_at" json:"completed_at"`
+	CreatedAt    time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
+	RunID        sql.NullInt64 `db:"run_id" json:"run_id"`
+	NodeUuid     uuid.UUID     `db:"node_uuid" json:"node_uuid"`
+	Hostname     string        `db:"hostname" json:"hostname"`
+	Platform     string        `db:"platform" json:"platform"`
 }
 
 func (q *Queries) ListMachineQueryResultsByRunUUID(ctx context.Context, runUuid uuid.UUID) ([]ListMachineQueryResultsByRunUUIDRow, error) {
@@ -132,8 +135,8 @@ func (q *Queries) ListMachineQueryResultsByRunUUID(ctx context.Context, runUuid 
 			&i.NodeID,
 			&i.Query,
 			&i.Status,
-			&i.Results,
 			&i.Error,
+			&i.RowCount,
 			&i.DispatchedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,

@@ -60,10 +60,10 @@ func (m *MultiSink) Submit(ctx context.Context, batch Batch) error {
 	return reqErr
 }
 
-func (m *MultiSink) DeleteSchedule(ctx context.Context, scheduleUUID uuid.UUID) error {
+func (m *MultiSink) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
 	for _, bs := range m.sinks {
-		if err := bs.sink.DeleteSchedule(ctx, scheduleUUID); err != nil {
-			m.logger.Error("sink delete schedule failed", "sink", bs.sink.Name(), "schedule_uuid", scheduleUUID, "error", err)
+		if err := bs.sink.Delete(ctx, sourceUUID); err != nil {
+			m.logger.Error("sink delete failed", "sink", bs.sink.Name(), "source_uuid", sourceUUID, "error", err)
 		}
 	}
 	return nil

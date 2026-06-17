@@ -27,6 +27,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 	"github.com/spf13/cobra"
 )
@@ -167,8 +168,7 @@ func runServer(flags *rootFlags) error {
 	e.GET("/login/oidc", h.HandleOIDCLogin)
 	e.GET("/auth/callback", h.HandleAuthCallback)
 
-	// osquery agent endpoints — authenticated by enroll_secret / node_key
-	osqueryAPI := e.Group("/api/v1/osquery")
+	osqueryAPI := e.Group("/api/v1/osquery", middleware.BodyLimit("10M"))
 	osqueryAPI.POST("/enroll", h.HandleEnrollment)
 	osqueryAPI.POST("/config", h.HandleOSQueryConfig)
 	osqueryAPI.POST("/logger", h.HandleLog)
@@ -219,6 +219,7 @@ func runServer(flags *rootFlags) error {
 
 	api.GET("/machines", h.HandleMachinesPagination, h.Authorize(core.ResourceMachine, core.ActionView))
 	api.GET("/machines/:id/queries", h.HandleMachineQueries, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.GET("/machines/:id/queries/:query_id/results", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
 	api.GET("/machines/:id/policies", h.HandleMachinePolicies, h.Authorize(core.ResourceMachine, core.ActionView))
 	api.GET("/machines/:id/groups", h.HandleMachineGroups, h.Authorize(core.ResourceMachine, core.ActionView))
@@ -235,6 +236,7 @@ func runServer(flags *rootFlags) error {
 	api.POST("/query-runs/preview", h.HandlePreviewQueryTargets, h.Authorize(core.ResourceMachine, core.ActionExecute))
 	api.GET("/query-runs", h.HandleQueryRuns, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.GET("/query-runs/:id", h.HandleGetQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.GET("/query-runs/:id/hosts/:query_id/results", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.DELETE("/query-runs/:id", h.HandleDeleteQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
 
 	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources, h.Authorize(core.ResourceYaraSource, core.ActionView))
@@ -321,7 +323,7 @@ func buildResultsSink(rc config.ResultsConfig, store repo.Store, logger *slog.Lo
 	var parquetReader, clickhouseReader results.Reader
 
 	if rc.Parquet.Enabled {
-		backend, err := parquet.New(rc.Parquet.Root, rc.Parquet.DuckDBPath, store, logger)
+		backend, err := parquet.New(rc.Parquet.Root, rc.Parquet.DuckDBPath, store, logger, int32(rc.Adhoc.RetentionDays))
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not initialize parquet backend: %w", err)
 		}

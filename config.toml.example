@@ -86,6 +86,11 @@ root = './data/results'
 # Parquet metadata on cold start). Set a path to persist catalogs/indexes.
 duckdb_path = ''
 
+[results.adhoc]
+# Retention (days) for ad-hoc / multi-host query-run result rows. Schedule
+# retention is unaffected (per-schedule retention_days).
+retention_days = 30
+
 [results.ndjson]
 # Ship rows as newline-delimited JSON to a file or stdout for an external agent
 # (Vector, Fluent Bit, ...) to tail. Rotation is handled by the host/agent.

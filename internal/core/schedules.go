@@ -107,7 +107,7 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 		page = 0
 	}
 
-	columns, err := c.loadScheduleColumns(ctx, sched.Uuid, sched.SqlVersion)
+	columns, err := c.loadResultColumns(ctx, sched.Uuid, sched.SqlVersion)
 	if err != nil {
 		return models.ScheduleResults{}, err
 	}
@@ -237,13 +237,12 @@ func (c *Core) resolveNodeNames(ctx context.Context, rows []results.ResultRow) (
 	return out, nil
 }
 
-// loadScheduleColumns reads the observed column list from query_schemas. If
-// no schema has been recorded yet (a brand-new schedule that hasn't reported
-// any rows), returns an empty slice.
-func (c *Core) loadScheduleColumns(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32) ([]string, error) {
+// loadResultColumns returns an empty slice when no schema has been recorded yet
+// (a brand-new source that hasn't reported any rows).
+func (c *Core) loadResultColumns(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32) ([]string, error) {
 	schema, err := c.store.GetQuerySchema(ctx, repo.GetQuerySchemaParams{
-		ScheduleUuid: scheduleUUID,
-		SqlVersion:   sqlVersion,
+		SourceUuid: sourceUUID,
+		SqlVersion: sqlVersion,
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -368,11 +367,11 @@ func (c *Core) DeleteSchedule(ctx context.Context, req models.ResourceID) error 
 	// Errors are logged, not returned: the schedule row is gone either way and
 	// orphaned files will be swept by the schema GC.
 	if c.sink != nil {
-		if err := c.sink.DeleteSchedule(ctx, id); err != nil {
+		if err := c.sink.Delete(ctx, id); err != nil {
 			c.logger.Error("remove schedule partitions", "schedule_uuid", id, "error", err)
 		}
 	}
-	if err := c.store.DeleteQuerySchemasForSchedule(ctx, id); err != nil {
+	if err := c.store.DeleteQuerySchemasForSource(ctx, id); err != nil {
 		c.logger.Error("remove query_schemas for schedule", "schedule_uuid", id, "error", err)
 	}
 	return nil

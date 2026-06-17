@@ -9,7 +9,6 @@ import (
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 func toModelNode(node repo.Node) models.Node {
@@ -602,7 +601,7 @@ func toModelMachineQueryResult(row repo.MachineQueryResult) models.MachineQueryR
 		Query:     row.Query,
 		Status:    row.Status,
 		Timestamp: timestamp,
-		Results:   decodeMachineQueryResults(row.Results),
+		RowCount:  int(row.RowCount),
 		Error:     row.Error,
 	}
 }
@@ -618,21 +617,9 @@ func toModelMachineQueryResultRow(row repo.ListMachineQueryResultsByNodeUUIDRow)
 		Query:     row.Query,
 		Status:    row.Status,
 		Timestamp: timestamp,
-		Results:   decodeMachineQueryResults(row.Results),
+		RowCount:  int(row.RowCount),
 		Error:     row.Error,
 	}
-}
-
-func decodeMachineQueryResults(raw pqtype.NullRawMessage) interface{} {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil
-	}
-
-	var out interface{}
-	if err := json.Unmarshal(raw.RawMessage, &out); err != nil {
-		return string(raw.RawMessage)
-	}
-	return out
 }
 
 func decodeQueryTargets(raw json.RawMessage) models.QueryTargets {
@@ -641,15 +628,6 @@ func decodeQueryTargets(raw json.RawMessage) models.QueryTargets {
 		_ = json.Unmarshal(raw, &targets)
 	}
 	return targets
-}
-
-// resultRowCount reports the number of result rows when the decoded results are
-// a JSON array, otherwise 0.
-func resultRowCount(results interface{}) int {
-	if rows, ok := results.([]interface{}); ok {
-		return len(rows)
-	}
-	return 0
 }
 
 func toModelQueryRunListRow(row repo.ListQueryRunsRow) models.QueryRun {
@@ -670,15 +648,13 @@ func toModelQueryRunHost(row repo.ListMachineQueryResultsByRunUUIDRow) models.Qu
 	if row.CompletedAt.Valid {
 		timestamp = row.CompletedAt.Time
 	}
-	results := decodeMachineQueryResults(row.Results)
 	return models.QueryRunHost{
 		QueryID:   row.Uuid.String(),
 		NodeUUID:  row.NodeUuid.String(),
 		Hostname:  row.Hostname,
 		Platform:  row.Platform,
 		Status:    row.Status,
-		RowCount:  resultRowCount(results),
-		Results:   results,
+		RowCount:  int(row.RowCount),
 		Error:     row.Error,
 		Timestamp: timestamp,
 	}

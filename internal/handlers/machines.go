@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/labstack/echo/v4"
 )
@@ -171,8 +172,37 @@ func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {
 		Query:    req.Query,
 	})
 	if err != nil {
+		if errors.Is(err, core.ErrResultsBackendDisabled) {
+			return wrapError(http.StatusConflict, "results backend not configured", err, nil)
+		}
 		return wrapError(http.StatusInternalServerError, "error executing machine query", err, nil)
 	}
 
 	return c.JSON(http.StatusAccepted, result)
+}
+
+func (h *Handler) HandleAdHocQueryResults(c echo.Context) error {
+	var req AdHocResultsRequest
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
+	}
+	if req.Page > 0 {
+		req.Page -= 1
+	}
+	if req.Count == 0 {
+		req.Count = CountPerPage
+	}
+	if req.Count > MaxResultsPerPage {
+		req.Count = MaxResultsPerPage
+	}
+
+	res, err := h.c.GetAdHocQueryResults(c.Request().Context(), req.QueryID, req.Page, req.Count)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return wrapError(http.StatusNotFound, fmt.Sprintf("query %s not found", req.QueryID), err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting results for query %s", req.QueryID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, res)
 }

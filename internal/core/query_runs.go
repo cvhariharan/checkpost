@@ -83,6 +83,10 @@ func (c *Core) ResolveQueryTargets(ctx context.Context, targets models.QueryTarg
 // CreateQueryRun validates the query, resolves targets to a node set, and
 // creates the run plus one pending ad-hoc execution per node in one transaction.
 func (c *Core) CreateQueryRun(ctx context.Context, req models.QueryRunRequest) (models.QueryRun, error) {
+	if c.sink == nil {
+		return models.QueryRun{}, ErrResultsBackendDisabled
+	}
+
 	query := strings.TrimSpace(req.Query)
 	if err := validateQuery(query); err != nil {
 		return models.QueryRun{}, err
@@ -194,12 +198,21 @@ func (c *Core) DeleteQueryRun(ctx context.Context, req models.ResourceID) error 
 		return fmt.Errorf("parse query run uuid: %w", err)
 	}
 
+	queryUUIDs, err := c.store.ListMachineQueryUUIDsByRunUUID(ctx, runUUID)
+	if err != nil {
+		return fmt.Errorf("list query run results: %w", err)
+	}
+
 	rows, err := c.store.DeleteQueryRunByUUID(ctx, runUUID)
 	if err != nil {
 		return fmt.Errorf("delete query run: %w", err)
 	}
 	if rows == 0 {
 		return sql.ErrNoRows
+	}
+
+	for _, queryUUID := range queryUUIDs {
+		c.deleteResultSource(ctx, queryUUID)
 	}
 	return nil
 }

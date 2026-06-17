@@ -17,6 +17,13 @@ import (
 // next interval.
 var ErrBackpressure = errors.New("results: backend overflow buffer full")
 
+// Result-source kinds: scheduled and ad-hoc results share one backend and are
+// distinguished only for retention.
+const (
+	KindSchedule = "schedule"
+	KindAdhoc    = "adhoc"
+)
+
 // Row is a single result row received from osquery for one schedule.
 type Row struct {
 	NodeID       int64
@@ -27,30 +34,31 @@ type Row struct {
 	Columns      map[string]string
 }
 
-// Batch is the rows osquery reported for one (schedule, sql_version) in a
-// single ingest call, plus schedule metadata for external backends to tag.
+// Batch carries the rows for one (source, sql_version) plus source metadata
+// for external backends to tag.
 type Batch struct {
-	ScheduleUUID uuid.UUID
-	SQLVersion   int32
-	ScheduleName string
-	Snapshot     bool
-	Rows         []Row
+	SourceUUID uuid.UUID
+	SQLVersion int32
+	SourceName string
+	Kind       string // KindSchedule | KindAdhoc
+	Snapshot   bool
+	Rows       []Row
 }
 
-// Sink is the generic write/push target for scheduled-query results.
+// Sink is the generic write/push target for query results.
 type Sink interface {
 	Name() string
 	// Submit enqueues a batch. It returns ErrBackpressure when the backend's
 	// buffer is full; best-effort backends never return ErrBackpressure.
 	Submit(ctx context.Context, batch Batch) error
-	DeleteSchedule(ctx context.Context, scheduleUUID uuid.UUID) error
+	Delete(ctx context.Context, sourceUUID uuid.UUID) error
 	Close() error
 }
 
 // Reader is the frontend query surface. May be nil when no reader-capable
 // backend is enabled (browsing disabled).
 type Reader interface {
-	Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, columns []string, opts ReadOptions) (Result, error)
+	Read(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, columns []string, opts ReadOptions) (Result, error)
 	Close() error
 }
 

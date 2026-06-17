@@ -9,10 +9,12 @@
     fetchMachineMetrics,
     fetchMachinePolicies,
     fetchMachineQueries,
+    fetchMachineQueryResults,
     fetchOwners,
     fetchMetricSchemas,
     updateMachineInventory,
     updateMachineGroups,
+    type AdHocQueryResults,
     type DeviceOwner,
     type Group,
     type Machine,
@@ -45,6 +47,11 @@
   let metricSchemas = $state<MetricSchemas>({ schemas: {}, kinds: [] })
   let queryText = $state('')
   let queryHistory = $state<MachineQueryRecord[]>([])
+  let selectedQuery = $state<MachineQueryRecord | null>(null)
+  let resultsOpen = $state(false)
+  let resultsDialog = $state<HTMLDialogElement>()
+  let queryResults = $state<AdHocQueryResults | null>(null)
+  let queryResultsLoading = $state(false)
   let policyPosture = $state<MachinePolicyPosture[]>([])
   let loading = $state(true)
   let historyLoading = $state(false)
@@ -330,6 +337,44 @@
     return 'warning'
   }
 
+  function openQueryResults(query: MachineQueryRecord) {
+    selectedQuery = query
+    resultsOpen = true
+    loadQueryResults(1)
+  }
+
+  function handleResultsClose() {
+    resultsOpen = false
+    selectedQuery = null
+    queryResults = null
+  }
+
+  async function loadQueryResults(targetPage: number) {
+    if (!selectedQuery?.id) return
+    queryResultsLoading = true
+    try {
+      queryResults = await fetchMachineQueryResults(machineId, String(selectedQuery.id), { page: targetPage })
+    } catch (err) {
+      queryResults = {
+        columns: [],
+        rows: [],
+        total: 0,
+        page: 1,
+        count_per_page: 0,
+        page_count: 0,
+        error: (err as Error).message || 'Failed to load results'
+      }
+    } finally {
+      queryResultsLoading = false
+    }
+  }
+
+  $effect(() => {
+    if (!resultsDialog) return
+    if (resultsOpen && !resultsDialog.open) resultsDialog.showModal()
+    else if (!resultsOpen && resultsDialog.open) resultsDialog.close()
+  })
+
   const visibleMetricKinds = $derived((metricSchemas.kinds || []).filter((k) => metrics[k]))
   const summaryMetricKinds = $derived(visibleMetricKinds.filter(
     (k) => rootShape(metricSchemas.schemas[k] as JSONSchema).kind === 'card'
@@ -566,11 +611,19 @@
             {#each queryHistory as query}
               <article class="card">
                 <div class="hstack justify-between query-history-header">
-                  <code class="query-text">{query.query}</code>
+                  <button
+                    type="button"
+                    class="query-text-button"
+                    title="Click to show results"
+                    onclick={() => openQueryResults(query)}
+                  >
+                    <code class="query-text">{query.query}</code>
+                  </button>
                   <div class="hstack gap-2 query-history-actions">
                     {#if query.status}
                       <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
                     {/if}
+                    <small class="text-light">{query.row_count ?? 0} row{query.row_count === 1 ? '' : 's'}</small>
                     <small class="text-light">{formatTimestamp(query.timestamp)}</small>
                     {#if canDeleteQueryResult}
                       <button
@@ -585,11 +638,6 @@
                     {/if}
                   </div>
                 </div>
-                <QueryResultTable
-                  results={query.results}
-                  error={query.error}
-                  keyPrefix={String(query.id || query.timestamp || query.query || 'query')}
-                />
               </article>
             {:else}
               <article class="card align-center text-light">No queries executed yet</article>
@@ -622,13 +670,63 @@
   onCancel={() => (queryToDelete = null)}
 />
 
+<dialog bind:this={resultsDialog} class="query-results-modal" closedby="any" onclose={handleResultsClose}>
+  {#if selectedQuery}
+    <header>
+      <h2>Query Result</h2>
+      <p class="hstack gap-2">
+        {#if selectedQuery.status}
+          <span class="badge" data-variant={statusVariant(selectedQuery)}>{selectedQuery.status}</span>
+        {/if}
+        <span class="text-light">{selectedQuery.row_count ?? 0} row{selectedQuery.row_count === 1 ? '' : 's'}</span>
+      </p>
+    </header>
+    <section>
+      <code class="query-text">{selectedQuery.query}</code>
+      <QueryResultTable
+        columns={queryResults?.columns ?? []}
+        rows={queryResults?.rows ?? []}
+        total={queryResults?.total ?? 0}
+        page={queryResults?.page ?? 1}
+        pageCount={queryResults?.page_count ?? 1}
+        loading={queryResultsLoading}
+        pending={queryResults?.pending ?? false}
+        error={queryResults?.error ?? selectedQuery.error ?? ''}
+        browsingDisabled={queryResults?.browsing_disabled ?? false}
+        onPageChange={(p) => loadQueryResults(p)}
+      />
+    </section>
+  {/if}
+  <footer class="hstack justify-end">
+    <button type="button" class="outline" onclick={() => resultsDialog?.close()}>Close</button>
+  </footer>
+</dialog>
+
 <style>
   .query-history-header {
     align-items: flex-start;
   }
+  .query-text-button {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
   .query-text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .query-results-modal {
+    width: min(72rem, 94vw);
+  }
+  .query-results-modal > section {
+    max-height: 64vh;
+    overflow: auto;
   }
   .metric-grid {
     display: grid;

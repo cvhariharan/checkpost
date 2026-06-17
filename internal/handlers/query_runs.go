@@ -35,6 +35,9 @@ func (h *Handler) HandleCreateQueryRun(c echo.Context) error {
 		if errors.Is(err, core.ErrNoQueryTargets) || errors.Is(err, core.ErrTooManyQueryTargets) {
 			return wrapError(http.StatusBadRequest, err.Error(), err, nil)
 		}
+		if errors.Is(err, core.ErrResultsBackendDisabled) {
+			return wrapError(http.StatusConflict, "results backend not configured", err, nil)
+		}
 		return wrapError(http.StatusInternalServerError, "error creating query run", err, nil)
 	}
 

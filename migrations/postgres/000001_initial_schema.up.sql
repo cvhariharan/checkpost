@@ -117,29 +117,6 @@ CREATE INDEX policy_membership_node_idx ON policy_membership (node_id);
 CREATE INDEX policy_membership_policy_passes_idx ON policy_membership (policy_id, passes);
 CREATE INDEX policy_membership_checked_at_idx ON policy_membership (checked_at DESC);
 
-CREATE TABLE machine_query_results (
-    id BIGSERIAL PRIMARY KEY,
-    uuid UUID NOT NULL DEFAULT uuidv7(),
-    node_id BIGINT NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
-    query TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending',
-    results JSONB,
-    error TEXT NOT NULL DEFAULT '',
-    dispatched_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT machine_query_results_uuid_unique UNIQUE (uuid),
-    CONSTRAINT machine_query_results_query_nonempty CHECK (length(trim(query)) > 0),
-    CONSTRAINT machine_query_results_status_check CHECK (status IN ('pending', 'complete', 'error'))
-);
-
-CREATE INDEX machine_query_results_node_created_idx ON machine_query_results (node_id, created_at DESC);
-CREATE INDEX machine_query_results_status_idx ON machine_query_results (status);
-CREATE INDEX machine_query_results_pending_dispatch_idx ON machine_query_results (node_id, created_at)
-    WHERE status = 'pending' AND dispatched_at IS NULL;
-
 CREATE TABLE groups (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuidv7(),
@@ -318,17 +295,18 @@ CREATE INDEX schedule_groups_schedule_idx ON schedule_groups (schedule_id);
 CREATE INDEX schedule_groups_group_idx ON schedule_groups (group_id);
 
 CREATE TABLE query_schemas (
-    schedule_uuid UUID NOT NULL,
+    source_uuid UUID NOT NULL,
     sql_version INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'schedule',
     columns JSONB NOT NULL,
     first_observed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_observed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     row_count_estimate BIGINT NOT NULL DEFAULT 0,
 
-    PRIMARY KEY (schedule_uuid, sql_version)
+    PRIMARY KEY (source_uuid, sql_version)
 );
 
-CREATE INDEX query_schemas_schedule_idx ON query_schemas (schedule_uuid);
+CREATE INDEX query_schemas_source_idx ON query_schemas (source_uuid);
 
 CREATE TABLE node_metrics (
     node_id BIGINT NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
@@ -363,6 +341,47 @@ CREATE TABLE users (
     CONSTRAINT users_login_type_check CHECK (login_type IN ('standard','oidc'))
 );
 CREATE UNIQUE INDEX users_username_unique ON users (lower(username));
+
+CREATE TABLE query_runs (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    query TEXT NOT NULL,
+    targets JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_by BIGINT REFERENCES users (id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT query_runs_uuid_unique UNIQUE (uuid),
+    CONSTRAINT query_runs_query_nonempty CHECK (length(trim(query)) > 0)
+);
+
+CREATE INDEX query_runs_created_idx ON query_runs (created_at DESC);
+
+CREATE TABLE machine_query_results (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuidv7(),
+    node_id BIGINT NOT NULL REFERENCES nodes (id) ON DELETE CASCADE,
+    run_id BIGINT REFERENCES query_runs (id) ON DELETE CASCADE,
+    query TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    results JSONB,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT '',
+    dispatched_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT machine_query_results_uuid_unique UNIQUE (uuid),
+    CONSTRAINT machine_query_results_query_nonempty CHECK (length(trim(query)) > 0),
+    CONSTRAINT machine_query_results_status_check CHECK (status IN ('pending', 'complete', 'error'))
+);
+
+CREATE INDEX machine_query_results_node_created_idx ON machine_query_results (node_id, created_at DESC);
+CREATE INDEX machine_query_results_status_idx ON machine_query_results (status);
+CREATE INDEX machine_query_results_run_idx ON machine_query_results (run_id);
+CREATE INDEX machine_query_results_pending_dispatch_idx ON machine_query_results (node_id, created_at)
+    WHERE status = 'pending' AND dispatched_at IS NULL;
 
 -- simplesessions postgres store (v3) backing table.
 CREATE TABLE sessions (

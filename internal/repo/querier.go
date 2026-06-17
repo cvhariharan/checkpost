@@ -54,7 +54,7 @@ type Querier interface {
 	DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error
 	DeleteQueryRunByUUID(ctx context.Context, runUuid uuid.UUID) (int64, error)
 	DeleteQuerySchema(ctx context.Context, arg DeleteQuerySchemaParams) error
-	DeleteQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
+	DeleteQuerySchemasForSource(ctx context.Context, sourceUuid uuid.UUID) error
 	DeleteRoleBindingByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
@@ -76,6 +76,7 @@ type Querier interface {
 	GetGroupByName(ctx context.Context, name string) (Group, error)
 	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
 	GetGroupWithCountsByUUID(ctx context.Context, groupUuid uuid.UUID) (GetGroupWithCountsByUUIDRow, error)
+	GetMachineQueryResultByUUID(ctx context.Context, argUuid uuid.UUID) (GetMachineQueryResultByUUIDRow, error)
 	GetNodeByID(ctx context.Context, id int64) (Node, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
 	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error)
@@ -119,6 +120,7 @@ type Querier interface {
 	ListGroupsWithCounts(ctx context.Context, arg ListGroupsWithCountsParams) ([]ListGroupsWithCountsRow, error)
 	ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error)
 	ListMachineQueryResultsByRunUUID(ctx context.Context, runUuid uuid.UUID) ([]ListMachineQueryResultsByRunUUIDRow, error)
+	ListMachineQueryUUIDsByRunUUID(ctx context.Context, runUuid uuid.UUID) ([]uuid.UUID, error)
 	ListNodeIDsByGroupUUID(ctx context.Context, argUuid uuid.UUID) ([]int64, error)
 	ListNodeIDsByGroupUUIDs(ctx context.Context, groupUuids []uuid.UUID) ([]int64, error)
 	// Mirrors the platform semantics in ListEnabledPoliciesForNode: 'all'/'any'
@@ -138,7 +140,7 @@ type Querier interface {
 	ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNodeParams) ([]ListPoliciesForNodeRow, error)
 	ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWithCountsParams) ([]ListPoliciesWithCountsRow, error)
 	ListQueryRuns(ctx context.Context, arg ListQueryRunsParams) ([]ListQueryRunsRow, error)
-	ListQuerySchemasForSchedule(ctx context.Context, scheduleUuid uuid.UUID) ([]QuerySchema, error)
+	ListQuerySchemasForSource(ctx context.Context, sourceUuid uuid.UUID) ([]QuerySchema, error)
 	ListRoleBindingsForUser(ctx context.Context, userID sql.NullInt64) ([]ListRoleBindingsForUserRow, error)
 	ListRoleBindingsForUserGroup(ctx context.Context, userGroupID sql.NullInt64) ([]ListRoleBindingsForUserGroupRow, error)
 	ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error)
@@ -185,7 +187,7 @@ type Querier interface {
 	UpsertNodeMetric(ctx context.Context, arg UpsertNodeMetricParams) error
 	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error
 	// Atomically merges new columns into the persisted set. Concurrent writers
-	// observing different new columns for the same (schedule_uuid, sql_version)
+	// observing different new columns for the same (source_uuid, sql_version)
 	// would otherwise overwrite each other's column lists; doing the merge in
 	// a single UPDATE keeps the additions strictly cumulative because the
 	// statement reads the current row value under the row lock acquired by

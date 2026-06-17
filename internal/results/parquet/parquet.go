@@ -35,19 +35,21 @@ const (
 	ColIngestedAt   = "ingested_at"
 )
 
-// PartitionKey identifies a single (schedule, version, host) partition.
+// PartitionKey identifies a single (source, version, host) partition. Kind is
+// passed to the schema store but is not part of the on-disk path.
 type PartitionKey struct {
-	ScheduleUUID uuid.UUID
-	SQLVersion   int32
-	NodeID       int64
+	SourceUUID uuid.UUID
+	SQLVersion int32
+	NodeID     int64
+	Kind       string
 }
 
-// SchemaStore resolves and persists the column list per (schedule, sql_version).
-// MergeColumns unions observed with the persisted list (keeping existing order,
-// appending new columns) SQL-side, so concurrent partition writers can't drop
-// each other's columns.
+// SchemaStore persists the column list per (source, sql_version). MergeColumns
+// unions observed with the persisted list SQL-side (keeping existing order,
+// appending new columns) so concurrent partition writers can't drop each
+// other's columns.
 type SchemaStore interface {
-	MergeColumns(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, observed []string) ([]string, error)
+	MergeColumns(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, observed []string, kind string) ([]string, error)
 }
 
 // Backend is the local Parquet+DuckDB result backend, satisfying results.Sink
@@ -61,7 +63,7 @@ type Backend struct {
 
 // New constructs the Parquet backend at root, with duckdbPath for the DuckDB
 // catalog (empty = in-memory).
-func New(root, duckdbPath string, store repo.Store, logger *slog.Logger) (*Backend, error) {
+func New(root, duckdbPath string, store repo.Store, logger *slog.Logger, adhocRetentionDays int32) (*Backend, error) {
 	writer, err := NewWriter(root, NewQueryStore(store), logger)
 	if err != nil {
 		return nil, err
@@ -71,7 +73,7 @@ func New(root, duckdbPath string, store repo.Store, logger *slog.Logger) (*Backe
 		writer.Close()
 		return nil, err
 	}
-	workers := NewWorkers(root, store, reader, logger)
+	workers := NewWorkers(root, store, reader, logger, adhocRetentionDays)
 	workers.Start()
 	return &Backend{writer: writer, reader: reader, workers: workers}, nil
 }
@@ -79,15 +81,15 @@ func New(root, duckdbPath string, store repo.Store, logger *slog.Logger) (*Backe
 func (b *Backend) Name() string { return "parquet" }
 
 func (b *Backend) Submit(ctx context.Context, batch results.Batch) error {
-	return b.writer.Submit(batch.ScheduleUUID, batch.SQLVersion, batch.Rows)
+	return b.writer.Submit(batch.SourceUUID, batch.SQLVersion, batch.Kind, batch.Rows)
 }
 
-func (b *Backend) DeleteSchedule(ctx context.Context, scheduleUUID uuid.UUID) error {
-	return b.writer.DeleteSchedule(scheduleUUID)
+func (b *Backend) Delete(ctx context.Context, sourceUUID uuid.UUID) error {
+	return b.writer.Delete(sourceUUID)
 }
 
-func (b *Backend) Read(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, columns []string, opts results.ReadOptions) (results.Result, error) {
-	return b.reader.Read(ctx, scheduleUUID, sqlVersion, columns, opts)
+func (b *Backend) Read(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, columns []string, opts results.ReadOptions) (results.Result, error) {
+	return b.reader.Read(ctx, sourceUUID, sqlVersion, columns, opts)
 }
 
 // Close stops the workers before flushing and closing the writer and reader.
@@ -107,15 +109,16 @@ func NewQueryStore(q repo.Querier) *QueryStore {
 	return &QueryStore{q: q}
 }
 
-func (s *QueryStore) MergeColumns(ctx context.Context, scheduleUUID uuid.UUID, sqlVersion int32, observed []string) ([]string, error) {
+func (s *QueryStore) MergeColumns(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, observed []string, kind string) ([]string, error) {
 	raw, err := marshalColumns(observed)
 	if err != nil {
 		return nil, fmt.Errorf("encode columns: %w", err)
 	}
 	schema, err := s.q.UpsertQuerySchema(ctx, repo.UpsertQuerySchemaParams{
-		ScheduleUuid: scheduleUUID,
-		SqlVersion:   sqlVersion,
-		Columns:      raw,
+		SourceUuid: sourceUUID,
+		SqlVersion: sqlVersion,
+		Columns:    raw,
+		Kind:       kind,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("merge query_schemas: %w", err)
@@ -131,24 +134,22 @@ func (s *QueryStore) MergeColumns(ctx context.Context, scheduleUUID uuid.UUID, s
 func partitionDir(root string, key PartitionKey) string {
 	return filepath.Join(
 		root,
-		fmt.Sprintf("query=%s", key.ScheduleUUID.String()),
+		fmt.Sprintf("query=%s", key.SourceUUID.String()),
 		fmt.Sprintf("v=%d", key.SQLVersion),
 		fmt.Sprintf("host=%d", key.NodeID),
 	)
 }
 
-// versionDir returns the directory holding all hosts for one (schedule, version).
-func versionDir(root string, scheduleUUID uuid.UUID, sqlVersion int32) string {
+func versionDir(root string, sourceUUID uuid.UUID, sqlVersion int32) string {
 	return filepath.Join(
 		root,
-		fmt.Sprintf("query=%s", scheduleUUID.String()),
+		fmt.Sprintf("query=%s", sourceUUID.String()),
 		fmt.Sprintf("v=%d", sqlVersion),
 	)
 }
 
-// queryDir returns the directory holding all versions for one schedule.
-func queryDir(root string, scheduleUUID uuid.UUID) string {
-	return filepath.Join(root, fmt.Sprintf("query=%s", scheduleUUID.String()))
+func queryDir(root string, sourceUUID uuid.UUID) string {
+	return filepath.Join(root, fmt.Sprintf("query=%s", sourceUUID.String()))
 }
 
 // marshalColumns encodes a column list as the JSON representation stored in

@@ -83,7 +83,7 @@ export type MachineQueryRecord = {
   id?: number | string
   query?: string
   status?: string
-  results?: unknown
+  row_count?: number
   error?: string
   timestamp?: string
 }
@@ -101,9 +101,20 @@ export type QueryRunHost = {
   platform?: string
   status?: string
   row_count?: number
-  results?: unknown
   error?: string
   timestamp?: string
+}
+
+export type AdHocQueryResults = {
+  columns: string[]
+  rows: Record<string, string>[]
+  total: number
+  page: number
+  count_per_page: number
+  page_count: number
+  pending?: boolean
+  browsing_disabled?: boolean
+  error?: string
 }
 
 export type QueryRun = {
@@ -568,6 +579,30 @@ export function deleteMachineQuery(machineId: string, queryId: string | number) 
     `${BASE_URL}/machines/${encodeURIComponent(machineId)}/queries/${encodeURIComponent(String(queryId))}`,
     { method: 'DELETE' }
   ).then((r) => handleResponse<unknown>(r))
+}
+
+export function fetchMachineQueryResults(
+  machineId: string,
+  queryId: string,
+  opts: PageOpts = {}
+) {
+  const { page = 1, countPerPage = 100 } = opts
+  return fetch(
+    apiUrl(`/machines/${encodeURIComponent(machineId)}/queries/${encodeURIComponent(queryId)}/results`, {
+      page,
+      count_per_page: countPerPage
+    })
+  ).then((r) => handleResponse<AdHocQueryResults>(r))
+}
+
+export function fetchQueryRunHostResults(runId: string, queryId: string, opts: PageOpts = {}) {
+  const { page = 1, countPerPage = 100 } = opts
+  return fetch(
+    apiUrl(`/query-runs/${encodeURIComponent(runId)}/hosts/${encodeURIComponent(queryId)}/results`, {
+      page,
+      count_per_page: countPerPage
+    })
+  ).then((r) => handleResponse<AdHocQueryResults>(r))
 }
 
 export function fetchMachinePolicies(id: string) {

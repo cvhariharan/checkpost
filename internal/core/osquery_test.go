@@ -12,7 +12,6 @@ import (
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
 
 var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -136,7 +135,7 @@ func (s *fakePolicyStore) ListMachineQueryResultsByNodeUUID(ctx context.Context,
 			NodeID:       row.NodeID,
 			Query:        row.Query,
 			Status:       row.Status,
-			Results:      row.Results,
+			RowCount:     row.RowCount,
 			Error:        row.Error,
 			DispatchedAt: row.DispatchedAt,
 			CompletedAt:  row.CompletedAt,
@@ -205,10 +204,7 @@ func (s *fakePolicyStore) CompleteMachineQueryResult(ctx context.Context, arg re
 		}
 		completed := existing
 		completed.Status = status
-		completed.Results = pqtype.NullRawMessage{
-			RawMessage: []byte(arg.Results),
-			Valid:      arg.Results != "",
-		}
+		completed.RowCount = arg.RowCount
 		completed.Error = arg.Error
 		completed.CompletedAt = sql.NullTime{Time: now, Valid: true}
 		completed.UpdatedAt = now

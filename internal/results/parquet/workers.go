@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 )
 
@@ -29,10 +30,11 @@ const (
 // chunk compaction, retention enforcement, and query_schemas garbage
 // collection.
 type Workers struct {
-	root   string
-	store  repo.Querier
-	reader *Reader
-	logger *slog.Logger
+	root               string
+	store              repo.Querier
+	reader             *Reader
+	logger             *slog.Logger
+	adhocRetentionDays int32
 
 	mu     sync.Mutex
 	wg     sync.WaitGroup
@@ -41,12 +43,13 @@ type Workers struct {
 
 // NewWorkers constructs the maintenance workers. Call Start to run them and
 // Close to stop and wait for completion.
-func NewWorkers(root string, store repo.Querier, reader *Reader, logger *slog.Logger) *Workers {
+func NewWorkers(root string, store repo.Querier, reader *Reader, logger *slog.Logger, adhocRetentionDays int32) *Workers {
 	return &Workers{
-		root:   root,
-		store:  store,
-		reader: reader,
-		logger: logger.WithGroup("results.workers"),
+		root:               root,
+		store:              store,
+		reader:             reader,
+		logger:             logger.WithGroup("results.workers"),
+		adhocRetentionDays: adhocRetentionDays,
 	}
 }
 
@@ -209,19 +212,20 @@ func (w *Workers) sweep(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("load retentions: %w", err)
 	}
+	kinds, err := w.sourceKinds(ctx)
+	if err != nil {
+		return fmt.Errorf("load source kinds: %w", err)
+	}
 
 	for _, dir := range hostDirs {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		scheduleUUID, _, err := parseHostDir(dir, w.root)
+		sourceUUID, _, err := parseHostDir(dir, w.root)
 		if err != nil {
 			continue
 		}
-		days, ok := retentions[scheduleUUID]
-		if !ok {
-			days = 30
-		}
+		days := w.retentionDaysFor(sourceUUID, kinds, retentions)
 		cutoff := time.Now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
 
 		chunks, err := chunkFiles(dir)
@@ -268,7 +272,7 @@ func (w *Workers) schemaGC(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		dir := versionDir(w.root, s.ScheduleUuid, s.SqlVersion)
+		dir := versionDir(w.root, s.SourceUuid, s.SqlVersion)
 		hasFiles, err := versionHasFiles(dir)
 		if err != nil {
 			w.logger.Error("scan version dir", "dir", dir, "error", err)
@@ -278,14 +282,38 @@ func (w *Workers) schemaGC(ctx context.Context) error {
 			continue
 		}
 		err = w.store.DeleteQuerySchema(ctx, repo.DeleteQuerySchemaParams{
-			ScheduleUuid: s.ScheduleUuid,
-			SqlVersion:   s.SqlVersion,
+			SourceUuid: s.SourceUuid,
+			SqlVersion: s.SqlVersion,
 		})
 		if err != nil {
-			w.logger.Error("delete query_schema", "schedule_uuid", s.ScheduleUuid, "sql_version", s.SqlVersion, "error", err)
+			w.logger.Error("delete query_schema", "source_uuid", s.SourceUuid, "sql_version", s.SqlVersion, "error", err)
 		}
 	}
 	return nil
+}
+
+func (w *Workers) sourceKinds(ctx context.Context) (map[uuid.UUID]string, error) {
+	schemas, err := w.store.ListAllQuerySchemas(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[uuid.UUID]string, len(schemas))
+	for _, s := range schemas {
+		out[s.SourceUuid] = s.Kind
+	}
+	return out, nil
+}
+
+// retentionDaysFor resolves a partition's retention: ad-hoc sources use the
+// configured ad-hoc retention, schedules their own retention_days (default 30).
+func (w *Workers) retentionDaysFor(sourceUUID uuid.UUID, kinds map[uuid.UUID]string, retentions map[uuid.UUID]int32) int32 {
+	if kinds[sourceUUID] == results.KindAdhoc {
+		return w.adhocRetentionDays
+	}
+	if d, ok := retentions[sourceUUID]; ok {
+		return d
+	}
+	return 30
 }
 
 // scheduleRetentions reads retention_days for every schedule. The result is a

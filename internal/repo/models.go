@@ -123,6 +123,7 @@ type MachineQueryResult struct {
 	CreatedAt    time.Time             `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time             `db:"updated_at" json:"updated_at"`
 	RunID        sql.NullInt64         `db:"run_id" json:"run_id"`
+	RowCount     int32                 `db:"row_count" json:"row_count"`
 }
 
 type Node struct {
@@ -214,12 +215,13 @@ type QueryRun struct {
 }
 
 type QuerySchema struct {
-	ScheduleUuid     uuid.UUID       `db:"schedule_uuid" json:"schedule_uuid"`
+	SourceUuid       uuid.UUID       `db:"source_uuid" json:"source_uuid"`
 	SqlVersion       int32           `db:"sql_version" json:"sql_version"`
 	Columns          json.RawMessage `db:"columns" json:"columns"`
 	FirstObservedAt  time.Time       `db:"first_observed_at" json:"first_observed_at"`
 	LastObservedAt   time.Time       `db:"last_observed_at" json:"last_observed_at"`
 	RowCountEstimate int64           `db:"row_count_estimate" json:"row_count_estimate"`
+	Kind             string          `db:"kind" json:"kind"`
 }
 
 type RoleBinding struct {

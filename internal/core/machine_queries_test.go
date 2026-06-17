@@ -9,9 +9,16 @@ import (
 
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 )
+
+type noopSink struct{}
+
+func (noopSink) Name() string                                { return "noop" }
+func (noopSink) Submit(context.Context, results.Batch) error { return nil }
+func (noopSink) Delete(context.Context, uuid.UUID) error     { return nil }
+func (noopSink) Close() error                                { return nil }
 
 func TestExecuteMachineQueryPersistsPendingResult(t *testing.T) {
 	nodeUUID := uuid.New()
@@ -20,6 +27,7 @@ func TestExecuteMachineQueryPersistsPendingResult(t *testing.T) {
 	}
 	core := &Core{
 		store: store,
+		sink:  noopSink{},
 	}
 
 	result, err := core.ExecuteMachineQuery(context.Background(), models.MachineQueryRequest{
@@ -58,7 +66,7 @@ func TestListMachineQueriesReturnsPersistedHistory(t *testing.T) {
 				NodeID:      7,
 				Query:       "SELECT name FROM processes LIMIT 1",
 				Status:      "complete",
-				Results:     pqtype.NullRawMessage{RawMessage: []byte(`[{"name":"checkpost"}]`), Valid: true},
+				RowCount:    1,
 				CompletedAt: sql.NullTime{Time: completedAt, Valid: true},
 				CreatedAt:   completedAt.Add(-time.Minute),
 				UpdatedAt:   completedAt,
@@ -93,13 +101,8 @@ func TestListMachineQueriesReturnsPersistedHistory(t *testing.T) {
 	if results[0].ID != queryUUID.String() || results[0].Status != "complete" {
 		t.Fatalf("unexpected query result metadata: %+v", results[0])
 	}
-	rows, ok := results[0].Results.([]interface{})
-	if !ok || len(rows) != 1 {
-		t.Fatalf("expected decoded JSON rows, got %#v", results[0].Results)
-	}
-	row, ok := rows[0].(map[string]interface{})
-	if !ok || row["name"] != "checkpost" {
-		t.Fatalf("expected decoded row, got %#v", rows[0])
+	if results[0].RowCount != 1 {
+		t.Fatalf("expected row count 1, got %d", results[0].RowCount)
 	}
 }
 
