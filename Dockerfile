@@ -26,12 +26,18 @@ ENV CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
 FROM go-builder-${TARGETARCH} AS go-builder
 
 ARG TARGETARCH
+ENV GOOS=linux GOARCH=${TARGETARCH}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends make git \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 COPY --from=web-builder /src/web/dist ./web/dist
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=1 GOOS=linux GOARCH="$TARGETARCH" go build -o /out/checkpost ./cmd/checkpost
+    git config --global --add safe.directory /src \
+    && make build-go BINARY=/out/checkpost
 
 FROM debian:trixie-slim
 
