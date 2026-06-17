@@ -9,6 +9,7 @@ extra_css = ["assets/stylesheets/extra.css"]
 nav = [
   { "Home" = "index.md" },
   { "Setup" = "setup.md" },
+  { "How it works" = "how-it-works.md" },
   { "Configuration" = "configuration.md" },
   { "Features" = [
     { "Overview" = "features/index.md" },
