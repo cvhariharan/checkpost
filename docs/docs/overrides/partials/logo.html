@@ -1,10 +1,11 @@
-<img
-  class="checkpost-logo checkpost-logo--light"
-  src="{{ 'assets/images/checkpost-mark-light.svg' | url }}"
-  alt="{{ config.site_name }}"
+<svg
+  class="checkpost-logo"
+  viewBox="0 0 256 256"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-label="{{ config.site_name }}"
 >
-<img
-  class="checkpost-logo checkpost-logo--dark"
-  src="{{ 'assets/images/checkpost-mark-dark.svg' | url }}"
-  alt="{{ config.site_name }}"
->
+  <rect class="checkpost-logo__bg" x="32" y="32" width="192" height="192" rx="28" />
+  <circle class="checkpost-logo__ring" cx="128" cy="128" r="54" fill="none" stroke-width="16" />
+</svg>

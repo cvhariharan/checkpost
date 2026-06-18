@@ -1,17 +1,21 @@
-body[data-md-color-scheme="default"]
-  .md-logo
-  img.checkpost-logo--dark,
-body[data-md-color-scheme="slate"]
-  .md-logo
-  img.checkpost-logo--light {
-  display: none;
+.md-logo .checkpost-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
-body[data-md-color-scheme="default"]
-  .md-logo
-  img.checkpost-logo--light,
-body[data-md-color-scheme="slate"]
-  .md-logo
-  img.checkpost-logo--dark {
-  display: block;
+.checkpost-logo__bg {
+  fill: #1a2e2a;
+}
+
+.checkpost-logo__ring {
+  stroke: #a0c461;
+}
+
+[data-md-color-scheme="slate"] .checkpost-logo__bg {
+  fill: #a0c461;
+}
+
+[data-md-color-scheme="slate"] .checkpost-logo__ring {
+  stroke: #1a2e2a;
 }
