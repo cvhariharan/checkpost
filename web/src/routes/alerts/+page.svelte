@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount, untrack } from "svelte";
     import { page } from "$app/state";
+    import { pushState } from "$app/navigation";
     import {
         deleteAlertRule,
         deleteAlertTarget,
@@ -25,7 +26,11 @@
 
     const countPerPage = 10;
 
-    let activeTabIndex = $state(0);
+    const tabSlugs = ["rules", "targets"];
+    const activeTabIndex = $derived.by(() => {
+        const i = tabSlugs.indexOf(page.url.hash.replace(/^#/, ""));
+        return i >= 0 ? i : 0;
+    });
     let tabs = $state<OatTabsElement>();
     let error = $state("");
     let notice = $state("");
@@ -110,8 +115,18 @@
         if (canViewTarget) untrack(() => void loadTargets());
     });
 
+    function setTab(index: number) {
+        const slug = tabSlugs[index];
+        // Skip if already on this tab: ot-tabs echoes activations back through
+        // ot-tab-change, so guarding here keeps each switch to one history entry.
+        if (page.url.hash.replace(/^#/, "") === slug) return;
+        const url = new URL(page.url);
+        url.hash = slug;
+        pushState(url, {});
+    }
+
     function handleTabChange(event: CustomEvent<{ index: number }>) {
-        activeTabIndex = event.detail.index;
+        setTab(event.detail.index);
     }
 
     async function loadRules() {
@@ -256,6 +271,7 @@
         <p class="badge" data-variant="success">{notice}</p>
     {/if}
 
+    {#if $me}
     <ot-tabs
         bind:this={tabs}
         class="alerts-tabs"
@@ -266,7 +282,7 @@
                 type="button"
                 role="tab"
                 aria-selected={activeTabIndex === 0}
-                onclick={() => (activeTabIndex = 0)}
+                onclick={() => setTab(0)}
             >
                 Rules
             </button>
@@ -275,7 +291,7 @@
                     type="button"
                     role="tab"
                     aria-selected={activeTabIndex === 1}
-                    onclick={() => (activeTabIndex = 1)}
+                    onclick={() => setTab(1)}
                 >
                     Targets
                 </button>
@@ -433,9 +449,6 @@
                     <div class="hstack justify-between">
                         <div>
                             <h4 class="mb-2">Targets</h4>
-                            <p class="text-light">
-                                Where alerts are delivered — webhooks and email
-                            </p>
                         </div>
                         {#if canCreateTarget}
                             <button
@@ -578,6 +591,9 @@
             </div>
         {/if}
     </ot-tabs>
+    {:else}
+        <Spinner fill />
+    {/if}
 </section>
 
 <AlertRuleFormDialog

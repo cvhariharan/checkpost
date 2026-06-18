@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
   import { page } from '$app/state'
-  import { replaceState } from '$app/navigation'
+  import { pushState, replaceState } from '$app/navigation'
   import {
     createYaraScan,
     createYaraSignatureSource,
@@ -72,7 +72,11 @@
   let error = $state('')
   let scanError = $state('')
   let sourceError = $state('')
-  let activeTabIndex = $state(0)
+  const tabSlugs = ['results', 'sources']
+  const activeTabIndex = $derived.by(() => {
+    const i = tabSlugs.indexOf(page.url.hash.replace(/^#/, ''))
+    return i >= 0 ? i : 0
+  })
   let tabs = $state<OatTabsElement>()
   let scanDialog = $state<HTMLDialogElement>()
   let sourceDialog = $state<HTMLDialogElement>()
@@ -149,8 +153,18 @@
     sourceDialog.close()
   })
 
+  function setTab(index: number) {
+    const slug = tabSlugs[index]
+    // Skip if already on this tab: ot-tabs echoes activations back through
+    // ot-tab-change, so guarding here keeps each switch to one history entry.
+    if (page.url.hash.replace(/^#/, '') === slug) return
+    const url = new URL(page.url)
+    url.hash = slug
+    pushState(url, {})
+  }
+
   function handleTabChange(event: CustomEvent<{ index: number }>) {
-    activeTabIndex = event.detail.index
+    setTab(event.detail.index)
   }
 
   async function loadAll() {
@@ -257,7 +271,7 @@
       await loadScans(1)
       await loadTargets()
       await loadMatches(1)
-      activeTabIndex = 0
+      setTab(0)
     } catch (err) {
       scanError = (err as Error).message || 'Failed to start scan'
     } finally {
@@ -375,7 +389,7 @@
     resetMatchesParam()
     loadMatches(1)
     if (showResults) {
-      activeTabIndex = 0
+      setTab(0)
     }
   }
 
@@ -420,7 +434,7 @@
           type="button"
           role="tab"
           aria-selected={activeTabIndex === 0}
-          onclick={() => (activeTabIndex = 0)}
+          onclick={() => setTab(0)}
         >
           Results
         </button>
@@ -428,7 +442,7 @@
           type="button"
           role="tab"
           aria-selected={activeTabIndex === 1}
-          onclick={() => (activeTabIndex = 1)}
+          onclick={() => setTab(1)}
         >
           Source Config
         </button>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte'
   import { page } from '$app/state'
+  import { pushState } from '$app/navigation'
   import {
     deleteMachineQuery,
     executeMachineQuery,
@@ -80,7 +81,11 @@
   let editing = $state(false)
   let saving = $state(false)
   let tabs = $state<OatTabsElement>()
-  let activeTabIndex = $state(0)
+  const tabSlugs = ['overview', 'policies', 'query']
+  const activeTabIndex = $derived.by(() => {
+    const i = tabSlugs.indexOf(page.url.hash.replace(/^#/, ''))
+    return i >= 0 ? i : 0
+  })
   let mounted = $state(false)
   let loadedMachineId = $state('')
 
@@ -264,8 +269,18 @@
     }
   }
 
+  function setTab(index: number) {
+    const slug = tabSlugs[index]
+    // Skip if already on this tab: ot-tabs echoes activations back through
+    // ot-tab-change, so guarding here keeps each switch to one history entry.
+    if (page.url.hash.replace(/^#/, '') === slug) return
+    const url = new URL(page.url)
+    url.hash = slug
+    pushState(url, {})
+  }
+
   function handleTabChange(event: CustomEvent<{ index: number }>) {
-    activeTabIndex = event.detail.index
+    setTab(event.detail.index)
   }
 
   function seedEditFields() {
@@ -278,7 +293,7 @@
   function startEdit() {
     if (!canEditOverview) return
     seedEditFields()
-    activeTabIndex = 0
+    setTab(0)
     editing = true
   }
 
@@ -428,13 +443,13 @@
 
     <ot-tabs bind:this={tabs} onot-tab-change={handleTabChange}>
       <div role="tablist" aria-label="Machine sections">
-        <button type="button" role="tab" aria-selected={activeTabIndex === 0} onclick={() => (activeTabIndex = 0)}>
+        <button type="button" role="tab" aria-selected={activeTabIndex === 0} onclick={() => setTab(0)}>
           Overview
         </button>
-        <button type="button" role="tab" aria-selected={activeTabIndex === 1} onclick={() => (activeTabIndex = 1)}>
+        <button type="button" role="tab" aria-selected={activeTabIndex === 1} onclick={() => setTab(1)}>
           Policies
         </button>
-        <button type="button" role="tab" aria-selected={activeTabIndex === 2} onclick={() => (activeTabIndex = 2)}>
+        <button type="button" role="tab" aria-selected={activeTabIndex === 2} onclick={() => setTab(2)}>
           Query
         </button>
       </div>

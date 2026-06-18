@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
   import { page } from '$app/state'
-  import { replaceState } from '$app/navigation'
+  import { pushState, replaceState } from '$app/navigation'
   import {
     createOwner,
     deleteOwner,
@@ -39,7 +39,11 @@
   let selectedOwner = $state('')
   let assignmentFilter = $state('')
   let ownerSearchTerm = $state('')
-  let activeTabIndex = $state(0)
+  const tabSlugs = ['devices', 'owners']
+  const activeTabIndex = $derived.by(() => {
+    const i = tabSlugs.indexOf(page.url.hash.replace(/^#/, ''))
+    return i >= 0 ? i : 0
+  })
   let error = $state('')
   let ready = $state(false)
   let loadingMachines = $state(true)
@@ -172,8 +176,18 @@
     }, 250)
   })
 
+  function setTab(index: number) {
+    const slug = tabSlugs[index]
+    // Skip if already on this tab: ot-tabs echoes activations back through
+    // ot-tab-change, so guarding here keeps each switch to one history entry.
+    if (page.url.hash.replace(/^#/, '') === slug) return
+    const url = new URL(page.url)
+    url.hash = slug
+    pushState(url, {})
+  }
+
   function handleTabChange(event: CustomEvent<{ index: number }>) {
-    activeTabIndex = event.detail.index
+    setTab(event.detail.index)
   }
 
   async function initialize() {
@@ -398,7 +412,7 @@
           type="button"
           role="tab"
           aria-selected={activeTabIndex === 0}
-          onclick={() => (activeTabIndex = 0)}
+          onclick={() => setTab(0)}
         >
           Devices
         </button>
@@ -406,7 +420,7 @@
           type="button"
           role="tab"
           aria-selected={activeTabIndex === 1}
-          onclick={() => (activeTabIndex = 1)}
+          onclick={() => setTab(1)}
         >
           Owners
         </button>
