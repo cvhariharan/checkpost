@@ -7,8 +7,9 @@
     type Schedule,
     type ScheduleResultRow
   } from '$lib/api'
+  import { formatTimestamp } from '$lib/util'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
-  import ScheduleResultsTable from '$lib/components/ScheduleResultsTable.svelte'
+  import QueryResultTable from '$lib/components/QueryResultTable.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
 
   let schedule = $state<Schedule | null>(null)
@@ -17,15 +18,24 @@
   let total = $state(0)
   let currentPage = $state(1)
   let pageCount = $state(1)
-  let query = $state('')
-  let lastRefreshed = $state('')
   let loading = $state(true)
   let resultsLoading = $state(false)
   let error = $state('')
   let browsingDisabled = $state(false)
-  const countPerPage = 500
+  const countPerPage = 100
 
   const scheduleId = $derived(page.params.id as string)
+
+  // Flatten schedule rows into the plain {column: value} shape QueryResultTable
+  // expects, prepending machine + last seen so they show as the first columns.
+  const tableColumns = $derived(['Machine', 'Last seen', ...columns])
+  const tableRows = $derived(
+    rows.map((r) => ({
+      Machine: r.hostname || r.node_uuid || '',
+      'Last seen': formatTimestamp(r.last_seen),
+      ...Object.fromEntries(columns.map((c) => [c, String(r.columns?.[c] ?? '')]))
+    }))
+  )
 
   onMount(loadAll)
 
@@ -34,7 +44,7 @@
     error = ''
     try {
       schedule = await fetchSchedule(scheduleId)
-      await loadResults(1, '')
+      await loadResults(1)
     } catch (err) {
       error = (err as Error).message || 'Failed to load schedule'
     } finally {
@@ -42,19 +52,17 @@
     }
   }
 
-  async function loadResults(targetPage = currentPage, q = query) {
+  async function loadResults(targetPage = currentPage) {
     resultsLoading = true
     error = ''
     try {
-      const data = await fetchScheduleResults(scheduleId, { page: targetPage, countPerPage, query: q })
+      const data = await fetchScheduleResults(scheduleId, { page: targetPage, countPerPage })
       browsingDisabled = data.browsing_disabled || false
       columns = data.columns || []
       rows = data.rows || []
       total = data.total || 0
       currentPage = data.page || targetPage
       pageCount = data.page_count || Math.max(1, Math.ceil(total / countPerPage))
-      query = q
-      lastRefreshed = new Date().toLocaleTimeString()
     } catch (err) {
       error = (err as Error).message || 'Failed to load results'
     } finally {
@@ -62,16 +70,8 @@
     }
   }
 
-  function refresh() {
-    loadResults(currentPage, query)
-  }
-
-  function applyQuery(q: string) {
-    loadResults(1, q)
-  }
-
   function changePage(p: number) {
-    if (p > 0 && p <= pageCount) loadResults(p, query)
+    if (p > 0 && p <= pageCount) loadResults(p)
   }
 </script>
 
@@ -80,24 +80,26 @@
 {#if loading}
   <Spinner fill />
 {:else if schedule}
-  {#if browsingDisabled}
-    <div role="alert" data-variant="warning">
-      <p>Result browsing is disabled on this server. Contact an administrator.</p>
-    </div>
-  {/if}
-  <ScheduleResultsTable
-    {schedule}
-    {columns}
-    {rows}
-    {total}
-    page={currentPage}
-    {pageCount}
-    {countPerPage}
-    loading={resultsLoading}
-    {query}
-    {lastRefreshed}
-    onRefresh={refresh}
-    onApplyQuery={applyQuery}
-    onPageChange={changePage}
-  />
+  <section class="vstack gap-3">
+    <header class="hstack justify-between">
+      <div>
+        <h2>{schedule.title || 'Schedule results'}</h2>
+        <p class="text-light">{schedule.description || ''}</p>
+      </div>
+      <menu class="buttons">
+        <li><button type="button" class="small outline" disabled={resultsLoading} onclick={() => loadResults(currentPage)}>Refresh</button></li>
+      </menu>
+    </header>
+
+    <QueryResultTable
+      columns={tableColumns}
+      rows={tableRows}
+      {total}
+      page={currentPage}
+      {pageCount}
+      loading={resultsLoading}
+      {browsingDisabled}
+      onPageChange={changePage}
+    />
+  </section>
 {/if}
