@@ -5,8 +5,16 @@ TLS_HOSTNAME={{ sh .TLSHostname }}
 ENROLL_SECRET={{ sh .EnrollmentKey }}
 PACKAGE_URL={{ sh .MacOSPKGUniversalURL }}
 PACKAGE_SHA256={{ sh .MacOSPKGUniversalSHA256 }}
-FLAGS_PATH="/etc/osquery/osquery.flags"
+FLAGS_PATH="/private/var/osquery/osquery.flags"
 SECRET_PATH="/private/var/osquery/enroll_secret"
+PACKAGE_TMPDIR=""
+
+cleanup() {
+  if [[ -n "${PACKAGE_TMPDIR}" && -d "${PACKAGE_TMPDIR}" ]]; then
+    rm -rf "${PACKAGE_TMPDIR}"
+  fi
+}
+trap cleanup EXIT
 
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
@@ -48,16 +56,15 @@ install_osquery_if_missing() {
     exit 1
   fi
 
-  local package_path
-  package_path="$(mktemp "/tmp/checkpost-osquery.XXXXXX.pkg")"
-  trap 'rm -f "${package_path}"' EXIT
+  PACKAGE_TMPDIR="$(mktemp -d "/tmp/checkpost-osquery.XXXXXX")"
+  local package_path="${PACKAGE_TMPDIR}/osquery.pkg"
   download_file "${PACKAGE_URL}" "${package_path}"
   verify_sha256 "${package_path}"
   installer -pkg "${package_path}" -target /
 }
 
 write_checkpost_config() {
-  mkdir -p /etc/osquery /private/var/osquery
+  mkdir -p /private/var/osquery
   printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
   chmod 600 "${SECRET_PATH}"
 

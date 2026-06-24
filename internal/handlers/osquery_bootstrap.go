@@ -16,7 +16,7 @@ import (
 const (
 	linuxFlagfilePath   = "/etc/osquery/osquery.flags"
 	linuxSecretPath     = "/etc/osquery/enroll_secret"
-	macOSFlagfilePath   = "/etc/osquery/osquery.flags"
+	macOSFlagfilePath   = "/private/var/osquery/osquery.flags"
 	macOSSecretPath     = "/private/var/osquery/enroll_secret"
 	windowsFlagfilePath = `C:\ProgramData\Checkpost\osquery\osquery.flags`
 	windowsSecretPath   = `C:\ProgramData\Checkpost\osquery\enroll_secret`
