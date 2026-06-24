@@ -106,15 +106,20 @@ type rawResultsConfig struct {
 }
 
 type rawOsqueryBootstrapConfig struct {
-	Enabled                 bool   `koanf:"osquery_bootstrap.enabled"`
-	LinuxTarballAMD64URL    string `koanf:"osquery_bootstrap.linux.tarball_amd64.url"`
-	LinuxTarballAMD64SHA256 string `koanf:"osquery_bootstrap.linux.tarball_amd64.sha256"`
-	LinuxTarballARM64URL    string `koanf:"osquery_bootstrap.linux.tarball_arm64.url"`
-	LinuxTarballARM64SHA256 string `koanf:"osquery_bootstrap.linux.tarball_arm64.sha256"`
-	MacOSPKGUniversalURL    string `koanf:"osquery_bootstrap.macos.pkg_universal.url"`
-	MacOSPKGUniversalSHA256 string `koanf:"osquery_bootstrap.macos.pkg_universal.sha256"`
-	WindowsMSIAMD64URL      string `koanf:"osquery_bootstrap.windows.msi_amd64.url"`
-	WindowsMSIAMD64SHA256   string `koanf:"osquery_bootstrap.windows.msi_amd64.sha256"`
+	Enabled                  bool   `koanf:"osquery_bootstrap.enabled"`
+	LinuxTarballAMD64URL     string `koanf:"osquery_bootstrap.linux.tarball_amd64.url"`
+	LinuxTarballAMD64SHA256  string `koanf:"osquery_bootstrap.linux.tarball_amd64.sha256"`
+	LinuxTarballARM64URL     string `koanf:"osquery_bootstrap.linux.tarball_arm64.url"`
+	LinuxTarballARM64SHA256  string `koanf:"osquery_bootstrap.linux.tarball_arm64.sha256"`
+	MacOSPKGUniversalURL     string `koanf:"osquery_bootstrap.macos.pkg_universal.url"`
+	MacOSPKGUniversalSHA256  string `koanf:"osquery_bootstrap.macos.pkg_universal.sha256"`
+	WindowsMSIAMD64URL       string `koanf:"osquery_bootstrap.windows.msi_amd64.url"`
+	WindowsMSIAMD64SHA256    string `koanf:"osquery_bootstrap.windows.msi_amd64.sha256"`
+	NftablesEnabled          bool   `koanf:"osquery_bootstrap.extensions.nftables.enabled"`
+	NftablesLinuxAMD64URL    string `koanf:"osquery_bootstrap.extensions.nftables.linux.tarball_amd64.url"`
+	NftablesLinuxAMD64SHA256 string `koanf:"osquery_bootstrap.extensions.nftables.linux.tarball_amd64.sha256"`
+	NftablesLinuxARM64URL    string `koanf:"osquery_bootstrap.extensions.nftables.linux.tarball_arm64.url"`
+	NftablesLinuxARM64SHA256 string `koanf:"osquery_bootstrap.extensions.nftables.linux.tarball_arm64.sha256"`
 }
 
 func Load(configFile string) (Config, error) {
@@ -169,15 +174,28 @@ func (r rawConfig) toConfig() (Config, error) {
 			PolicyStaleAfter:     policyStaleAfter,
 			OsqueryBootstrap: OsqueryBootstrapConfig{
 				Enabled: r.OsqueryBootstrapConfig.Enabled,
-				Linux: LinuxBootstrapConfig{
-					TarballAMD64: packageConfig(r.OsqueryBootstrapConfig.LinuxTarballAMD64URL, r.OsqueryBootstrapConfig.LinuxTarballAMD64SHA256),
-					TarballARM64: packageConfig(r.OsqueryBootstrapConfig.LinuxTarballARM64URL, r.OsqueryBootstrapConfig.LinuxTarballARM64SHA256),
-				},
+				Linux: bootstrapPackagesByArch(
+					r.OsqueryBootstrapConfig.LinuxTarballAMD64URL,
+					r.OsqueryBootstrapConfig.LinuxTarballAMD64SHA256,
+					r.OsqueryBootstrapConfig.LinuxTarballARM64URL,
+					r.OsqueryBootstrapConfig.LinuxTarballARM64SHA256,
+				),
 				MacOS: MacOSBootstrapConfig{
 					PKGUniversal: packageConfig(r.OsqueryBootstrapConfig.MacOSPKGUniversalURL, r.OsqueryBootstrapConfig.MacOSPKGUniversalSHA256),
 				},
 				Windows: WindowsBootstrapConfig{
 					MSIAMD64: packageConfig(r.OsqueryBootstrapConfig.WindowsMSIAMD64URL, r.OsqueryBootstrapConfig.WindowsMSIAMD64SHA256),
+				},
+				Extensions: OsqueryBootstrapExtensionsConfig{
+					Nftables: NftablesExtensionConfig{
+						Enabled: r.OsqueryBootstrapConfig.NftablesEnabled,
+						Linux: bootstrapPackagesByArch(
+							r.OsqueryBootstrapConfig.NftablesLinuxAMD64URL,
+							r.OsqueryBootstrapConfig.NftablesLinuxAMD64SHA256,
+							r.OsqueryBootstrapConfig.NftablesLinuxARM64URL,
+							r.OsqueryBootstrapConfig.NftablesLinuxARM64SHA256,
+						),
+					},
 				},
 			},
 		},
@@ -326,7 +344,7 @@ func loadDefaults(k *koanf.Koanf) error {
 		return fmt.Errorf("generate enrollment key: %w", err)
 	}
 
-	return k.Load(confmap.Provider(map[string]any{
+	defaults := map[string]any{
 		"app.admin_username":                           "checkpost_admin",
 		"app.admin_password":                           "checkpost_password",
 		"app.http_tls_cert":                            "server_cert.pem",
@@ -382,7 +400,21 @@ func loadDefaults(k *koanf.Koanf) error {
 		"osquery_bootstrap.macos.pkg_universal.sha256": "",
 		"osquery_bootstrap.windows.msi_amd64.url":      "",
 		"osquery_bootstrap.windows.msi_amd64.sha256":   "",
-	}, "."), nil)
+	}
+	defaults["osquery_bootstrap.extensions.nftables.enabled"] = true
+	defaults["osquery_bootstrap.extensions.nftables.linux.tarball_amd64.url"] = ""
+	defaults["osquery_bootstrap.extensions.nftables.linux.tarball_amd64.sha256"] = ""
+	defaults["osquery_bootstrap.extensions.nftables.linux.tarball_arm64.url"] = ""
+	defaults["osquery_bootstrap.extensions.nftables.linux.tarball_arm64.sha256"] = ""
+
+	return k.Load(confmap.Provider(defaults, "."), nil)
+}
+
+func bootstrapPackagesByArch(amd64URL, amd64SHA256, arm64URL, arm64SHA256 string) BootstrapPackagesByArch {
+	return BootstrapPackagesByArch{
+		AMD64: packageConfig(amd64URL, amd64SHA256),
+		ARM64: packageConfig(arm64URL, arm64SHA256),
+	}
 }
 
 func packageConfig(url, sha256 string) BootstrapPackage {

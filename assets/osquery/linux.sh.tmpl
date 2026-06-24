@@ -197,13 +197,14 @@ install_nft_if_missing() {
 # extension or manifest, so both must be root-owned (0755 binary, 0644 manifest).
 install_nftables_extension() {
   if [[ "${EXT_ENABLED}" != "true" ]]; then
+    rm -f -- "${EXT_LOAD_PATH}"
     echo "nftables extension disabled in config; skipping."
     return
   fi
 
   require_tar
 
-  local arch url sha staging tarball
+  local arch url sha staging tarball manifest_tmp
   arch="$(arch_key)"
   case "${arch}" in
     amd64) url="${EXT_AMD64_URL}"; sha="${EXT_AMD64_SHA256}" ;;
@@ -212,6 +213,7 @@ install_nftables_extension() {
   esac
 
   if [[ -z "${url}" ]]; then
+    rm -f -- "${EXT_LOAD_PATH}"
     echo "No nftables-ext tarball URL configured for ${arch}; skipping extension."
     return
   fi
@@ -239,9 +241,11 @@ install_nftables_extension() {
   rm -rf "${staging}"
 
   mkdir -p /etc/osquery
-  printf '%s\n' "${EXT_BIN_PATH}" > "${EXT_LOAD_PATH}"
-  chown root:root "${EXT_LOAD_PATH}"
-  chmod 0644 "${EXT_LOAD_PATH}"
+  manifest_tmp="$(mktemp "${EXT_LOAD_PATH}.XXXXXX")"
+  printf '%s\n' "${EXT_BIN_PATH}" > "${manifest_tmp}"
+  chown root:root "${manifest_tmp}"
+  chmod 0644 "${manifest_tmp}"
+  mv -f -- "${manifest_tmp}" "${EXT_LOAD_PATH}"
 }
 
 write_checkpost_config() {
@@ -314,6 +318,6 @@ write_checkpost_config
 write_systemd_unit
 restart_osquery
 
-echo "osquery configured for Checkpost (with nftables extension)."
+echo "osquery configured for Checkpost"
 echo "Verify with: sudo systemctl status osqueryd --no-pager"
 echo "Query with:  sudo osqueryi --extensions_socket=/var/osquery/osquery.em \"SELECT * FROM nftables;\""

@@ -55,7 +55,7 @@ func TestOsqueryBootstrapProfileReady(t *testing.T) {
 
 func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 	cfg := testBootstrapConfig("http://localhost:1323")
-	cfg.OsqueryBootstrap.Linux.TarballAMD64.URL = ""
+	cfg.OsqueryBootstrap.Linux.AMD64.URL = ""
 	h := &Handler{cfg: cfg, bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
@@ -100,6 +100,11 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"install_osquery_if_missing",
 		"TARBALL_AMD64_URL='https://packages.example/osquery'",
+		"EXT_ENABLED='true'",
+		"EXT_AMD64_URL='https://packages.example/osquery'",
+		"rm -f -- \"${EXT_LOAD_PATH}\"",
+		"manifest_tmp=\"$(mktemp \"${EXT_LOAD_PATH}.XXXXXX\")\"",
+		"mv -f -- \"${manifest_tmp}\" \"${EXT_LOAD_PATH}\"",
 		"/etc/systemd/system/osqueryd.service",
 		"systemctl enable --now osqueryd",
 	} {
@@ -119,15 +124,24 @@ func testBootstrapConfig(rootURL string) config.AppConfig {
 		EnrollmentKey: "enroll-secret",
 		OsqueryBootstrap: config.OsqueryBootstrapConfig{
 			Enabled: true,
-			Linux: config.LinuxBootstrapConfig{
-				TarballAMD64: pkg,
-				TarballARM64: pkg,
+			Linux: config.BootstrapPackagesByArch{
+				AMD64: pkg,
+				ARM64: pkg,
 			},
 			MacOS: config.MacOSBootstrapConfig{
 				PKGUniversal: pkg,
 			},
 			Windows: config.WindowsBootstrapConfig{
 				MSIAMD64: pkg,
+			},
+			Extensions: config.OsqueryBootstrapExtensionsConfig{
+				Nftables: config.NftablesExtensionConfig{
+					Enabled: true,
+					Linux: config.BootstrapPackagesByArch{
+						AMD64: pkg,
+						ARM64: pkg,
+					},
+				},
 			},
 		},
 	}

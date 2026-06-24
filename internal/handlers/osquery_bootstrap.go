@@ -29,6 +29,11 @@ type bootstrapTemplateData struct {
 	LinuxTarballAMD64SHA256 string
 	LinuxTarballARM64URL    string
 	LinuxTarballARM64SHA256 string
+	NftablesExtEnabled      string
+	NftablesExtAMD64URL     string
+	NftablesExtAMD64SHA256  string
+	NftablesExtARM64URL     string
+	NftablesExtARM64SHA256  string
 	MacOSPKGUniversalURL    string
 	MacOSPKGUniversalSHA256 string
 	WindowsMSIAMD64URL      string
@@ -173,13 +178,19 @@ func (h *Handler) osqueryBootstrapScript(platform string) (string, string, error
 func (h *Handler) bootstrapTemplateData() bootstrapTemplateData {
 	_, tlsHostname, _ := bootstrapURLState(h.cfg.RootURL)
 	cfg := h.cfg.OsqueryBootstrap
+	nftables := cfg.Extensions.Nftables
 	return bootstrapTemplateData{
 		TLSHostname:             tlsHostname,
 		EnrollmentKey:           h.cfg.EnrollmentKey,
-		LinuxTarballAMD64URL:    cfg.Linux.TarballAMD64.URL,
-		LinuxTarballAMD64SHA256: cfg.Linux.TarballAMD64.SHA256,
-		LinuxTarballARM64URL:    cfg.Linux.TarballARM64.URL,
-		LinuxTarballARM64SHA256: cfg.Linux.TarballARM64.SHA256,
+		LinuxTarballAMD64URL:    cfg.Linux.AMD64.URL,
+		LinuxTarballAMD64SHA256: cfg.Linux.AMD64.SHA256,
+		LinuxTarballARM64URL:    cfg.Linux.ARM64.URL,
+		LinuxTarballARM64SHA256: cfg.Linux.ARM64.SHA256,
+		NftablesExtEnabled:      fmt.Sprintf("%t", nftables.Enabled),
+		NftablesExtAMD64URL:     nftables.Linux.AMD64.URL,
+		NftablesExtAMD64SHA256:  nftables.Linux.AMD64.SHA256,
+		NftablesExtARM64URL:     nftables.Linux.ARM64.URL,
+		NftablesExtARM64SHA256:  nftables.Linux.ARM64.SHA256,
 		MacOSPKGUniversalURL:    cfg.MacOS.PKGUniversal.URL,
 		MacOSPKGUniversalSHA256: cfg.MacOS.PKGUniversal.SHA256,
 		WindowsMSIAMD64URL:      cfg.Windows.MSIAMD64.URL,
@@ -218,8 +229,8 @@ func (h *Handler) bootstrapPackages() map[string][]OsqueryBootstrapPackage {
 	cfg := h.cfg.OsqueryBootstrap
 	return map[string][]OsqueryBootstrapPackage{
 		"linux": {
-			packageEntry("linux-tarball-amd64", "Linux tarball amd64", "linux", "tarball", "amd64", "tarball", cfg.Linux.TarballAMD64),
-			packageEntry("linux-tarball-arm64", "Linux tarball arm64", "linux", "tarball", "arm64", "tarball", cfg.Linux.TarballARM64),
+			packageEntry("linux-tarball-amd64", "Linux tarball amd64", "linux", "tarball", "amd64", "tarball", cfg.Linux.AMD64),
+			packageEntry("linux-tarball-arm64", "Linux tarball arm64", "linux", "tarball", "arm64", "tarball", cfg.Linux.ARM64),
 		},
 		"macos": {
 			packageEntry("macos-pkg-universal", "macOS PKG universal", "macos", "pkg", "universal", "pkg", cfg.MacOS.PKGUniversal),
