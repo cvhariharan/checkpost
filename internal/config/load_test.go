@@ -37,6 +37,7 @@ func TestLoadAppliesEnvironmentOverrides(t *testing.T) {
 
 	t.Setenv("CHECKPOST_DB__HOST", "db.internal")
 	t.Setenv("CHECKPOST_APP__POLICY_STALE_AFTER", "45m")
+	t.Setenv("CHECKPOST_OSQUERY_BOOTSTRAP__EXTENSIONS__NFTABLES__ENABLED", "false")
 
 	cfg, err := Load(configPath)
 	if err != nil {
@@ -48,6 +49,45 @@ func TestLoadAppliesEnvironmentOverrides(t *testing.T) {
 	}
 	if cfg.AppConfig.PolicyStaleAfter != 45*time.Minute {
 		t.Fatalf("PolicyStaleAfter = %v, want %v", cfg.AppConfig.PolicyStaleAfter, 45*time.Minute)
+	}
+	if cfg.AppConfig.OsqueryBootstrap.Extensions.Nftables.Enabled {
+		t.Fatal("Nftables extension enabled = true, want false")
+	}
+}
+
+func TestLoadOsqueryBootstrapNftablesExtension(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+	raw := `
+[osquery_bootstrap.extensions.nftables]
+enabled = true
+
+[osquery_bootstrap.extensions.nftables.linux.tarball_amd64]
+url = 'https://packages.example/nftables-amd64.tar.gz'
+sha256 = '` + strings.Repeat("b", 64) + `'
+
+[osquery_bootstrap.extensions.nftables.linux.tarball_arm64]
+url = 'https://packages.example/nftables-arm64.tar.gz'
+sha256 = '` + strings.Repeat("c", 64) + `'
+`
+	if err := os.WriteFile(configPath, []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	nftables := cfg.AppConfig.OsqueryBootstrap.Extensions.Nftables
+	if !nftables.Enabled {
+		t.Fatal("Nftables extension enabled = false, want true")
+	}
+	if got := nftables.Linux.AMD64.URL; got != "https://packages.example/nftables-amd64.tar.gz" {
+		t.Fatalf("Nftables amd64 URL = %q", got)
+	}
+	if got := nftables.Linux.ARM64.SHA256; got != strings.Repeat("c", 64) {
+		t.Fatalf("Nftables arm64 SHA256 = %q", got)
 	}
 }
 
@@ -254,32 +294,42 @@ func TestConfigValidateOsqueryBootstrapPackages(t *testing.T) {
 		{
 			name:    "url only",
 			pkg:     BootstrapPackage{URL: "https://packages.example/osquery.tar.gz"},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.SHA256",
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.AMD64.SHA256",
 		},
 		{
 			name:    "sha only",
 			pkg:     BootstrapPackage{SHA256: strings.Repeat("a", 64)},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.URL",
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.AMD64.URL",
 		},
 		{
 			name:    "invalid url",
 			pkg:     BootstrapPackage{URL: "not a url", SHA256: strings.Repeat("a", 64)},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.URL",
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.AMD64.URL",
 		},
 		{
 			name:    "invalid sha",
 			pkg:     BootstrapPackage{URL: "https://packages.example/osquery.tar.gz", SHA256: "abc"},
-			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.TarballAMD64.SHA256",
+			wantErr: "Config.AppConfig.OsqueryBootstrap.Linux.AMD64.SHA256",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := validConfig()
-			cfg.AppConfig.OsqueryBootstrap.Linux.TarballAMD64 = tt.pkg
+			cfg.AppConfig.OsqueryBootstrap.Linux.AMD64 = tt.pkg
 
 			err := cfg.Validate()
 			assertValidationError(t, err, tt.wantErr)
 		})
 	}
+}
+
+func TestConfigValidateOsqueryBootstrapNftablesPackage(t *testing.T) {
+	cfg := validConfig()
+	cfg.AppConfig.OsqueryBootstrap.Extensions.Nftables.Linux.AMD64 = BootstrapPackage{
+		URL: "https://packages.example/osquery-nftables-ext.tar.gz",
+	}
+
+	err := cfg.Validate()
+	assertValidationError(t, err, "Config.AppConfig.OsqueryBootstrap.Extensions.Nftables.Linux.AMD64.SHA256")
 }
 
 func validConfig() Config {

@@ -13,6 +13,20 @@ TARBALL_AMD64_SHA256={{ sh .LinuxTarballAMD64SHA256 }}
 TARBALL_ARM64_URL={{ sh .LinuxTarballARM64URL }}
 TARBALL_ARM64_SHA256={{ sh .LinuxTarballARM64SHA256 }}
 
+# --- osquery-nftables-ext -----------------------------------------------------
+# Rendered from config.toml [osquery_bootstrap.extensions.nftables]. The
+# extension shells out to `nft -j list ruleset` (read-only), so the nftables CLI
+# must be present on the host (installed below if missing). When EXT_ENABLED is
+# not "true", or the per-arch URL is empty, the extension is skipped.
+EXT_ENABLED={{ sh .NftablesExtEnabled }}
+EXT_AMD64_URL={{ sh .NftablesExtAMD64URL }}
+EXT_AMD64_SHA256={{ sh .NftablesExtAMD64SHA256 }}
+EXT_ARM64_URL={{ sh .NftablesExtARM64URL }}
+EXT_ARM64_SHA256={{ sh .NftablesExtARM64SHA256 }}
+EXT_LOAD_PATH="/etc/osquery/extensions.load"
+EXT_BIN_PATH="${BIN_DIR}/nftables.ext"
+# ------------------------------------------------------------------------------
+
 require_root() {
   if [[ "${EUID}" -ne 0 ]]; then
     echo "Run as root."
@@ -155,6 +169,85 @@ install_osquery_if_missing() {
   mkdir -p /var/osquery /var/log/osquery
 }
 
+# Ensure the nftables CLI is present; the extension shells out to `nft`.
+install_nft_if_missing() {
+  if command -v nft >/dev/null 2>&1; then
+    return
+  fi
+  echo "nft not found; attempting to install the nftables package."
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update && apt-get install -y nftables
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y nftables
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y nftables
+  elif command -v zypper >/dev/null 2>&1; then
+    zypper install -y nftables
+  elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache nftables
+  else
+    echo "WARNING: could not install nftables automatically; install it manually."
+    echo "         Without 'nft', the nftables table loads but returns zero rows."
+    return
+  fi
+}
+
+# Download, verify, and install the osquery-nftables-ext extension, then write
+# the autoload manifest. osquery refuses to autoload a group/world-writable
+# extension or manifest, so both must be root-owned (0755 binary, 0644 manifest).
+install_nftables_extension() {
+  if [[ "${EXT_ENABLED}" != "true" ]]; then
+    rm -f -- "${EXT_LOAD_PATH}"
+    echo "nftables extension disabled in config; skipping."
+    return
+  fi
+
+  require_tar
+
+  local arch url sha staging tarball manifest_tmp
+  arch="$(arch_key)"
+  case "${arch}" in
+    amd64) url="${EXT_AMD64_URL}"; sha="${EXT_AMD64_SHA256}" ;;
+    arm64) url="${EXT_ARM64_URL}"; sha="${EXT_ARM64_SHA256}" ;;
+    *) echo "No nftables-ext build for ${arch}." >&2; exit 1 ;;
+  esac
+
+  if [[ -z "${url}" ]]; then
+    rm -f -- "${EXT_LOAD_PATH}"
+    echo "No nftables-ext tarball URL configured for ${arch}; skipping extension."
+    return
+  fi
+
+  if [[ -z "${sha}" ]]; then
+    echo "nftables-ext SHA256 for ${arch} is not set; refusing to install unverified binary." >&2
+    exit 1
+  fi
+
+  install_nft_if_missing
+
+  staging="$(mktemp -d "/tmp/checkpost-nftext.XXXXXX")"
+  tarball="${staging}/ext.tar.gz"
+  download_file "${url}" "${tarball}"
+  verify_sha256 "${tarball}" "${sha}"
+  tar -xzf "${tarball}" -C "${staging}"
+
+  if [[ ! -f "${staging}/nftables.ext" ]]; then
+    echo "extension tarball did not contain nftables.ext." >&2
+    rm -rf "${staging}"
+    exit 1
+  fi
+
+  install -o root -g root -m 0755 "${staging}/nftables.ext" "${EXT_BIN_PATH}"
+  rm -rf "${staging}"
+
+  mkdir -p /etc/osquery
+  manifest_tmp="$(mktemp "${EXT_LOAD_PATH}.XXXXXX")"
+  printf '%s\n' "${EXT_BIN_PATH}" > "${manifest_tmp}"
+  chown root:root "${manifest_tmp}"
+  chmod 0644 "${manifest_tmp}"
+  mv -f -- "${manifest_tmp}" "${EXT_LOAD_PATH}"
+}
+
 write_checkpost_config() {
   mkdir -p /etc/osquery
   printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
@@ -177,7 +270,14 @@ write_checkpost_config() {
 --distributed_interval=10
 --disable_distributed=false
 --config_refresh=60
+--extensions_timeout=10
+--extensions_socket=/var/osquery/osquery.em
 EOF
+
+  # Only autoload the extension when its manifest was actually written.
+  if [[ -f "${EXT_LOAD_PATH}" ]]; then
+    printf '%s\n' "--extensions_autoload=${EXT_LOAD_PATH}" >> "${FLAGS_PATH}"
+  fi
 }
 
 write_systemd_unit() {
@@ -213,9 +313,11 @@ restart_osquery() {
 
 require_root
 install_osquery_if_missing
+install_nftables_extension
 write_checkpost_config
 write_systemd_unit
 restart_osquery
 
-echo "osquery configured for Checkpost."
+echo "osquery configured for Checkpost"
 echo "Verify with: sudo systemctl status osqueryd --no-pager"
+echo "Query with:  sudo osqueryi --extensions_socket=/var/osquery/osquery.em \"SELECT * FROM nftables;\""

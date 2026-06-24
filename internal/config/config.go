@@ -112,15 +112,16 @@ type ClickHouseConfig struct {
 }
 
 type OsqueryBootstrapConfig struct {
-	Enabled bool
-	Linux   LinuxBootstrapConfig
-	MacOS   MacOSBootstrapConfig
-	Windows WindowsBootstrapConfig
+	Enabled    bool
+	Linux      BootstrapPackagesByArch
+	MacOS      MacOSBootstrapConfig
+	Windows    WindowsBootstrapConfig
+	Extensions OsqueryBootstrapExtensionsConfig
 }
 
-type LinuxBootstrapConfig struct {
-	TarballAMD64 BootstrapPackage
-	TarballARM64 BootstrapPackage
+type BootstrapPackagesByArch struct {
+	AMD64 BootstrapPackage
+	ARM64 BootstrapPackage
 }
 
 type MacOSBootstrapConfig struct {
@@ -129,6 +130,15 @@ type MacOSBootstrapConfig struct {
 
 type WindowsBootstrapConfig struct {
 	MSIAMD64 BootstrapPackage
+}
+
+type OsqueryBootstrapExtensionsConfig struct {
+	Nftables NftablesExtensionConfig
+}
+
+type NftablesExtensionConfig struct {
+	Enabled bool
+	Linux   BootstrapPackagesByArch
 }
 
 type BootstrapPackage struct {
