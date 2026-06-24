@@ -14,13 +14,15 @@ TARBALL_ARM64_URL={{ sh .LinuxTarballARM64URL }}
 TARBALL_ARM64_SHA256={{ sh .LinuxTarballARM64SHA256 }}
 
 # --- osquery-nftables-ext -----------------------------------------------------
-# Pin the extension release and the per-arch tarball SHA256 (from the release's
-# checksums.txt). The extension shells out to `nft -j list ruleset`, so the
-# nftables CLI must be present on the host (installed below if missing).
-EXT_VERSION="0.3.0"
-EXT_BASE_URL="https://github.com/codingCoffee/osquery-nftables-ext/releases/download/v${EXT_VERSION}"
-EXT_SHA256_AMD64="REPLACE_WITH_AMD64_SHA256"
-EXT_SHA256_ARM64="REPLACE_WITH_ARM64_SHA256"
+# Rendered from config.toml [osquery_bootstrap.extensions.nftables]. The
+# extension shells out to `nft -j list ruleset` (read-only), so the nftables CLI
+# must be present on the host (installed below if missing). When EXT_ENABLED is
+# not "true", or the per-arch URL is empty, the extension is skipped.
+EXT_ENABLED={{ sh .NftablesExtEnabled }}
+EXT_AMD64_URL={{ sh .NftablesExtAMD64URL }}
+EXT_AMD64_SHA256={{ sh .NftablesExtAMD64SHA256 }}
+EXT_ARM64_URL={{ sh .NftablesExtARM64URL }}
+EXT_ARM64_SHA256={{ sh .NftablesExtARM64SHA256 }}
 EXT_LOAD_PATH="/etc/osquery/extensions.load"
 EXT_BIN_PATH="${BIN_DIR}/nftables.ext"
 # ------------------------------------------------------------------------------
@@ -194,20 +196,32 @@ install_nft_if_missing() {
 # the autoload manifest. osquery refuses to autoload a group/world-writable
 # extension or manifest, so both must be root-owned (0755 binary, 0644 manifest).
 install_nftables_extension() {
+  if [[ "${EXT_ENABLED}" != "true" ]]; then
+    echo "nftables extension disabled in config; skipping."
+    return
+  fi
+
   require_tar
 
   local arch url sha staging tarball
   arch="$(arch_key)"
   case "${arch}" in
-    amd64) url="${EXT_BASE_URL}/osquery-nftables-ext_${EXT_VERSION}_linux_amd64.tar.gz"; sha="${EXT_SHA256_AMD64}" ;;
-    arm64) url="${EXT_BASE_URL}/osquery-nftables-ext_${EXT_VERSION}_linux_arm64.tar.gz"; sha="${EXT_SHA256_ARM64}" ;;
+    amd64) url="${EXT_AMD64_URL}"; sha="${EXT_AMD64_SHA256}" ;;
+    arm64) url="${EXT_ARM64_URL}"; sha="${EXT_ARM64_SHA256}" ;;
     *) echo "No nftables-ext build for ${arch}." >&2; exit 1 ;;
   esac
 
-  if [[ -z "${sha}" || "${sha}" == REPLACE_WITH_* ]]; then
+  if [[ -z "${url}" ]]; then
+    echo "No nftables-ext tarball URL configured for ${arch}; skipping extension."
+    return
+  fi
+
+  if [[ -z "${sha}" ]]; then
     echo "nftables-ext SHA256 for ${arch} is not set; refusing to install unverified binary." >&2
     exit 1
   fi
+
+  install_nft_if_missing
 
   staging="$(mktemp -d "/tmp/checkpost-nftext.XXXXXX")"
   tarball="${staging}/ext.tar.gz"
@@ -252,10 +266,14 @@ write_checkpost_config() {
 --distributed_interval=10
 --disable_distributed=false
 --config_refresh=60
---extensions_autoload=${EXT_LOAD_PATH}
 --extensions_timeout=10
 --extensions_socket=/var/osquery/osquery.em
 EOF
+
+  # Only autoload the extension when its manifest was actually written.
+  if [[ -f "${EXT_LOAD_PATH}" ]]; then
+    printf '%s\n' "--extensions_autoload=${EXT_LOAD_PATH}" >> "${FLAGS_PATH}"
+  fi
 }
 
 write_systemd_unit() {
@@ -291,7 +309,6 @@ restart_osquery() {
 
 require_root
 install_osquery_if_missing
-install_nft_if_missing
 install_nftables_extension
 write_checkpost_config
 write_systemd_unit

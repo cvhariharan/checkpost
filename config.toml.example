@@ -58,6 +58,23 @@ sha256 = ''
 url = ''
 sha256 = ''
 
+# osquery-nftables-ext: adds an `nftables` table to osquery on Linux. The
+# extension shells out to `nft -j list ruleset` (read-only) and never modifies
+# firewall state. Rendered into the Linux bootstrap script. Set enabled = false
+# (or leave the per-arch url empty) to skip installing it.
+[osquery_bootstrap.extensions.nftables]
+enabled = true
+
+[osquery_bootstrap.extensions.nftables.linux.tarball_amd64]
+# Release tarball from https://github.com/codingCoffee/osquery-nftables-ext/releases
+# e.g. .../v0.3.0/osquery-nftables-ext_0.3.0_linux_amd64.tar.gz
+url = ''
+sha256 = ''
+
+[osquery_bootstrap.extensions.nftables.linux.tarball_arm64]
+url = ''
+sha256 = ''
+
 [db]
 dbname = 'checkpost'
 host = '127.0.0.1'
