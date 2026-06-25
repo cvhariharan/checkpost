@@ -165,7 +165,7 @@
             <tr
               class="host-row"
               tabindex="0"
-              title="Click to show results"
+              aria-label="Click to show results"
               onclick={() => openHostResults(host.query_id)}
               onkeydown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {

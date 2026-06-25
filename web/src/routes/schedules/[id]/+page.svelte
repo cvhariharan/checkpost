@@ -22,6 +22,7 @@
   let resultsLoading = $state(false)
   let error = $state('')
   let browsingDisabled = $state(false)
+  let filterQuery = $state('')
   const countPerPage = 100
 
   const scheduleId = $derived(page.params.id as string)
@@ -56,7 +57,11 @@
     resultsLoading = true
     error = ''
     try {
-      const data = await fetchScheduleResults(scheduleId, { page: targetPage, countPerPage })
+      const data = await fetchScheduleResults(scheduleId, {
+        page: targetPage,
+        countPerPage,
+        query: filterQuery
+      })
       browsingDisabled = data.browsing_disabled || false
       columns = data.columns || []
       rows = data.rows || []
@@ -72,6 +77,11 @@
 
   function changePage(p: number) {
     if (p > 0 && p <= pageCount) loadResults(p)
+  }
+
+  function applyFilter(event: SubmitEvent) {
+    event.preventDefault()
+    loadResults(1)
   }
 </script>
 
@@ -90,6 +100,23 @@
         <li><button type="button" class="small outline" disabled={resultsLoading} onclick={() => loadResults(currentPage)}>Refresh</button></li>
       </menu>
     </header>
+
+    <form class="vstack gap-1" onsubmit={applyFilter}>
+      <fieldset class="group" aria-label="Filter results">
+        <input
+          type="search"
+          bind:value={filterQuery}
+          placeholder="Filter results, e.g. machine:web-01 username:root"
+          aria-label="Filter results"
+          disabled={browsingDisabled}
+        />
+        <button type="submit" disabled={resultsLoading || browsingDisabled}>Filter</button>
+      </fieldset>
+      <small data-hint>
+        Filter by column (<code>name:value</code>), <code>machine:</code>, or
+        <code>last_seen&gt;=</code>/<code>&lt;=</code> with an RFC3339 time. Space-separated terms are ANDed.
+      </small>
+    </form>
 
     <QueryResultTable
       columns={tableColumns}

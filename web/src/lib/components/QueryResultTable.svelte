@@ -81,7 +81,7 @@
             class:expanded-result-row={expandedRow === rowIndex}
             tabindex="0"
             aria-expanded={expandedRow === rowIndex}
-            title="Click to show full row"
+            aria-label="Click to show full row"
             onclick={() => toggleRow(rowIndex)}
             onkeydown={(e) => handleRowKeydown(e, rowIndex)}
           >
