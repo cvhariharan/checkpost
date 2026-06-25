@@ -24,7 +24,8 @@ EXT_AMD64_SHA256={{ sh .NftablesExtAMD64SHA256 }}
 EXT_ARM64_URL={{ sh .NftablesExtARM64URL }}
 EXT_ARM64_SHA256={{ sh .NftablesExtARM64SHA256 }}
 EXT_LOAD_PATH="/etc/osquery/extensions.load"
-EXT_BIN_PATH="${BIN_DIR}/nftables.ext"
+EXT_DIR="${OSQUERY_PREFIX}/extensions"
+EXT_BIN_PATH="${EXT_DIR}/nftables.ext"
 # ------------------------------------------------------------------------------
 
 require_root() {
@@ -237,8 +238,15 @@ install_nftables_extension() {
     exit 1
   fi
 
+  mkdir -p "${EXT_DIR}"
   install -o root -g root -m 0755 "${staging}/nftables.ext" "${EXT_BIN_PATH}"
   rm -rf "${staging}"
+
+  relabel_selinux
+
+  if [[ "${EXT_BIN_PATH}" != "${BIN_DIR}/nftables.ext" ]]; then
+    rm -f -- "${BIN_DIR}/nftables.ext" 2>/dev/null || true
+  fi
 
   mkdir -p /etc/osquery
   manifest_tmp="$(mktemp "${EXT_LOAD_PATH}.XXXXXX")"

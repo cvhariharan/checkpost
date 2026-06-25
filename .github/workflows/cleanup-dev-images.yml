@@ -1,0 +1,98 @@
+name: Cleanup Dev Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Number of most-recent dev images to keep"
+        required: false
+        default: "2"
+        type: number
+      dry_run:
+        description: "Only list what would be deleted (no deletion)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  packages: write
+
+env:
+  PACKAGE: checkpost
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old dev images
+        env:
+          # GITHUB_TOKEN often cannot delete versions of a user-owned package.
+          # Set a GHCR_CLEANUP_TOKEN secret (classic PAT with read:packages +
+          # delete:packages) and it will be used instead.
+          GH_TOKEN: ${{ secrets.GHCR_CLEANUP_TOKEN || secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          KEEP: ${{ inputs.keep }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # Dev builds are tagged dev-<short-sha> (see dev-build.yml). The
+          # floating "dev", per-arch "dev-amd64"/"dev-arm64", and all release
+          # tags (v*, latest) share this package and must NOT be touched.
+          DEV_TAG_RE='^dev-[0-9a-f]{7,}$'
+
+          echo "owner=$OWNER package=$PACKAGE keep=$KEEP dry_run=$DRY_RUN"
+
+          # Collect every version (across pages) as newline-delimited JSON.
+          gh api --paginate \
+            "/users/${OWNER}/packages/container/${PACKAGE}/versions?per_page=100" \
+            --jq '.[] | {id, created_at, tags: (.metadata.container.tags // [])}' \
+            > versions.ndjson
+
+          # Keep only versions carrying a dev-<sha> tag, newest first.
+          jq -s --arg re "$DEV_TAG_RE" '
+            map(select(.tags | any(test($re))))
+            | sort_by(.created_at) | reverse
+          ' versions.ndjson > dev_versions.json
+
+          total=$(jq 'length' dev_versions.json)
+          echo "Found $total dev image version(s)."
+
+          # Everything past the newest $KEEP is deleted.
+          jq -r --argjson keep "$KEEP" \
+            '.[$keep:][] | "\(.id)\t\(.tags | join(","))"' dev_versions.json > to_delete.tsv
+          del_count=$(grep -c . to_delete.tsv || true)
+
+          {
+            echo "### Cleanup dev images"
+            echo ""
+            echo "- Package: \`$OWNER/$PACKAGE\`"
+            echo "- Dev versions found: **$total**"
+            echo "- Keeping newest: **$KEEP**"
+            echo "- Deleting: **$del_count**"
+            echo "- Dry run: **$DRY_RUN**"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$del_count" -eq 0 ]; then
+            echo "Nothing to delete."
+            echo "_Nothing to delete._" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          while IFS=$'\t' read -r id tags; do
+            [ -z "$id" ] && continue
+            echo "Deleting version $id (tags: ${tags:-<none>})"
+            echo "- \`$id\` — tags: ${tags:-<none>}" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$DRY_RUN" != "true" ]; then
+              if ! gh api --method DELETE \
+                "/users/${OWNER}/packages/container/${PACKAGE}/versions/${id}"; then
+                echo "::error::Failed to delete version $id. A 403 here usually means the token lacks delete:packages for this user-owned package — set the GHCR_CLEANUP_TOKEN secret to a classic PAT with read:packages + delete:packages."
+                exit 1
+              fi
+            fi
+          done < to_delete.tsv
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run — no versions were deleted."
+          fi
