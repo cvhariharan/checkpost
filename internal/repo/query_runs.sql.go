@@ -93,13 +93,13 @@ SELECT
     machine_query_results.completed_at, machine_query_results.created_at,
     machine_query_results.updated_at, machine_query_results.run_id,
     nodes.uuid AS node_uuid,
-    nodes.hostname AS hostname,
+    COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) AS hostname,
     nodes.platform AS platform
 FROM machine_query_results
 JOIN query_runs ON query_runs.id = machine_query_results.run_id
 JOIN nodes ON nodes.id = machine_query_results.node_id
 WHERE query_runs.uuid = $1
-ORDER BY nodes.hostname ASC, nodes.uuid ASC
+ORDER BY COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) ASC, nodes.uuid ASC
 `
 
 type ListMachineQueryResultsByRunUUIDRow struct {

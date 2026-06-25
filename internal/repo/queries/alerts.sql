@@ -102,7 +102,7 @@ SELECT
     p.resolution AS resolution,
     n.id AS node_id,
     n.uuid AS node_uuid,
-    n.hostname AS hostname,
+    COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
     n.platform AS platform
 FROM policy_membership pm
 JOIN policies p ON p.id = pm.policy_id
@@ -146,7 +146,7 @@ ORDER BY n.id;
 SELECT
     n.id AS node_id,
     n.uuid AS node_uuid,
-    n.hostname AS hostname,
+    COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
     n.platform AS platform,
     n.last_seen_at AS last_seen_at
 FROM nodes n

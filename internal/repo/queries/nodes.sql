@@ -30,14 +30,22 @@ SELECT * FROM nodes WHERE uuid = $1;
 -- name: GetNodeByID :one
 SELECT * FROM nodes WHERE id = $1;
 
+-- name: UpdateNodeDisplayNameByUUID :one
+UPDATE nodes SET
+    display_name = @display_name,
+    updated_at = now()
+WHERE uuid = @uuid
+RETURNING *;
+
 -- name: ListNodesByIDs :many
-SELECT id, uuid, hostname FROM nodes WHERE id = ANY(@ids::bigint[]);
+SELECT id, uuid, COALESCE(NULLIF(display_name, ''), hostname) AS hostname FROM nodes WHERE id = ANY(@ids::bigint[]);
 
 -- name: MatchNodesByIdentityPattern :many
 -- @pattern is expected to be pre-escaped against LIKE wildcards by the caller.
 SELECT id, uuid::text AS uuid, hostname
 FROM nodes
 WHERE hostname ILIKE '%' || @pattern::text || '%' ESCAPE '\'
+   OR display_name ILIKE '%' || @pattern::text || '%' ESCAPE '\'
    OR uuid::text ILIKE '%' || @pattern::text || '%' ESCAPE '\'
    OR host_identifier ILIKE '%' || @pattern::text || '%' ESCAPE '\'
 ORDER BY hostname ASC
@@ -54,6 +62,7 @@ WITH filtered AS (
         nodes.node_key,
         nodes.host_identifier,
         nodes.hostname,
+        nodes.display_name,
         nodes.platform,
         nodes.os_name,
         nodes.os_version,
@@ -70,6 +79,7 @@ WITH filtered AS (
     WHERE (
         @query::text = ''
         OR nodes.hostname ILIKE '%' || @query::text || '%'
+        OR nodes.display_name ILIKE '%' || @query::text || '%'
         OR nodes.host_identifier ILIKE '%' || @query::text || '%'
         OR node_inventory.internal_tracking_id ILIKE '%' || @query::text || '%'
         OR device_owners.display_name ILIKE '%' || @query::text || '%'

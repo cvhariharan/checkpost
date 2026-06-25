@@ -475,7 +475,7 @@ WITH filtered AS (
     SELECT
         yara_scan_matches.id,
         nodes.uuid AS node_uuid,
-        nodes.hostname,
+        COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) AS hostname,
         yara_scan_matches.path,
         yara_scan_matches.matches,
         yara_scan_matches.count,
@@ -547,7 +547,7 @@ const listYaraScanTargets = `-- name: ListYaraScanTargets :many
 WITH filtered AS (
     SELECT
         nodes.uuid AS node_uuid,
-        nodes.hostname,
+        COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) AS hostname,
         yara_scan_targets.status,
         yara_scan_targets.dispatched_at,
         yara_scan_targets.completed_at,

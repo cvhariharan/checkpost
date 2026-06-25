@@ -68,6 +68,7 @@ export type Machine = {
   uuid: string
   hostname?: string
   Hostname?: string
+  display_name?: string
   host_identifier?: string
   os_name?: string
   os_version?: string
@@ -193,6 +194,7 @@ export type MachinePolicyPosture = {
 export type PolicyMachineRow = {
   uuid: string
   hostname?: string
+  display_name?: string
   host_identifier?: string
   platform?: string
   response?: string
@@ -566,6 +568,10 @@ export function fetchMachines(opts: MachinePageOpts = {}) {
 
 export function fetchMachine(id: string) {
   return fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}`).then((r) => handleResponse<Machine>(r))
+}
+
+export function updateMachine(id: string, payload: { display_name?: string }) {
+  return jsonRequest<Machine>(`/machines/${encodeURIComponent(id)}`, 'PUT', payload)
 }
 
 export function fetchMachineQueries(id: string, opts: PageOpts = {}) {

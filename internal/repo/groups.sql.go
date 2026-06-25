@@ -511,6 +511,7 @@ filtered AS (
         nodes.node_key,
         nodes.host_identifier,
         nodes.hostname,
+        nodes.display_name,
         nodes.platform,
         nodes.os_name,
         nodes.os_version,
@@ -528,7 +529,7 @@ filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.display_name, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.hostname, filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -546,6 +547,7 @@ type ListNodesByGroupRow struct {
 	NodeKey           uuid.UUID    `db:"node_key" json:"node_key"`
 	HostIdentifier    string       `db:"host_identifier" json:"host_identifier"`
 	Hostname          string       `db:"hostname" json:"hostname"`
+	DisplayName       string       `db:"display_name" json:"display_name"`
 	Platform          string       `db:"platform" json:"platform"`
 	OsName            string       `db:"os_name" json:"os_name"`
 	OsVersion         string       `db:"os_version" json:"os_version"`
@@ -574,6 +576,7 @@ func (q *Queries) ListNodesByGroup(ctx context.Context, arg ListNodesByGroupPara
 			&i.NodeKey,
 			&i.HostIdentifier,
 			&i.Hostname,
+			&i.DisplayName,
 			&i.Platform,
 			&i.OsName,
 			&i.OsVersion,

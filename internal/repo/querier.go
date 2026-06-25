@@ -175,6 +175,7 @@ type Querier interface {
 	UpdateAlertTargetByUUID(ctx context.Context, arg UpdateAlertTargetByUUIDParams) (AlertTarget, error)
 	UpdateDeviceOwnerByUUID(ctx context.Context, arg UpdateDeviceOwnerByUUIDParams) (DeviceOwner, error)
 	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
+	UpdateNodeDisplayNameByUUID(ctx context.Context, arg UpdateNodeDisplayNameByUUIDParams) (Node, error)
 	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error

@@ -162,6 +162,11 @@ type GetRequest struct {
 	ID string `param:"id" validate:"required,uuid"`
 }
 
+type UpdateMachineRequest struct {
+	ID          string `param:"id" validate:"required,uuid"`
+	DisplayName string `json:"display_name" validate:"max=255"`
+}
+
 type MachineQueryRequest struct {
 	ID    string `param:"id" validate:"required,uuid"`
 	Query string `json:"query" validate:"required"`

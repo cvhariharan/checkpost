@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrInvalidLogType         = errors.New("invalid log type")
+	ErrInvalidNodeDisplayName = errors.New("invalid node display name")
 	ErrInvalidQuery           = errors.New("invalid query")
 	ErrResultsBackendDisabled = errors.New("results backend not configured")
 )

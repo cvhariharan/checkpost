@@ -142,6 +142,7 @@ type Node struct {
 	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
 	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
+	DisplayName       string       `db:"display_name" json:"display_name"`
 }
 
 type NodeInventory struct {

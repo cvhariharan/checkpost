@@ -226,6 +226,7 @@ filtered AS (
         nodes.node_key,
         nodes.host_identifier,
         nodes.hostname,
+        nodes.display_name,
         nodes.platform,
         nodes.os_name,
         nodes.os_version,
@@ -272,7 +273,7 @@ filtered AS (
     )
 ),
 response_filtered AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, response, checked_at, last_error, stale
+    SELECT id, uuid, node_key, host_identifier, hostname, display_name, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, response, checked_at, last_error, stale
     FROM filtered
     WHERE $5::text = ''
        OR response = $5::text
@@ -280,7 +281,7 @@ response_filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM response_filtered
 )
-SELECT response_filtered.id, response_filtered.uuid, response_filtered.node_key, response_filtered.host_identifier, response_filtered.hostname, response_filtered.platform, response_filtered.os_name, response_filtered.os_version, response_filtered.osquery_version, response_filtered.hardware_serial, response_filtered.enrolled_at, response_filtered.last_seen_at, response_filtered.last_policy_check_at, response_filtered.created_at, response_filtered.updated_at, response_filtered.response, response_filtered.checked_at, response_filtered.last_error, response_filtered.stale, total.total_count
+SELECT response_filtered.id, response_filtered.uuid, response_filtered.node_key, response_filtered.host_identifier, response_filtered.hostname, response_filtered.display_name, response_filtered.platform, response_filtered.os_name, response_filtered.os_version, response_filtered.osquery_version, response_filtered.hardware_serial, response_filtered.enrolled_at, response_filtered.last_seen_at, response_filtered.last_policy_check_at, response_filtered.created_at, response_filtered.updated_at, response_filtered.response, response_filtered.checked_at, response_filtered.last_error, response_filtered.stale, total.total_count
 FROM response_filtered, total
 ORDER BY response_filtered.hostname, response_filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -300,6 +301,7 @@ type ListNodesByPolicyResponseRow struct {
 	NodeKey           uuid.UUID      `db:"node_key" json:"node_key"`
 	HostIdentifier    string         `db:"host_identifier" json:"host_identifier"`
 	Hostname          string         `db:"hostname" json:"hostname"`
+	DisplayName       string         `db:"display_name" json:"display_name"`
 	Platform          string         `db:"platform" json:"platform"`
 	OsName            string         `db:"os_name" json:"os_name"`
 	OsVersion         string         `db:"os_version" json:"os_version"`
@@ -338,6 +340,7 @@ func (q *Queries) ListNodesByPolicyResponse(ctx context.Context, arg ListNodesBy
 			&i.NodeKey,
 			&i.HostIdentifier,
 			&i.Hostname,
+			&i.DisplayName,
 			&i.Platform,
 			&i.OsName,
 			&i.OsVersion,
@@ -369,7 +372,7 @@ func (q *Queries) ListNodesByPolicyResponse(ctx context.Context, arg ListNodesBy
 
 const listPoliciesForNode = `-- name: ListPoliciesForNode :many
 WITH target_node AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at
+    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name
     FROM nodes
     WHERE nodes.uuid = $2
 )

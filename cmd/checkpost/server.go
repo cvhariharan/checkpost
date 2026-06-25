@@ -218,6 +218,7 @@ func runServer(flags *rootFlags) error {
 	api.GET("/owners/:id/machines", h.HandleOwnerMachines, h.Authorize(core.ResourceInventory, core.ActionView))
 
 	api.GET("/machines", h.HandleMachinesPagination, h.Authorize(core.ResourceMachine, core.ActionView))
+	api.PUT("/machines/:id", h.HandleUpdateMachine, h.Authorize(core.ResourceMachine, core.ActionUpdate))
 	api.GET("/machines/:id/queries", h.HandleMachineQueries, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.GET("/machines/:id/queries/:query_id/results", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery, h.Authorize(core.ResourceQueryResult, core.ActionDelete))

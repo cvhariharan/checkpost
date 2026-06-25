@@ -18,7 +18,7 @@ export function isOnline(machine: Machine | null | undefined, windowMs = 5 * 60 
 }
 
 export function machineHostname(machine: Machine | null | undefined): string {
-  return machine?.hostname || machine?.Hostname || machine?.host_identifier || 'Unknown'
+  return machine?.display_name || machine?.hostname || machine?.Hostname || machine?.host_identifier || 'Unknown'
 }
 
 export function machineOS(machine: Machine | null | undefined): string {

@@ -78,6 +78,7 @@ type Node struct {
 	NodeKey           string          `json:"node_key"`
 	HostIdentifier    string          `json:"host_identifier"`
 	Hostname          string          `json:"hostname"`
+	DisplayName       string          `json:"display_name"`
 	Platform          string          `json:"platform"`
 	OSName            string          `json:"os_name"`
 	OSVersion         string          `json:"os_version"`
@@ -100,6 +101,11 @@ type NodeEnrollment struct {
 
 type NodeCredentials struct {
 	NodeKey string `json:"node_key"`
+}
+
+type UpdateNode struct {
+	UUID        string
+	DisplayName string
 }
 
 type OSVersionInfo struct {

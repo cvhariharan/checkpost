@@ -13,6 +13,7 @@
     fetchMachineQueryResults,
     fetchOwners,
     fetchMetricSchemas,
+    updateMachine,
     updateMachineInventory,
     updateMachineGroups,
     type AdHocQueryResults,
@@ -76,6 +77,7 @@
   let selectedGroupIds = $state<string[]>([])
   let availableOwners = $state<DeviceOwner[]>([])
   let selectedOwnerId = $state('')
+  let displayName = $state('')
   let internalTrackingId = $state('')
   let inventoryNotes = $state('')
   let editing = $state(false)
@@ -137,6 +139,7 @@
       machine = machineData
       selectedGroupIds = (machineData.groups || []).map((g) => g.uuid)
       selectedOwnerId = machineData.inventory?.owner?.uuid || ''
+      displayName = machineData.display_name || ''
       internalTrackingId = machineData.inventory?.internal_tracking_id || ''
       inventoryNotes = machineData.inventory?.notes || ''
       setQueryHistory(historyData)
@@ -286,6 +289,7 @@
   function seedEditFields() {
     selectedGroupIds = (machine?.groups || []).map((g) => g.uuid)
     selectedOwnerId = machine?.inventory?.owner?.uuid || ''
+    displayName = machine?.display_name || ''
     internalTrackingId = machine?.inventory?.internal_tracking_id || ''
     inventoryNotes = machine?.inventory?.notes || ''
   }
@@ -310,7 +314,8 @@
       // Settle both so a partial failure can be reported precisely instead of a
       // generic message that hides which write already landed. Both endpoints are
       // idempotent, so staying in edit mode lets the user simply retry.
-      const [inventoryResult, groupsResult] = await Promise.allSettled([
+      const [machineResult, inventoryResult, groupsResult] = await Promise.allSettled([
+        canUpdateMachine ? updateMachine(machineId, { display_name: displayName }) : Promise.resolve(),
         canUpdateInventory
           ? updateMachineInventory(machineId, {
               owner_id: selectedOwnerId || null,
@@ -321,11 +326,14 @@
         canUpdateMachine ? updateMachineGroups(machineId, selectedGroupIds) : Promise.resolve()
       ])
       const failed: string[] = []
+      if (machineResult.status === 'rejected') failed.push('display name')
       if (inventoryResult.status === 'rejected') failed.push('inventory')
       if (groupsResult.status === 'rejected') failed.push('groups')
       if (failed.length > 0) {
         const reason =
-          inventoryResult.status === 'rejected'
+          machineResult.status === 'rejected'
+            ? machineResult.reason
+            : inventoryResult.status === 'rejected'
             ? inventoryResult.reason
             : groupsResult.status === 'rejected'
               ? groupsResult.reason
@@ -458,6 +466,12 @@
         <div class="vstack gap-4">
           {#if editing}
             <div class="vstack gap-3">
+              {#if canUpdateMachine}
+                <label data-field>
+                  Display name
+                  <input bind:value={displayName} maxlength="255" placeholder={machine?.hostname || ''} />
+                </label>
+              {/if}
               {#if canUpdateInventory}
                 <div class="row">
                   <div class="col-6">
@@ -500,6 +514,16 @@
             </div>
           {:else}
             <dl class="facts">
+              <div>
+                <dt>Hostname</dt>
+                <dd>{machine?.hostname || '—'}</dd>
+              </div>
+              {#if machine?.display_name && machine.display_name !== machine.hostname}
+                <div>
+                  <dt>Display name</dt>
+                  <dd>{machine.display_name}</dd>
+                </div>
+              {/if}
               <div>
                 <dt>Owner</dt>
                 <dd>{machine?.inventory?.owner?.display_name || machine?.inventory?.owner?.email || 'Unassigned'}</dd>

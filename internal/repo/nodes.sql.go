@@ -35,7 +35,7 @@ ON CONFLICT (host_identifier) DO UPDATE SET
     hardware_serial = EXCLUDED.hardware_serial,
     last_seen_at = now(),
     updated_at = now()
-RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at
+RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name
 `
 
 type CreateNodeParams struct {
@@ -75,12 +75,13 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getNodeByID = `-- name: GetNodeByID :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes WHERE id = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE id = $1
 `
 
 func (q *Queries) GetNodeByID(ctx context.Context, id int64) (Node, error) {
@@ -102,12 +103,13 @@ func (q *Queries) GetNodeByID(ctx context.Context, id int64) (Node, error) {
 		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getNodeByKey = `-- name: GetNodeByKey :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes WHERE node_key = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE node_key = $1
 `
 
 func (q *Queries) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error) {
@@ -129,12 +131,13 @@ func (q *Queries) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, er
 		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getNodeByUUID = `-- name: GetNodeByUUID :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at FROM nodes WHERE uuid = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE uuid = $1
 `
 
 func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error) {
@@ -156,6 +159,7 @@ func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, e
 		&i.LastPolicyCheckAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -168,6 +172,7 @@ WITH filtered AS (
         nodes.node_key,
         nodes.host_identifier,
         nodes.hostname,
+        nodes.display_name,
         nodes.platform,
         nodes.os_name,
         nodes.os_version,
@@ -184,6 +189,7 @@ WITH filtered AS (
     WHERE (
         $3::text = ''
         OR nodes.hostname ILIKE '%' || $3::text || '%'
+        OR nodes.display_name ILIKE '%' || $3::text || '%'
         OR nodes.host_identifier ILIKE '%' || $3::text || '%'
         OR node_inventory.internal_tracking_id ILIKE '%' || $3::text || '%'
         OR device_owners.display_name ILIKE '%' || $3::text || '%'
@@ -206,7 +212,7 @@ WITH filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.display_name, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -227,6 +233,7 @@ type ListNodesRow struct {
 	NodeKey           uuid.UUID    `db:"node_key" json:"node_key"`
 	HostIdentifier    string       `db:"host_identifier" json:"host_identifier"`
 	Hostname          string       `db:"hostname" json:"hostname"`
+	DisplayName       string       `db:"display_name" json:"display_name"`
 	Platform          string       `db:"platform" json:"platform"`
 	OsName            string       `db:"os_name" json:"os_name"`
 	OsVersion         string       `db:"os_version" json:"os_version"`
@@ -262,6 +269,7 @@ func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNod
 			&i.NodeKey,
 			&i.HostIdentifier,
 			&i.Hostname,
+			&i.DisplayName,
 			&i.Platform,
 			&i.OsName,
 			&i.OsVersion,
@@ -288,7 +296,7 @@ func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNod
 }
 
 const listNodesByIDs = `-- name: ListNodesByIDs :many
-SELECT id, uuid, hostname FROM nodes WHERE id = ANY($1::bigint[])
+SELECT id, uuid, COALESCE(NULLIF(display_name, ''), hostname) AS hostname FROM nodes WHERE id = ANY($1::bigint[])
 `
 
 type ListNodesByIDsRow struct {
@@ -324,6 +332,7 @@ const matchNodesByIdentityPattern = `-- name: MatchNodesByIdentityPattern :many
 SELECT id, uuid::text AS uuid, hostname
 FROM nodes
 WHERE hostname ILIKE '%' || $1::text || '%' ESCAPE '\'
+   OR display_name ILIKE '%' || $1::text || '%' ESCAPE '\'
    OR uuid::text ILIKE '%' || $1::text || '%' ESCAPE '\'
    OR host_identifier ILIKE '%' || $1::text || '%' ESCAPE '\'
 ORDER BY hostname ASC
@@ -372,4 +381,41 @@ UPDATE nodes SET last_seen_at = now(), updated_at = now() WHERE node_key = $1
 func (q *Queries) TouchNode(ctx context.Context, nodeKey uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, touchNode, nodeKey)
 	return err
+}
+
+const updateNodeDisplayNameByUUID = `-- name: UpdateNodeDisplayNameByUUID :one
+UPDATE nodes SET
+    display_name = $1,
+    updated_at = now()
+WHERE uuid = $2
+RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name
+`
+
+type UpdateNodeDisplayNameByUUIDParams struct {
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
+}
+
+func (q *Queries) UpdateNodeDisplayNameByUUID(ctx context.Context, arg UpdateNodeDisplayNameByUUIDParams) (Node, error) {
+	row := q.db.QueryRowContext(ctx, updateNodeDisplayNameByUUID, arg.DisplayName, arg.Uuid)
+	var i Node
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.NodeKey,
+		&i.HostIdentifier,
+		&i.Hostname,
+		&i.Platform,
+		&i.OsName,
+		&i.OsVersion,
+		&i.OsqueryVersion,
+		&i.HardwareSerial,
+		&i.EnrolledAt,
+		&i.LastSeenAt,
+		&i.LastPolicyCheckAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DisplayName,
+	)
+	return i, err
 }

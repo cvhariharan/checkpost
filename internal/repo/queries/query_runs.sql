@@ -39,13 +39,13 @@ SELECT
     machine_query_results.completed_at, machine_query_results.created_at,
     machine_query_results.updated_at, machine_query_results.run_id,
     nodes.uuid AS node_uuid,
-    nodes.hostname AS hostname,
+    COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) AS hostname,
     nodes.platform AS platform
 FROM machine_query_results
 JOIN query_runs ON query_runs.id = machine_query_results.run_id
 JOIN nodes ON nodes.id = machine_query_results.node_id
 WHERE query_runs.uuid = @run_uuid
-ORDER BY nodes.hostname ASC, nodes.uuid ASC;
+ORDER BY COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) ASC, nodes.uuid ASC;
 
 -- name: DeleteQueryRunByUUID :execrows
 DELETE FROM query_runs WHERE uuid = @run_uuid;

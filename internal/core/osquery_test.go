@@ -55,6 +55,14 @@ func (s *fakePolicyStore) GetNodeByUUID(ctx context.Context, id uuid.UUID) (repo
 	return s.node, nil
 }
 
+func (s *fakePolicyStore) GetNodeInventoryByNodeUUID(ctx context.Context, nodeUUID uuid.UUID) (repo.GetNodeInventoryByNodeUUIDRow, error) {
+	return repo.GetNodeInventoryByNodeUUIDRow{}, sql.ErrNoRows
+}
+
+func (s *fakePolicyStore) ListNodeInventoriesByNodeUUIDs(ctx context.Context, nodeUuids []uuid.UUID) ([]repo.ListNodeInventoriesByNodeUUIDsRow, error) {
+	return nil, nil
+}
+
 func (s *fakePolicyStore) TouchNode(ctx context.Context, nodeKey uuid.UUID) error {
 	if s.touchNodeErr != nil {
 		return s.touchNodeErr
@@ -83,6 +91,26 @@ func (s *fakePolicyStore) ListGroupsForNode(ctx context.Context, nodeUUID uuid.U
 
 func (s *fakePolicyStore) ListGroupsForPolicy(ctx context.Context, policyUUID uuid.UUID) ([]repo.Group, error) {
 	return nil, nil
+}
+
+func (s *fakePolicyStore) TimeoutStaleYaraScanTargets(ctx context.Context, timeout string) ([]int64, error) {
+	return nil, nil
+}
+
+func (s *fakePolicyStore) ListPendingYaraScanTargetsForNode(ctx context.Context, nodeID int64) ([]repo.ListPendingYaraScanTargetsForNodeRow, error) {
+	return nil, nil
+}
+
+func (s *fakePolicyStore) MarkYaraScanTargetDispatched(ctx context.Context, arg repo.MarkYaraScanTargetDispatchedParams) error {
+	return nil
+}
+
+func (s *fakePolicyStore) MarkYaraScanRunning(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (s *fakePolicyStore) RefreshYaraScanStats(ctx context.Context, scanID int64) error {
+	return nil
 }
 
 func (s *fakePolicyStore) UpsertPolicyMembership(ctx context.Context, arg repo.UpsertPolicyMembershipParams) error {
@@ -185,6 +213,10 @@ func (s *fakePolicyStore) DeleteMachineQueryResultByNodeAndUUID(ctx context.Cont
 	}
 	s.machineQueries = remaining
 	return deleted, nil
+}
+
+func (s *fakePolicyStore) DeleteQuerySchemasForSource(ctx context.Context, sourceUUID uuid.UUID) error {
+	return nil
 }
 
 func (s *fakePolicyStore) CompleteMachineQueryResult(ctx context.Context, arg repo.CompleteMachineQueryResultParams) (repo.MachineQueryResult, error) {

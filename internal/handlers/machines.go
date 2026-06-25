@@ -58,6 +58,29 @@ func (h *Handler) HandleGetMachine(c echo.Context) error {
 	return c.JSON(http.StatusOK, node)
 }
 
+func (h *Handler) HandleUpdateMachine(c echo.Context) error {
+	var req UpdateMachineRequest
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
+	}
+
+	node, err := h.c.UpdateNode(c.Request().Context(), models.UpdateNode{
+		UUID:        req.ID,
+		DisplayName: req.DisplayName,
+	})
+	if err != nil {
+		if errors.Is(err, core.ErrInvalidNodeDisplayName) {
+			return wrapError(http.StatusBadRequest, "invalid display name", err, nil)
+		}
+		if errors.Is(err, sql.ErrNoRows) {
+			return wrapError(http.StatusNotFound, fmt.Sprintf("machine %s not found", req.ID), err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error updating machine %s", req.ID), err, nil)
+	}
+
+	return c.JSON(http.StatusOK, node)
+}
+
 func (h *Handler) HandleMachineQueries(c echo.Context) error {
 	var req MachineQueriesRequest
 	if err := h.bindAndValidate(c, &req, nil); err != nil {

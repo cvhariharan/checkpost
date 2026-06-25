@@ -7,6 +7,7 @@
     deleteOwner,
     fetchMachines,
     fetchOwners,
+    updateMachine,
     updateMachineInventory,
     updateOwner,
     type DeviceOwner,
@@ -76,6 +77,7 @@
   let inventoryOwnerID = $state('')
   let internalTrackingID = $state('')
   let inventoryNotes = $state('')
+  let displayName = $state('')
 
   let ownerDisplayName = $state('')
   let ownerEmail = $state('')
@@ -99,6 +101,7 @@
   const canCreateInventory = $derived(canFrom($me, 'inventory', 'create'))
   const canUpdateInventory = $derived(canFrom($me, 'inventory', 'update'))
   const canDeleteInventory = $derived(canFrom($me, 'inventory', 'delete'))
+  const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
   const canViewSettings = $derived(canFrom($me, 'setting', 'view'))
 
   onMount(() => {
@@ -294,11 +297,12 @@
   }
 
   function openInventoryDialog(machine: Machine) {
-    if (!canUpdateInventory) return
+    if (!canUpdateInventory && !canUpdateMachine) return
     editingMachine = machine
     inventoryOwnerID = machine.inventory?.owner?.uuid || ''
     internalTrackingID = machine.inventory?.internal_tracking_id || ''
     inventoryNotes = machine.inventory?.notes || ''
+    displayName = machine.display_name || ''
     inventoryDialog?.showModal()
   }
 
@@ -308,11 +312,29 @@
     savingInventory = true
     error = ''
     try {
-      await updateMachineInventory(editingMachine.uuid, {
-        owner_id: inventoryOwnerID || null,
-        internal_tracking_id: internalTrackingID,
-        notes: inventoryNotes
-      })
+      const [machineResult, inventoryResult] = await Promise.allSettled([
+        canUpdateMachine ? updateMachine(editingMachine.uuid, { display_name: displayName }) : Promise.resolve(),
+        canUpdateInventory
+          ? updateMachineInventory(editingMachine.uuid, {
+              owner_id: inventoryOwnerID || null,
+              internal_tracking_id: internalTrackingID,
+              notes: inventoryNotes
+            })
+          : Promise.resolve()
+      ])
+      const failed: string[] = []
+      if (machineResult.status === 'rejected') failed.push('display name')
+      if (inventoryResult.status === 'rejected') failed.push('inventory')
+      if (failed.length > 0) {
+        const reason =
+          machineResult.status === 'rejected'
+            ? machineResult.reason
+            : inventoryResult.status === 'rejected'
+              ? inventoryResult.reason
+              : undefined
+        error = `Failed to update ${failed.join(' and ')}: ${(reason as Error)?.message || 'unknown error'}`
+        return
+      }
       inventoryDialog?.close()
       await Promise.all([loadMachines(), loadOwners()])
     } catch (err) {
@@ -469,7 +491,7 @@
                 <thead>
                   <tr>
                     <th>Status</th>
-                    <th>Hostname</th>
+                    <th>Name</th>
                     <th>Owner</th>
                     <th>Tracking ID</th>
                     <th>Serial</th>
@@ -500,9 +522,9 @@
                       <td>{machine.platform || ''}</td>
                       <td>{formatTimestamp(machine.last_seen_at || machine.enrolled_at)}</td>
                     <td class="align-right">
-                      {#if canUpdateInventory}
+                      {#if canUpdateInventory || canUpdateMachine}
                         <ActionsMenu label={`Actions for ${machineHostname(machine)}`}>
-                          <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit inventory</button>
+                          <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit</button>
                         </ActionsMenu>
                       {/if}
                     </td>
@@ -628,27 +650,36 @@
     </header>
 
     <div class="vstack">
-      <SelectDropdown
-        label="Owner"
-        options={[
-          { value: '', label: 'Unassigned' },
-          ...ownerOptions.map((owner) => ({
-            value: owner.uuid,
-            label: owner.display_name || owner.email || owner.uuid
-          }))
-        ]}
-        bind:value={inventoryOwnerID}
-      />
+      {#if canUpdateMachine}
+        <label data-field>
+          Display name
+          <input bind:value={displayName} maxlength="255" placeholder={editingMachine?.hostname || ''} />
+        </label>
+      {/if}
 
-      <label data-field>
-        Internal tracking ID
-        <input bind:value={internalTrackingID} placeholder="ASSET-10042" />
-      </label>
+      {#if canUpdateInventory}
+        <SelectDropdown
+          label="Owner"
+          options={[
+            { value: '', label: 'Unassigned' },
+            ...ownerOptions.map((owner) => ({
+              value: owner.uuid,
+              label: owner.display_name || owner.email || owner.uuid
+            }))
+          ]}
+          bind:value={inventoryOwnerID}
+        />
 
-      <label data-field>
-        Notes
-        <textarea bind:value={inventoryNotes} rows="3"></textarea>
-      </label>
+        <label data-field>
+          Internal tracking ID
+          <input bind:value={internalTrackingID} placeholder="ASSET-10042" />
+        </label>
+
+        <label data-field>
+          Notes
+          <textarea bind:value={inventoryNotes} rows="3"></textarea>
+        </label>
+      {/if}
     </div>
 
     <footer class="hstack justify-end">
@@ -656,7 +687,7 @@
       <button
         type="submit"
         class="gap-1"
-        disabled={savingInventory || loadingOwnerOptions}
+        disabled={savingInventory || (canUpdateInventory && loadingOwnerOptions)}
         aria-busy={savingInventory ? 'true' : undefined}
         data-spinner="small"
       >

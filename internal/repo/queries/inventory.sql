@@ -191,6 +191,7 @@ filtered AS (
         nodes.node_key,
         nodes.host_identifier,
         nodes.hostname,
+        nodes.display_name,
         nodes.platform,
         nodes.os_name,
         nodes.os_version,

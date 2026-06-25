@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
@@ -63,6 +65,42 @@ func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models
 	node, err := c.store.GetNodeByUUID(ctx, id)
 	if err != nil {
 		return models.Node{}, fmt.Errorf("get node: %w", err)
+	}
+
+	out := toModelNode(node)
+	out, err = c.attachGroupsToNode(ctx, out)
+	if err != nil {
+		return models.Node{}, err
+	}
+	out, err = c.attachInventoryToNode(ctx, out)
+	if err != nil {
+		return models.Node{}, err
+	}
+	return out, nil
+}
+
+func (c *Core) UpdateNode(ctx context.Context, req models.UpdateNode) (models.Node, error) {
+	id, err := uuid.Parse(req.UUID)
+	if err != nil {
+		return models.Node{}, fmt.Errorf("parse node uuid: %w", err)
+	}
+
+	displayName := strings.TrimSpace(req.DisplayName)
+	if utf8.RuneCountInString(displayName) > 255 {
+		return models.Node{}, fmt.Errorf("%w: display name must be 255 characters or fewer", ErrInvalidNodeDisplayName)
+	}
+	for _, r := range displayName {
+		if unicode.IsControl(r) {
+			return models.Node{}, fmt.Errorf("%w: display name contains control characters", ErrInvalidNodeDisplayName)
+		}
+	}
+
+	node, err := c.store.UpdateNodeDisplayNameByUUID(ctx, repo.UpdateNodeDisplayNameByUUIDParams{
+		Uuid:        id,
+		DisplayName: displayName,
+	})
+	if err != nil {
+		return models.Node{}, fmt.Errorf("update node display name: %w", err)
 	}
 
 	out := toModelNode(node)
