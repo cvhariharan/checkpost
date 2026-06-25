@@ -41,7 +41,7 @@ total AS (
 )
 SELECT filtered.*, total.total_count
 FROM filtered, total
-ORDER BY filtered.created_at DESC
+ORDER BY filtered.name ASC, filtered.id ASC
 LIMIT @limit_count OFFSET @offset_count;
 
 -- name: ListEnabledSchedules :many
@@ -95,6 +95,13 @@ UPDATE schedules SET
     retention_days = $13,
     updated_at = now()
 WHERE uuid = $1 AND is_system = false
+RETURNING *;
+
+-- name: UpdateSystemScheduleInterval :one
+UPDATE schedules SET
+    interval_seconds = $2,
+    updated_at = now()
+WHERE uuid = $1 AND is_system = true
 RETURNING *;
 
 -- name: DeleteScheduleByUUID :execrows

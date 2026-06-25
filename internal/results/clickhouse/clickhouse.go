@@ -29,7 +29,7 @@ const (
 // resolve a schedule's columns; this lets ClickHouse serve reads when Parquet
 // (the usual recorder) is disabled. repo.Store satisfies it.
 type SchemaStore interface {
-	UpsertQuerySchema(ctx context.Context, arg repo.UpsertQuerySchemaParams) (repo.QuerySchema, error)
+	UpsertQuerySchema(ctx context.Context, arg repo.UpsertQuerySchemaParams) (repo.UpsertQuerySchemaRow, error)
 }
 
 type schemaKey struct {

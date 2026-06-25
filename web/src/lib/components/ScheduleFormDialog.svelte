@@ -2,6 +2,7 @@
   import {
     createSchedule,
     fetchGroups,
+    fetchSchedule,
     updateSchedule,
     type Group,
     type Schedule
@@ -46,16 +47,31 @@
   let error = $state('')
   let isSubmitting = $state(false)
 
+  // System schedules are built-in: only their run interval may be changed.
+  const isSystem = $derived(Boolean(schedule?.is_system))
+
   $effect(() => {
     if (!open || !dialog) return
     const key = schedule?.uuid || 'new'
     if (preparedFor !== key) {
-      loadForm(schedule)
-      loadGroups()
       preparedFor = key
+      void prepareForm(schedule)
+      loadGroups()
     }
     if (!dialog.open) dialog.showModal()
   })
+
+  async function prepareForm(record: Schedule | null) {
+    loadForm(record)
+    if (!record?.uuid) return
+    try {
+      const fresh = await fetchSchedule(record.uuid)
+      // Bail if the dialog has since switched to a different record.
+      if (preparedFor === record.uuid) loadForm(fresh)
+    } catch {
+      // Keep the snapshot-seeded values if the refresh fails.
+    }
+  }
 
   $effect(() => {
     if (open || !dialog) return
@@ -122,15 +138,19 @@
 <dialog bind:this={dialog} onclose={handleClose} closedby="any">
   <form bind:this={formEl} onsubmit={saveSchedule}>
     <header>
-      <h2>{schedule ? 'Edit Schedule' : 'Create Schedule'}</h2>
+      <h2>{schedule ? (isSystem ? 'Edit System Schedule' : 'Edit Schedule') : 'Create Schedule'}</h2>
     </header>
 
-    <ErrorMessage message={error} onClose={() => (error = '')} />
-
     <div class="vstack">
+      <ErrorMessage message={error} onClose={() => (error = '')} />
+
+      {#if isSystem}
+        <small data-hint>Only the interval can be changed for system schedules.</small>
+      {/if}
+
       <label data-field>
         Title <span class="req" aria-hidden="true">*</span>
-        <input bind:value={title} required placeholder="Schedule title" />
+        <input bind:value={title} required placeholder="Schedule title" disabled={isSystem} />
       </label>
 
       <label data-field>
@@ -140,13 +160,14 @@
           minLines={4}
           placeholder="SELECT * FROM ..."
           ariaLabel="Schedule SQL query"
+          disabled={isSystem}
           onsubmit={() => formEl?.requestSubmit()}
         />
       </label>
 
       <label data-field>
         Description
-        <input bind:value={description} placeholder="Optional description" />
+        <input bind:value={description} placeholder="Optional description" disabled={isSystem} />
       </label>
 
       <label data-field>
@@ -155,7 +176,7 @@
       </label>
 
       <div data-field>
-        <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} />
+        <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} disabled={isSystem} />
       </div>
 
       <div data-field class="vstack gap-2">
@@ -170,11 +191,12 @@
           placeholder="All machines for this platform"
           searchPlaceholder="Search groups..."
           emptyLabel="No groups available yet"
+          disabled={isSystem}
         />
       </div>
 
       <label>
-        <input type="checkbox" bind:checked={snapshot} />
+        <input type="checkbox" bind:checked={snapshot} disabled={isSystem} />
         Snapshot
       </label>
     </div>

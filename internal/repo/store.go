@@ -377,6 +377,22 @@ func (s *PostgresStore) UpdateScheduleTx(ctx context.Context, params UpdateSched
 		return Schedule{}, fmt.Errorf("get existing schedule: %w", err)
 	}
 
+	// System schedules are immutable except for their run interval. Apply only
+	// the interval change and leave SQL, platform, targets, etc. untouched.
+	if existing.IsSystem {
+		schedule, err := q.UpdateSystemScheduleInterval(ctx, UpdateSystemScheduleIntervalParams{
+			Uuid:            params.Schedule.Uuid,
+			IntervalSeconds: params.Schedule.IntervalSeconds,
+		})
+		if err != nil {
+			return Schedule{}, fmt.Errorf("update system schedule interval: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return Schedule{}, fmt.Errorf("commit update schedule transaction: %w", err)
+		}
+		return schedule, nil
+	}
+
 	if existing.Sql != params.Schedule.Sql || existing.Snapshot != params.Schedule.Snapshot {
 		if _, err := q.BumpScheduleVersion(ctx, existing.ID); err != nil {
 			return Schedule{}, fmt.Errorf("bump schedule version: %w", err)

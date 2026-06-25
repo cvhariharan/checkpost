@@ -61,6 +61,7 @@ export type Schedule = {
   snapshot?: boolean
   groups?: Group[]
   target_all_machines?: boolean
+  is_system?: boolean
 }
 
 export type Machine = {
