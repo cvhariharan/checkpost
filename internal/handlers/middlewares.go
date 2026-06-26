@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/zerodha/simplesessions/v3"
 )
@@ -29,6 +31,8 @@ const (
 	contextUserKey = "user"
 	// contextAuthMethodKey records how the request authenticated (session|token).
 	contextAuthMethodKey = "auth_method"
+	// contextOwnerOnlyMachines marks a no-role owner-scoped machine list request.
+	contextOwnerOnlyMachines = "owner_only_machines"
 
 	authMethodSession = "session"
 	authMethodToken   = "token"
@@ -152,6 +156,83 @@ func (h *Handler) Authorize(resource, action string) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+func (h *Handler) AuthorizeMachineListView() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			_, ownerOnly, err := h.machineViewAccess(c)
+			if err != nil {
+				return err
+			}
+			c.Set(contextOwnerOnlyMachines, ownerOnly)
+			return next(c)
+		}
+	}
+}
+
+func (h *Handler) AuthorizeOwnedMachineView() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			user, ownerOnly, err := h.machineViewAccess(c)
+			if err != nil {
+				return err
+			}
+			if !ownerOnly {
+				return next(c)
+			}
+			machineID := c.Param("id")
+			if _, err := uuid.Parse(machineID); err != nil {
+				return wrapError(http.StatusBadRequest, "invalid machine id", err, nil)
+			}
+			ownsMachine, err := h.c.UserOwnsNode(c.Request().Context(), user.UUID, machineID)
+			if err != nil {
+				return wrapError(http.StatusInternalServerError, "could not check machine ownership", err, nil)
+			}
+			if !ownsMachine {
+				return wrapError(http.StatusForbidden, "insufficient permissions", nil, nil)
+			}
+			return next(c)
+		}
+	}
+}
+
+func (h *Handler) AuthorizeMachineOverviewSupportView() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			if _, _, err := h.machineViewAccess(c); err != nil {
+				return err
+			}
+			return next(c)
+		}
+	}
+}
+
+func (h *Handler) machineViewAccess(c echo.Context) (models.SessionUser, bool, error) {
+	user, err := h.currentUser(c)
+	if err != nil {
+		return models.SessionUser{}, false, wrapError(http.StatusUnauthorized, "authentication required", err, nil)
+	}
+	allowed, err := h.c.Can(c.Request().Context(), user.UUID, core.ResourceMachine, core.ActionView)
+	if err != nil {
+		return models.SessionUser{}, false, wrapError(http.StatusInternalServerError, "could not check permissions", err, nil)
+	}
+	if allowed {
+		return user, false, nil
+	}
+	ownerOnly, err := h.c.IsNoRoleOwner(c.Request().Context(), user.UUID)
+	if err != nil {
+		return models.SessionUser{}, false, wrapError(http.StatusInternalServerError, "could not check owner access", err, nil)
+	}
+	if !ownerOnly {
+		return models.SessionUser{}, false, wrapError(http.StatusForbidden, "insufficient permissions", nil, nil)
+	}
+	return user, true, nil
+}
+
+func ownerOnlyMachineList(c echo.Context) bool {
+	ownerOnly, _ := c.Get(contextOwnerOnlyMachines).(bool)
+	return ownerOnly
 }
 
 // currentUser returns the authenticated user stashed by Authenticate.

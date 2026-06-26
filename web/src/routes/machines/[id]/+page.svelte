@@ -22,6 +22,7 @@
     type Machine,
     type MachinePolicyPosture,
     type MachineQueryRecord,
+    type Me,
     type MetricSchemas,
     type NodeMetrics
   } from '$lib/api'
@@ -39,7 +40,7 @@
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import Truncate from '$lib/components/Truncate.svelte'
-  import { canFrom, me } from '$lib/auth'
+  import { canFrom, me, ownerOnlyFrom } from '$lib/auth'
   import Pencil from '@lucide/svelte/icons/pencil'
   import Save from '@lucide/svelte/icons/save'
   import Play from '@lucide/svelte/icons/play'
@@ -83,7 +84,9 @@
   let editing = $state(false)
   let saving = $state(false)
   let tabs = $state<OatTabsElement>()
-  const tabSlugs = ['overview', 'policies', 'query']
+  const currentMe = $derived(($me ?? (page.data?.me as Me | null)) ?? null)
+  const ownerOnlyMode = $derived(ownerOnlyFrom(currentMe))
+  const tabSlugs = $derived(ownerOnlyMode ? ['overview', 'policies'] : ['overview', 'policies', 'query'])
   const activeTabIndex = $derived.by(() => {
     const i = tabSlugs.indexOf(page.url.hash.replace(/^#/, ''))
     return i >= 0 ? i : 0
@@ -97,7 +100,7 @@
     tabs.activeIndex = activeTabIndex
   })
   $effect(() => {
-    if (activeTabIndex === 2) untrack(ensurePolling)
+    if (!ownerOnlyMode && activeTabIndex === 2) untrack(ensurePolling)
   })
   // onMount only fires once; when the router reuses this component for a
   // different :id, reload and reset poll/edit state so we don't show stale
@@ -127,6 +130,31 @@
     loading = true
     error = ''
     try {
+      if (ownerOnlyMode) {
+        const [machineData, policyData, metricsData, schemasData] = await Promise.all([
+          fetchMachine(machineId),
+          fetchMachinePolicies(machineId),
+          fetchMachineMetrics(machineId).catch(() => ({ metrics: {} as NodeMetrics })),
+          fetchMetricSchemas().catch(() => ({ schemas: {}, kinds: [] }) as MetricSchemas)
+        ])
+        machine = machineData
+        selectedGroupIds = (machineData.groups || []).map((g) => g.uuid)
+        selectedOwnerId = machineData.inventory?.owner?.uuid || ''
+        displayName = machineData.display_name || ''
+        internalTrackingId = machineData.inventory?.internal_tracking_id || ''
+        inventoryNotes = machineData.inventory?.notes || ''
+        queryHistory = []
+        queryTotalCount = 0
+        queryPageCount = 1
+        availableGroups = []
+        availableOwners = []
+        policyPosture = Array.isArray(policyData)
+          ? policyData
+          : (policyData as { policies?: MachinePolicyPosture[] }).policies || []
+        metrics = metricsData.metrics || {}
+        metricSchemas = schemasData
+        return
+      }
       const [machineData, historyData, policyData, groupData, ownerData, metricsData, schemasData] = await Promise.all([
         fetchMachine(machineId),
         fetchMachineQueries(machineId, { page: currentQueryPage, countPerPage: queryCountPerPage }),
@@ -457,9 +485,11 @@
         <button type="button" role="tab" aria-selected={activeTabIndex === 1} onclick={() => setTab(1)}>
           Policies
         </button>
-        <button type="button" role="tab" aria-selected={activeTabIndex === 2} onclick={() => setTab(2)}>
-          Query
-        </button>
+        {#if !ownerOnlyMode}
+          <button type="button" role="tab" aria-selected={activeTabIndex === 2} onclick={() => setTab(2)}>
+            Query
+          </button>
+        {/if}
       </div>
 
       <div role="tabpanel">
@@ -609,102 +639,104 @@
         </div>
       </div>
 
-      <div role="tabpanel">
-        <div class="vstack gap-4">
-          {#if canExecuteMachine}
-            <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
-              <label data-field>
-                SQL Query
-                <SqlEditor
-                  bind:value={queryText}
-                  minLines={6}
-                  lineNumbers
-                  placeholder="SELECT * FROM processes LIMIT 10;"
-                  ariaLabel="Ad-hoc SQL query"
-                  onsubmit={() => { if (!executing && queryText.trim()) runQuery() }}
-                />
-              </label>
-              <footer class="hstack justify-end mt-4">
-                <button
-                  type="submit"
-                  class="gap-1"
-                  disabled={executing || !queryText.trim()}
-                  aria-busy={executing ? 'true' : undefined}
-                  data-spinner="small"
-                >
-                  <Play size={16} aria-hidden="true" />
-                  {executing ? 'Executing...' : 'Run Query'}
-                </button>
-              </footer>
-            </form>
-          {/if}
+      {#if !ownerOnlyMode}
+        <div role="tabpanel">
+          <div class="vstack gap-4">
+            {#if canExecuteMachine}
+              <form onsubmit={(e) => { e.preventDefault(); runQuery() }}>
+                <label data-field>
+                  SQL Query
+                  <SqlEditor
+                    bind:value={queryText}
+                    minLines={6}
+                    lineNumbers
+                    placeholder="SELECT * FROM processes LIMIT 10;"
+                    ariaLabel="Ad-hoc SQL query"
+                    onsubmit={() => { if (!executing && queryText.trim()) runQuery() }}
+                  />
+                </label>
+                <footer class="hstack justify-end mt-4">
+                  <button
+                    type="submit"
+                    class="gap-1"
+                    disabled={executing || !queryText.trim()}
+                    aria-busy={executing ? 'true' : undefined}
+                    data-spinner="small"
+                  >
+                    <Play size={16} aria-hidden="true" />
+                    {executing ? 'Executing...' : 'Run Query'}
+                  </button>
+                </footer>
+              </form>
+            {/if}
 
-          <div class="hstack justify-between">
-            <h2>Query History</h2>
-            <p class="text-light">
-              Showing <strong>{queryStartResult}</strong> to <strong>{queryEndResult}</strong> of
-              <strong>{queryTotalCount}</strong> results
-            </p>
-          </div>
-          {#if historyLoading}
-            <Spinner />
-          {:else}
-            <div class="table">
-              <table class="queries-table">
-                <thead>
-                  <tr>
-                    <th class="col-id">ID</th>
-                    <th class="col-query">Query</th>
-                    <th>Status</th>
-                    <th>Rows</th>
-                    <th>Executed</th>
-                    <th class="col-actions"><span class="sr-only">Actions</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each queryHistory as query}
-                    <tr>
-                      <td>
-                        <button type="button" class="cell-link" onclick={() => openQueryResults(query)}>
-                          <Truncate text={String(query.id ?? '')} />
-                        </button>
-                      </td>
-                      <td class="text-light"><code class="query-cell"><Truncate text={query.query || ''} /></code></td>
-                      <td>
-                        {#if query.status}
-                          <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
-                        {/if}
-                      </td>
-                      <td>{query.row_count ?? 0}</td>
-                      <td class="text-light">{formatTimestamp(query.timestamp)}</td>
-                      <td class="col-actions">
-                        {#if canDeleteQueryResult}
-                          <ActionsMenu label="Actions for query result">
-                            <button role="menuitem" type="button" onclick={() => confirmDeleteQuery(query)}>Delete</button>
-                          </ActionsMenu>
-                        {/if}
-                      </td>
-                    </tr>
-                  {:else}
-                    <tr><td colspan="6" class="align-center text-light">No queries executed yet</td></tr>
-                  {/each}
-                </tbody>
-              </table>
+            <div class="hstack justify-between">
+              <h2>Query History</h2>
+              <p class="text-light">
+                Showing <strong>{queryStartResult}</strong> to <strong>{queryEndResult}</strong> of
+                <strong>{queryTotalCount}</strong> results
+              </p>
             </div>
-          {/if}
-          {#if queryTotalCount > 0}
-            <footer class="hstack justify-end">
-              <Pagination
-                currentPage={currentQueryPage}
-                pageCount={queryPageCount}
-                disabled={historyLoading}
-                label="Query history pagination"
-                onPageChange={changeQueryPage}
-              />
-            </footer>
-          {/if}
+            {#if historyLoading}
+              <Spinner />
+            {:else}
+              <div class="table">
+                <table class="queries-table">
+                  <thead>
+                    <tr>
+                      <th class="col-id">ID</th>
+                      <th class="col-query">Query</th>
+                      <th>Status</th>
+                      <th>Rows</th>
+                      <th>Executed</th>
+                      <th class="col-actions"><span class="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each queryHistory as query}
+                      <tr>
+                        <td>
+                          <button type="button" class="cell-link" onclick={() => openQueryResults(query)}>
+                            <Truncate text={String(query.id ?? '')} />
+                          </button>
+                        </td>
+                        <td class="text-light"><code class="query-cell"><Truncate text={query.query || ''} /></code></td>
+                        <td>
+                          {#if query.status}
+                            <span class="badge" data-variant={statusVariant(query)}>{query.status}</span>
+                          {/if}
+                        </td>
+                        <td>{query.row_count ?? 0}</td>
+                        <td class="text-light">{formatTimestamp(query.timestamp)}</td>
+                        <td class="col-actions">
+                          {#if canDeleteQueryResult}
+                            <ActionsMenu label="Actions for query result">
+                              <button role="menuitem" type="button" onclick={() => confirmDeleteQuery(query)}>Delete</button>
+                            </ActionsMenu>
+                          {/if}
+                        </td>
+                      </tr>
+                    {:else}
+                      <tr><td colspan="6" class="align-center text-light">No queries executed yet</td></tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            {/if}
+            {#if queryTotalCount > 0}
+              <footer class="hstack justify-end">
+                <Pagination
+                  currentPage={currentQueryPage}
+                  pageCount={queryPageCount}
+                  disabled={historyLoading}
+                  label="Query history pagination"
+                  onPageChange={changeQueryPage}
+                />
+              </footer>
+            {/if}
+          </div>
         </div>
-      </div>
+      {/if}
     </ot-tabs>
   {/if}
 </section>

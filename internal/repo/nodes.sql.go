@@ -208,6 +208,10 @@ WITH filtered AS (
         OR ($6::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
         OR ($6::text = 'unassigned' AND node_inventory.owner_id IS NULL)
     )
+      AND (
+        $7::text = ''
+        OR lower(trim(device_owners.email)) = lower(trim($7::text))
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
@@ -225,6 +229,7 @@ type ListNodesParams struct {
 	Platform    string `db:"platform" json:"platform"`
 	OwnerUuid   string `db:"owner_uuid" json:"owner_uuid"`
 	Assigned    string `db:"assigned" json:"assigned"`
+	OwnerEmail  string `db:"owner_email" json:"owner_email"`
 }
 
 type ListNodesRow struct {
@@ -255,6 +260,7 @@ func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNod
 		arg.Platform,
 		arg.OwnerUuid,
 		arg.Assigned,
+		arg.OwnerEmail,
 	)
 	if err != nil {
 		return nil, err

@@ -553,9 +553,10 @@ type IssueTokenRequest struct {
 }
 
 type MeResponse struct {
-	User        models.SessionUser  `json:"user"`
-	Roles       []string            `json:"roles"`
-	Permissions map[string][]string `json:"permissions"`
+	User            models.SessionUser  `json:"user"`
+	Roles           []string            `json:"roles"`
+	Permissions     map[string][]string `json:"permissions"`
+	OwnerOnlyAccess bool                `json:"owner_only_access"`
 }
 
 type CreateUserRequest struct {

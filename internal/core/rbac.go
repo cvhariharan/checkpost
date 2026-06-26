@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
@@ -279,6 +280,65 @@ func (c *Core) Can(ctx context.Context, userUUID, resource, action string, group
 		}
 	}
 	return false, nil
+}
+
+func (c *Core) IsNoRoleOwner(ctx context.Context, userUUID string) (bool, error) {
+	uid, err := uuid.Parse(userUUID)
+	if err != nil {
+		return false, fmt.Errorf("parse user uuid: %w", err)
+	}
+	user, err := c.store.GetUserByUUID(ctx, uid)
+	if err != nil {
+		return false, fmt.Errorf("get user: %w", err)
+	}
+	if strings.TrimSpace(user.Email) == "" {
+		return false, nil
+	}
+	hasBinding, err := c.userHasAnyRoleBinding(ctx, user.ID)
+	if err != nil {
+		return false, fmt.Errorf("check role bindings: %w", err)
+	}
+	return !hasBinding, nil
+}
+
+func (c *Core) userHasAnyRoleBinding(ctx context.Context, userID int64) (bool, error) {
+	direct, err := c.store.ListRoleBindingsForUser(ctx, sql.NullInt64{Int64: userID, Valid: true})
+	if err != nil {
+		return false, fmt.Errorf("list user role bindings: %w", err)
+	}
+	if len(direct) > 0 {
+		return true, nil
+	}
+	groups, err := c.store.ListUserGroupsForUser(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("list user groups: %w", err)
+	}
+	for _, group := range groups {
+		bindings, err := c.store.ListRoleBindingsForUserGroup(ctx, sql.NullInt64{Int64: group.ID, Valid: true})
+		if err != nil {
+			return false, fmt.Errorf("list user group role bindings: %w", err)
+		}
+		if len(bindings) > 0 {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (c *Core) UserOwnsNode(ctx context.Context, userUUID, nodeUUID string) (bool, error) {
+	uid, err := uuid.Parse(userUUID)
+	if err != nil {
+		return false, fmt.Errorf("parse user uuid: %w", err)
+	}
+	user, err := c.store.GetUserByUUID(ctx, uid)
+	if err != nil {
+		return false, fmt.Errorf("get user: %w", err)
+	}
+	inventory, err := c.GetNodeInventory(ctx, models.NodeIdentity{ID: nodeUUID})
+	if err != nil {
+		return false, err
+	}
+	return inventory.Owner != nil && strings.EqualFold(strings.TrimSpace(user.Email), strings.TrimSpace(inventory.Owner.Email)), nil
 }
 
 // Roles returns the four built-in roles and their permission matrix

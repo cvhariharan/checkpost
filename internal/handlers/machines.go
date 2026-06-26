@@ -25,14 +25,25 @@ func (h *Handler) HandleMachinesPagination(c echo.Context) error {
 		req.Count = CountPerPage
 	}
 
-	page, err := h.c.PaginateNodes(c.Request().Context(), models.NodeListRequest{
+	listReq := models.NodeListRequest{
 		Page:     req.Page,
 		Count:    req.Count,
 		Query:    req.Query,
 		Platform: req.Platform,
 		OwnerID:  req.OwnerID,
 		Assigned: req.Assigned,
-	})
+	}
+	var page models.Page[models.Node]
+	var err error
+	if ownerOnlyMachineList(c) {
+		user, userErr := h.currentUser(c)
+		if userErr != nil {
+			return wrapError(http.StatusUnauthorized, "authentication required", userErr, nil)
+		}
+		page, err = h.c.PaginateNodesForUser(c.Request().Context(), user.UUID, listReq)
+	} else {
+		page, err = h.c.PaginateNodes(c.Request().Context(), listReq)
+	}
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get machines", err, nil)
 	}

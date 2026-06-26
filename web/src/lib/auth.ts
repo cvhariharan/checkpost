@@ -14,9 +14,19 @@ export function canFrom(current: Me | null, resource: string, action: string): b
   return Array.isArray(actions) && actions.includes(action)
 }
 
+export function ownerOnlyFrom(current: Me | null): boolean {
+  if (!current) return false
+  if (typeof current.owner_only_access === 'boolean') return current.owner_only_access
+  return (current.roles?.length ?? 0) === 0 && Object.keys(current.permissions ?? {}).length === 0
+}
+
 /** can reports whether the current user holds `action` on `resource` (global scope). */
 export function can(resource: string, action: string): boolean {
   return canFrom(get(me), resource, action)
+}
+
+export function isOwnerOnly(): boolean {
+  return ownerOnlyFrom(get(me))
 }
 
 /** hasRole reports whether the current user holds the named role. */

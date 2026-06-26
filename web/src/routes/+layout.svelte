@@ -8,7 +8,7 @@
   import Logo from '$lib/components/Logo.svelte'
   import ThemeToggle from '$lib/components/ThemeToggle.svelte'
   import { logout as apiLogout, fetchInfo, type BuildInfo, type Me } from '$lib/api'
-  import { canFrom, setMe } from '$lib/auth'
+  import { canFrom, ownerOnlyFrom, setMe } from '$lib/auth'
   import Server from '@lucide/svelte/icons/server'
   import TerminalSquare from '@lucide/svelte/icons/terminal-square'
   import Boxes from '@lucide/svelte/icons/boxes'
@@ -73,12 +73,14 @@
   )
   const isLoginRoute = $derived(pathname === '/login')
   const visibleNav = $derived(navItems.filter((item) => {
+    if (item.section === 'inventory' && ownerOnlyFrom(data?.me ?? null)) return true
     return canFrom(data?.me ?? null, item.resource, item.action)
   }))
   const visibleAdminNav = $derived(adminItems.filter((item) => {
     return canFrom(data?.me ?? null, item.resource, item.action)
   }))
   const admin = $derived(visibleAdminNav.length > 0)
+  const ownerOnlyAccess = $derived(ownerOnlyFrom(data?.me ?? null))
 
   async function handleLogout() {
     try {
@@ -148,7 +150,7 @@
           </ul>
         {/if}
 
-        {#if user}
+        {#if user && !ownerOnlyAccess}
           <p class="admin-heading text-light">Settings</p>
           <ul>
             <li>

@@ -98,6 +98,10 @@ WITH filtered AS (
         OR (@assigned::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
         OR (@assigned::text = 'unassigned' AND node_inventory.owner_id IS NULL)
     )
+      AND (
+        @owner_email::text = ''
+        OR lower(trim(device_owners.email)) = lower(trim(@owner_email::text))
+    )
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered

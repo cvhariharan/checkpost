@@ -11,7 +11,8 @@
     updateMachineInventory,
     updateOwner,
     type DeviceOwner,
-    type Machine
+    type Machine,
+    type Me
   } from '$lib/api'
   import { formatTimestamp, isOnline, machineHostname } from '$lib/util'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
@@ -23,7 +24,7 @@
   import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import OsqueryBootstrapDialog from '$lib/components/OsqueryBootstrapDialog.svelte'
-  import { canFrom, me } from '$lib/auth'
+  import { canFrom, me, ownerOnlyFrom } from '$lib/auth'
   import Plus from '@lucide/svelte/icons/plus'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
@@ -40,8 +41,11 @@
   let selectedOwner = $state('')
   let assignmentFilter = $state('')
   let ownerSearchTerm = $state('')
+  const currentMe = $derived(($me ?? (page.data?.me as Me | null)) ?? null)
+  const ownerOnlyMode = $derived(ownerOnlyFrom(currentMe))
   const tabSlugs = ['devices', 'owners']
   const activeTabIndex = $derived.by(() => {
+    if (ownerOnlyMode) return 0
     const i = tabSlugs.indexOf(page.url.hash.replace(/^#/, ''))
     return i >= 0 ? i : 0
   })
@@ -196,7 +200,11 @@
   async function initialize() {
     error = ''
     try {
-      await Promise.all([loadOwnerOptions(), loadMachines(), loadOwners()])
+      if (ownerOnlyMode) {
+        await loadMachines()
+      } else {
+        await Promise.all([loadOwnerOptions(), loadMachines(), loadOwners()])
+      }
     } catch (err) {
       error = (err as Error).message || 'Failed to load inventory'
     } finally {
@@ -209,6 +217,11 @@
   }
 
   async function loadOwnerOptions() {
+    if (ownerOnlyMode) {
+      ownerOptions = []
+      loadingOwnerOptions = false
+      return
+    }
     loadingOwnerOptions = true
     try {
       const data = await fetchOwners({ page: 1, countPerPage: 1000 })
@@ -256,6 +269,13 @@
   }
 
   async function loadOwners(targetPage = currentOwnerPage) {
+    if (ownerOnlyMode) {
+      owners = []
+      ownerPageCount = 1
+      ownerTotalCount = 0
+      loadingOwners = false
+      return
+    }
     loadingOwners = true
     error = ''
     try {
@@ -438,14 +458,16 @@
         >
           Devices
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTabIndex === 1}
-          onclick={() => setTab(1)}
-        >
-          Owners
-        </button>
+        {#if !ownerOnlyMode}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTabIndex === 1}
+            onclick={() => setTab(1)}
+          >
+            Owners
+          </button>
+        {/if}
       </div>
 
       <div role="tabpanel">
@@ -454,25 +476,27 @@
             <div class="col-5">
               <SearchInput bind:value={searchTerm} placeholder="Search inventory..." />
             </div>
-            <div class="col-3">
-              <SelectFilter
-                options={ownerFilterOptions}
-                bind:value={selectedOwner}
-                label="Owner"
-                allLabel="All owners"
-              />
-            </div>
-            <div class="col-2">
-              <SelectFilter
-                options={[
-                  { value: 'assigned', label: 'Assigned' },
-                  { value: 'unassigned', label: 'Unassigned' }
-                ]}
-                bind:value={assignmentFilter}
-                label="Assignment"
-                allLabel="All devices"
-              />
-            </div>
+            {#if !ownerOnlyMode}
+              <div class="col-3">
+                <SelectFilter
+                  options={ownerFilterOptions}
+                  bind:value={selectedOwner}
+                  label="Owner"
+                  allLabel="All owners"
+                />
+              </div>
+              <div class="col-2">
+                <SelectFilter
+                  options={[
+                    { value: 'assigned', label: 'Assigned' },
+                    { value: 'unassigned', label: 'Unassigned' }
+                  ]}
+                  bind:value={assignmentFilter}
+                  label="Assignment"
+                  allLabel="All devices"
+                />
+              </div>
+            {/if}
             <div class="col-2">
               <SelectFilter
                 options={allPlatforms}
@@ -497,7 +521,9 @@
                     <th>Serial</th>
                     <th>Platform</th>
                     <th>Last Seen</th>
-                    <th class="align-right"><span class="sr-only">Actions</span></th>
+                    {#if !ownerOnlyMode}
+                      <th class="align-right"><span class="sr-only">Actions</span></th>
+                    {/if}
                   </tr>
                 </thead>
                 <tbody>
@@ -521,17 +547,19 @@
                       <td>{machine.hardware_serial || ''}</td>
                       <td>{machine.platform || ''}</td>
                       <td>{formatTimestamp(machine.last_seen_at || machine.enrolled_at)}</td>
-                    <td class="align-right">
-                      {#if canUpdateInventory || canUpdateMachine}
-                        <ActionsMenu label={`Actions for ${machineHostname(machine)}`}>
-                          <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit</button>
-                        </ActionsMenu>
-                      {/if}
-                    </td>
+                    {#if !ownerOnlyMode}
+                      <td class="align-right">
+                        {#if canUpdateInventory || canUpdateMachine}
+                          <ActionsMenu label={`Actions for ${machineHostname(machine)}`}>
+                            <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit</button>
+                          </ActionsMenu>
+                        {/if}
+                      </td>
+                    {/if}
                     </tr>
                   {:else}
                     <tr>
-                      <td colspan="8" class="align-center text-light">No devices found</td>
+                      <td colspan={ownerOnlyMode ? 7 : 8} class="align-center text-light">No devices found</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -555,6 +583,7 @@
         </div>
       </div>
 
+      {#if !ownerOnlyMode}
       <div role="tabpanel">
         <div class="vstack gap-3">
           <div class="hstack justify-between">
@@ -636,6 +665,7 @@
           {/if}
         </div>
       </div>
+      {/if}
     </ot-tabs>
   {/if}
 </section>

@@ -718,6 +718,7 @@ export type Me = {
   user: SessionUser
   roles: string[]
   permissions: Record<string, string[]>
+  owner_only_access?: boolean
 }
 
 export type Providers = {

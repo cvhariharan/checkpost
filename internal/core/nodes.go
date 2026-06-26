@@ -116,6 +116,23 @@ func (c *Core) UpdateNode(ctx context.Context, req models.UpdateNode) (models.No
 }
 
 func (c *Core) PaginateNodes(ctx context.Context, req models.NodeListRequest) (models.Page[models.Node], error) {
+	return c.paginateNodes(ctx, req, "")
+}
+
+func (c *Core) PaginateNodesForUser(ctx context.Context, userUUID string, req models.NodeListRequest) (models.Page[models.Node], error) {
+	uid, err := uuid.Parse(userUUID)
+	if err != nil {
+		return models.Page[models.Node]{}, fmt.Errorf("parse user uuid: %w", err)
+	}
+	user, err := c.store.GetUserByUUID(ctx, uid)
+	if err != nil {
+		return models.Page[models.Node]{}, fmt.Errorf("get user: %w", err)
+	}
+	req.OwnerID = ""
+	return c.paginateNodes(ctx, req, strings.TrimSpace(user.Email))
+}
+
+func (c *Core) paginateNodes(ctx context.Context, req models.NodeListRequest, ownerEmail string) (models.Page[models.Node], error) {
 	page := req.Page
 	countPerPage := req.Count
 	if countPerPage <= 0 {
@@ -130,6 +147,7 @@ func (c *Core) PaginateNodes(ctx context.Context, req models.NodeListRequest) (m
 		Platform:    strings.TrimSpace(req.Platform),
 		OwnerUuid:   strings.TrimSpace(req.OwnerID),
 		Assigned:    strings.TrimSpace(req.Assigned),
+		OwnerEmail:  strings.TrimSpace(ownerEmail),
 		LimitCount:  int32(countPerPage),
 		OffsetCount: int32(page * countPerPage),
 	})

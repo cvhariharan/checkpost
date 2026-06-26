@@ -213,11 +213,16 @@ func (h *Handler) HandleMe(c echo.Context) error {
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get permissions", err, nil)
 	}
+	ownerOnly, err := h.c.IsNoRoleOwner(c.Request().Context(), user.UUID)
+	if err != nil {
+		return wrapError(http.StatusInternalServerError, "could not get owner access", err, nil)
+	}
 
 	return c.JSON(http.StatusOK, MeResponse{
-		User:        perms.User,
-		Roles:       perms.Roles,
-		Permissions: perms.Permissions,
+		User:            perms.User,
+		Roles:           perms.Roles,
+		Permissions:     perms.Permissions,
+		OwnerOnlyAccess: ownerOnly,
 	})
 }
 
