@@ -151,13 +151,10 @@
               <span class="seg warning" style="width:{pct(data.compliance.policy_rows.unknown, data.compliance.policy_rows.passing + data.compliance.policy_rows.failing + data.compliance.policy_rows.unknown)}%"></span>
             </div>
             <div class="hstack gap-4 legend text-light">
-              <span><span class="dot success"></span> {data.compliance.machines.passing} pass</span>
-              <span><span class="dot danger"></span> {data.compliance.machines.failing} fail</span>
-              <span><span class="dot warning"></span> {data.compliance.machines.unknown} unknown</span>
+              <span><span class="dot success"></span> {data.compliance.policy_rows.passing} checks pass</span>
+              <span><span class="dot danger"></span> {data.compliance.policy_rows.failing} checks fail</span>
+              <span><span class="dot warning"></span> {data.compliance.policy_rows.unknown} checks unknown</span>
             </div>
-            {#if data.compliance.machines.no_policies > 0}
-              <p class="text-light stat-sub">{data.compliance.machines.no_policies} machines have no policies</p>
-            {/if}
           {/if}
         </article>
       </div>

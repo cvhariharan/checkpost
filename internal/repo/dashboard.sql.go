@@ -117,42 +117,6 @@ func (q *Queries) DashboardLeastCompliantNodes(ctx context.Context, arg Dashboar
 	return items, nil
 }
 
-const dashboardMachineComplianceCounts = `-- name: DashboardMachineComplianceCounts :one
-WITH per_node AS (
-    SELECT
-        node_id,
-        bool_or(passes = false AND checked_at >= $1::timestamptz) AS has_failing,
-        bool_or(passes IS NULL OR checked_at < $1::timestamptz) AS has_unknown
-    FROM policy_membership
-    GROUP BY node_id
-)
-SELECT
-    count(*) FILTER (WHERE has_failing)::bigint AS failing,
-    count(*) FILTER (WHERE NOT has_failing AND has_unknown)::bigint AS unknown,
-    count(*) FILTER (WHERE NOT has_failing AND NOT has_unknown)::bigint AS passing,
-    ((SELECT count(*) FROM nodes) - count(*))::bigint AS no_policies
-FROM per_node
-`
-
-type DashboardMachineComplianceCountsRow struct {
-	Failing    int64 `db:"failing" json:"failing"`
-	Unknown    int64 `db:"unknown" json:"unknown"`
-	Passing    int64 `db:"passing" json:"passing"`
-	NoPolicies int64 `db:"no_policies" json:"no_policies"`
-}
-
-func (q *Queries) DashboardMachineComplianceCounts(ctx context.Context, staleCutoff time.Time) (DashboardMachineComplianceCountsRow, error) {
-	row := q.db.QueryRowContext(ctx, dashboardMachineComplianceCounts, staleCutoff)
-	var i DashboardMachineComplianceCountsRow
-	err := row.Scan(
-		&i.Failing,
-		&i.Unknown,
-		&i.Passing,
-		&i.NoPolicies,
-	)
-	return i, err
-}
-
 const dashboardMostCompliantNodes = `-- name: DashboardMostCompliantNodes :many
 WITH per_node AS (
     SELECT

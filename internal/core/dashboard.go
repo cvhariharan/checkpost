@@ -34,7 +34,6 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 		nodeCounts     repo.DashboardNodeCountsRow
 		platformCounts []repo.DashboardNodeCountsByPlatformRow
 		policyRows     repo.DashboardPolicyRowCountsRow
-		machineCompl   repo.DashboardMachineComplianceCountsRow
 		topFailing     []repo.DashboardTopFailingPoliciesRow
 		leastCompliant []repo.DashboardLeastCompliantNodesRow
 		mostCompliant  []repo.DashboardMostCompliantNodesRow
@@ -54,10 +53,6 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 	})
 	g.Go(func() (err error) {
 		policyRows, err = c.store.DashboardPolicyRowCounts(gctx, staleCutoff)
-		return err
-	})
-	g.Go(func() (err error) {
-		machineCompl, err = c.store.DashboardMachineComplianceCounts(gctx, staleCutoff)
 		return err
 	})
 	g.Go(func() (err error) {
@@ -104,12 +99,6 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 				Passing: int(policyRows.Passing),
 				Failing: int(policyRows.Failing),
 				Unknown: int(policyRows.Unknown),
-			},
-			Machines: models.DashboardComplianceMachines{
-				Passing:    int(machineCompl.Passing),
-				Failing:    int(machineCompl.Failing),
-				Unknown:    int(machineCompl.Unknown),
-				NoPolicies: int(machineCompl.NoPolicies),
 			},
 			TopFailingPolicies: make([]models.DashboardFailingPolicy, 0, len(topFailing)),
 			LeastCompliant:     make([]models.DashboardComplianceNode, 0, len(leastCompliant)),

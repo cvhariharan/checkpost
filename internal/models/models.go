@@ -830,7 +830,6 @@ type DashboardPlatformCount struct {
 type DashboardCompliance struct {
 	Score              *int                        `json:"score"`
 	PolicyRows         DashboardPolicyRows         `json:"policy_rows"`
-	Machines           DashboardComplianceMachines `json:"machines"`
 	TopFailingPolicies []DashboardFailingPolicy    `json:"top_failing_policies"`
 	LeastCompliant     []DashboardComplianceNode   `json:"least_compliant"`
 	MostCompliant      []DashboardComplianceNode   `json:"most_compliant"`
@@ -840,13 +839,6 @@ type DashboardPolicyRows struct {
 	Passing int `json:"passing"`
 	Failing int `json:"failing"`
 	Unknown int `json:"unknown"`
-}
-
-type DashboardComplianceMachines struct {
-	Passing    int `json:"passing"`
-	Failing    int `json:"failing"`
-	Unknown    int `json:"unknown"`
-	NoPolicies int `json:"no_policies"`
 }
 
 type DashboardFailingPolicy struct {

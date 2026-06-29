@@ -350,7 +350,6 @@ export type DashboardOverview = {
   compliance: {
     score: number | null
     policy_rows: { passing: number; failing: number; unknown: number }
-    machines: { passing: number; failing: number; unknown: number; no_policies: number }
     top_failing_policies: { uuid: string; name: string; failing_count: number; platform: string }[]
     least_compliant: DashboardComplianceNode[]
     most_compliant: DashboardComplianceNode[]

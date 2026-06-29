@@ -25,22 +25,6 @@ SELECT
     count(*) FILTER (WHERE passes IS NULL OR checked_at < @stale_cutoff::timestamptz)::bigint AS unknown
 FROM policy_membership;
 
--- name: DashboardMachineComplianceCounts :one
-WITH per_node AS (
-    SELECT
-        node_id,
-        bool_or(passes = false AND checked_at >= @stale_cutoff::timestamptz) AS has_failing,
-        bool_or(passes IS NULL OR checked_at < @stale_cutoff::timestamptz) AS has_unknown
-    FROM policy_membership
-    GROUP BY node_id
-)
-SELECT
-    count(*) FILTER (WHERE has_failing)::bigint AS failing,
-    count(*) FILTER (WHERE NOT has_failing AND has_unknown)::bigint AS unknown,
-    count(*) FILTER (WHERE NOT has_failing AND NOT has_unknown)::bigint AS passing,
-    ((SELECT count(*) FROM nodes) - count(*))::bigint AS no_policies
-FROM per_node;
-
 -- name: DashboardTopFailingPolicies :many
 SELECT
     policies.uuid,
