@@ -22,6 +22,7 @@ const envPrefix = "CHECKPOST_"
 var (
 	defaultPolicyUpdateInterval = time.Hour
 	defaultPolicyStaleAfter     = 2 * time.Hour
+	defaultHeartbeatThreshold   = 5 * time.Minute
 	defaultSessionTTL           = 8 * time.Hour
 	configValidator             = validator.New()
 )
@@ -56,6 +57,7 @@ type rawAppConfig struct {
 	EnrollmentKey        string `koanf:"app.enrollment_key"`
 	PolicyUpdateInterval string `koanf:"app.policy_update_interval"`
 	PolicyStaleAfter     string `koanf:"app.policy_stale_after"`
+	HeartbeatThreshold   string `koanf:"app.heartbeat_threshold"`
 }
 
 type rawOIDCConfig struct {
@@ -156,6 +158,10 @@ func (r rawConfig) toConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	heartbeatThreshold, err := parsePositiveDuration("app.heartbeat_threshold", r.AppConfig.HeartbeatThreshold, defaultHeartbeatThreshold)
+	if err != nil {
+		return Config{}, err
+	}
 	sessionTTL, err := parsePositiveDuration("app.session.ttl", r.SessionConfig.TTL, defaultSessionTTL)
 	if err != nil {
 		return Config{}, err
@@ -172,6 +178,7 @@ func (r rawConfig) toConfig() (Config, error) {
 			EnrollmentKey:        r.AppConfig.EnrollmentKey,
 			PolicyUpdateInterval: policyUpdateInterval,
 			PolicyStaleAfter:     policyStaleAfter,
+			HeartbeatThreshold:   heartbeatThreshold,
 			OsqueryBootstrap: OsqueryBootstrapConfig{
 				Enabled: r.OsqueryBootstrapConfig.Enabled,
 				Linux: bootstrapPackagesByArch(

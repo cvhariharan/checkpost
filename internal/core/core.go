@@ -33,6 +33,7 @@ type Core struct {
 
 	policyUpdateInterval time.Duration
 	policyStaleAfter     time.Duration
+	heartbeatThreshold   time.Duration
 }
 
 func NewCore(logger *slog.Logger, store repo.Store, sink results.Sink, reader results.Reader, enforcer *casbin.Enforcer, cfg config.AppConfig) (*Core, error) {
@@ -47,6 +48,7 @@ func NewCore(logger *slog.Logger, store repo.Store, sink results.Sink, reader re
 		systemMetrics:        DefaultSystemMetrics(),
 		policyUpdateInterval: cfg.PolicyUpdateInterval,
 		policyStaleAfter:     cfg.PolicyStaleAfter,
+		heartbeatThreshold:   cfg.HeartbeatThreshold,
 	}, nil
 }
 

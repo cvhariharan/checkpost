@@ -39,6 +39,7 @@ const (
 	ResourceSetting      = "setting"
 	ResourceAlertRule    = "alert_rule"
 	ResourceAlertTarget  = "alert_target"
+	ResourceDashboard    = "dashboard"
 )
 
 const (
@@ -74,6 +75,7 @@ var permissionCatalog = []models.PermissionCatalogEntry{
 	{Resource: ResourceSetting, Actions: []string{ActionView, ActionUpdate}, Scopable: false},
 	{Resource: ResourceAlertRule, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete}, Scopable: false},
 	{Resource: ResourceAlertTarget, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute}, Scopable: false},
+	{Resource: ResourceDashboard, Actions: []string{ActionView}, Scopable: false},
 }
 
 // roleMatrix is set for each built-in role:
@@ -94,6 +96,7 @@ var roleMatrix = map[string]map[string][]string{
 		ResourceSetting:      {ActionView, ActionUpdate},
 		ResourceAlertRule:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
 		ResourceAlertTarget:  {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
+		ResourceDashboard:    {ActionView},
 	},
 	RoleOperator: {
 		ResourceMachine:      {ActionView, ActionUpdate, ActionExecute, ActionDelete},
@@ -107,6 +110,7 @@ var roleMatrix = map[string]map[string][]string{
 		ResourceSetting:      {ActionView},
 		ResourceAlertRule:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
 		ResourceAlertTarget:  {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
+		ResourceDashboard:    {ActionView},
 	},
 	RoleAnalyst: {
 		ResourceMachine:      {ActionView, ActionExecute},

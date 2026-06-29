@@ -630,3 +630,7 @@ type RolesResponse struct {
 	Roles   []models.RoleDefinition `json:"roles"`
 	Catalog models.Catalog          `json:"catalog"`
 }
+
+type DashboardOverviewRequest struct {
+	Top int `query:"top" validate:"gte=0"`
+}

@@ -336,6 +336,67 @@ export function fetchInfo() {
   return fetch(`${BASE_URL}/info`).then((r) => handleResponse<BuildInfo>(r))
 }
 
+// Dashboard overview
+export type DashboardOverview = {
+  generated_at: string
+  heartbeat_threshold_seconds: number
+  machines: {
+    total: number
+    online: number
+    offline: number
+    never_reported: number
+    by_platform: { platform: string; total: number; online: number }[]
+  }
+  compliance: {
+    score: number | null
+    policy_rows: { passing: number; failing: number; unknown: number }
+    machines: { passing: number; failing: number; unknown: number; no_policies: number }
+    top_failing_policies: { uuid: string; name: string; failing_count: number; platform: string }[]
+    least_compliant: DashboardComplianceNode[]
+    most_compliant: DashboardComplianceNode[]
+  }
+  security: {
+    firing_alerts: {
+      critical: number
+      high: number
+      medium: number
+      low: number
+      info: number
+      total: number
+    }
+    recent_yara_matches: {
+      scan_uuid: string
+      machine_uuid: string
+      hostname: string
+      path: string
+      rules: string
+      matched_at: string
+    }[]
+  }
+  recently_enrolled: {
+    uuid: string
+    hostname: string
+    display_name: string
+    enrolled_at: string
+  }[]
+}
+
+export type DashboardComplianceNode = {
+  uuid: string
+  hostname: string
+  display_name: string
+  score: number
+  failing: number
+  total: number
+}
+
+export function fetchDashboardOverview(opts: { top?: number } = {}) {
+  const { top = 5 } = opts
+  return fetch(apiUrl('/dashboard/overview', { top })).then((r) =>
+    handleResponse<DashboardOverview>(r)
+  )
+}
+
 // Schedules
 export function fetchSchedules(opts: PageOpts & { query?: string } = {}) {
   const { page = 1, countPerPage = 10, query = '' } = opts

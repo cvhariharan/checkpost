@@ -7,6 +7,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -38,6 +39,16 @@ type Querier interface {
 	CreateYaraScan(ctx context.Context, arg CreateYaraScanParams) (YaraScan, error)
 	CreateYaraScanTarget(ctx context.Context, arg CreateYaraScanTargetParams) error
 	CreateYaraSignatureSource(ctx context.Context, arg CreateYaraSignatureSourceParams) (YaraSignatureSource, error)
+	DashboardFiringAlertsBySeverity(ctx context.Context) ([]DashboardFiringAlertsBySeverityRow, error)
+	DashboardLeastCompliantNodes(ctx context.Context, arg DashboardLeastCompliantNodesParams) ([]DashboardLeastCompliantNodesRow, error)
+	DashboardMachineComplianceCounts(ctx context.Context, staleCutoff time.Time) (DashboardMachineComplianceCountsRow, error)
+	DashboardMostCompliantNodes(ctx context.Context, arg DashboardMostCompliantNodesParams) ([]DashboardMostCompliantNodesRow, error)
+	DashboardNodeCounts(ctx context.Context, onlineCutoff time.Time) (DashboardNodeCountsRow, error)
+	DashboardNodeCountsByPlatform(ctx context.Context, onlineCutoff time.Time) ([]DashboardNodeCountsByPlatformRow, error)
+	DashboardPolicyRowCounts(ctx context.Context, staleCutoff time.Time) (DashboardPolicyRowCountsRow, error)
+	DashboardRecentEnrollments(ctx context.Context, topN int32) ([]DashboardRecentEnrollmentsRow, error)
+	DashboardRecentYaraMatches(ctx context.Context, topN int32) ([]DashboardRecentYaraMatchesRow, error)
+	DashboardTopFailingPolicies(ctx context.Context, arg DashboardTopFailingPoliciesParams) ([]DashboardTopFailingPoliciesRow, error)
 	DeleteAlertRuleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteAlertRuleTargetsForRule(ctx context.Context, ruleID int64) error
 	DeleteAlertState(ctx context.Context, arg DeleteAlertStateParams) error

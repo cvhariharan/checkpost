@@ -9,6 +9,7 @@
   import ThemeToggle from '$lib/components/ThemeToggle.svelte'
   import { logout as apiLogout, fetchInfo, type BuildInfo, type Me } from '$lib/api'
   import { canFrom, ownerOnlyFrom, setMe } from '$lib/auth'
+  import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard'
   import Server from '@lucide/svelte/icons/server'
   import TerminalSquare from '@lucide/svelte/icons/terminal-square'
   import Boxes from '@lucide/svelte/icons/boxes'
@@ -48,6 +49,7 @@
   }
 
   const navItems: NavItem[] = [
+    { href: '/dashboard', label: 'Dashboard', section: 'dashboard', resource: 'dashboard', action: 'view', icon: LayoutDashboard },
     { href: '/inventory', label: 'Inventory', section: 'inventory', resource: 'machine', action: 'view', icon: Server },
     { href: '/query', label: 'Query', section: 'query', resource: 'machine', action: 'execute', icon: TerminalSquare },
     { href: '/groups', label: 'Groups', section: 'groups', resource: 'machine_group', action: 'view', icon: Boxes },

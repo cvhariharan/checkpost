@@ -795,3 +795,96 @@ type LookupResult struct {
 	UUID string
 	Name string
 }
+
+// DashboardOverview is the full aggregate payload for the machine overview dashboard.
+type DashboardOverview struct {
+	GeneratedAt               time.Time           `json:"generated_at"`
+	HeartbeatThresholdSeconds int                 `json:"heartbeat_threshold_seconds"`
+	Machines                  DashboardMachines          `json:"machines"`
+	Compliance                DashboardCompliance        `json:"compliance"`
+	Security                  DashboardSecurity          `json:"security"`
+	RecentlyEnrolled          []DashboardEnrolledMachine `json:"recently_enrolled"`
+}
+
+type DashboardEnrolledMachine struct {
+	UUID        string    `json:"uuid"`
+	Hostname    string    `json:"hostname"`
+	DisplayName string    `json:"display_name"`
+	EnrolledAt  time.Time `json:"enrolled_at"`
+}
+
+type DashboardMachines struct {
+	Total         int                      `json:"total"`
+	Online        int                      `json:"online"`
+	Offline       int                      `json:"offline"`
+	NeverReported int                      `json:"never_reported"`
+	ByPlatform    []DashboardPlatformCount `json:"by_platform"`
+}
+
+type DashboardPlatformCount struct {
+	Platform string `json:"platform"`
+	Total    int    `json:"total"`
+	Online   int    `json:"online"`
+}
+
+type DashboardCompliance struct {
+	Score              *int                        `json:"score"`
+	PolicyRows         DashboardPolicyRows         `json:"policy_rows"`
+	Machines           DashboardComplianceMachines `json:"machines"`
+	TopFailingPolicies []DashboardFailingPolicy    `json:"top_failing_policies"`
+	LeastCompliant     []DashboardComplianceNode   `json:"least_compliant"`
+	MostCompliant      []DashboardComplianceNode   `json:"most_compliant"`
+}
+
+type DashboardPolicyRows struct {
+	Passing int `json:"passing"`
+	Failing int `json:"failing"`
+	Unknown int `json:"unknown"`
+}
+
+type DashboardComplianceMachines struct {
+	Passing    int `json:"passing"`
+	Failing    int `json:"failing"`
+	Unknown    int `json:"unknown"`
+	NoPolicies int `json:"no_policies"`
+}
+
+type DashboardFailingPolicy struct {
+	UUID         string `json:"uuid"`
+	Name         string `json:"name"`
+	FailingCount int    `json:"failing_count"`
+	Platform     string `json:"platform"`
+}
+
+type DashboardComplianceNode struct {
+	UUID        string `json:"uuid"`
+	Hostname    string `json:"hostname"`
+	DisplayName string `json:"display_name"`
+	Score       int    `json:"score"`
+	Failing     int    `json:"failing"`
+	Total       int    `json:"total"`
+}
+
+type DashboardSecurity struct {
+	FiringAlerts      DashboardFiringAlerts `json:"firing_alerts"`
+	RecentYaraMatches []DashboardYaraMatch  `json:"recent_yara_matches"`
+}
+
+type DashboardFiringAlerts struct {
+	Critical int `json:"critical"`
+	High     int `json:"high"`
+	Medium   int `json:"medium"`
+	Low      int `json:"low"`
+	Info     int `json:"info"`
+	Total    int `json:"total"`
+}
+
+type DashboardYaraMatch struct {
+	ScanUUID    string    `json:"scan_uuid"`
+	MachineUUID string    `json:"machine_uuid"`
+	Hostname    string    `json:"hostname"`
+	Path        string    `json:"path"`
+	Rules       string    `json:"rules"`
+	MatchedAt   time.Time `json:"matched_at"`
+}
+

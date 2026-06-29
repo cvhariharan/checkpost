@@ -180,6 +180,8 @@ func runServer(flags *rootFlags) error {
 
 	api.GET("/me", h.HandleMe)
 
+	api.GET("/dashboard/overview", h.HandleDashboardOverview, h.Authorize(core.ResourceDashboard, core.ActionView))
+
 	// Self-service API tokens; minting requires an interactive session.
 	api.POST("/auth/tokens", h.HandleIssueToken, h.SessionOnly)
 	api.GET("/auth/tokens", h.HandleListTokens)

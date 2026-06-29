@@ -35,6 +35,7 @@ type AppConfig struct {
 	EnrollmentKey        string        `validate:"required"`
 	PolicyUpdateInterval time.Duration `validate:"gt=0"`
 	PolicyStaleAfter     time.Duration `validate:"gt=0"`
+	HeartbeatThreshold   time.Duration
 	OsqueryBootstrap     OsqueryBootstrapConfig
 }
 
