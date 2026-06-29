@@ -13,6 +13,7 @@ preview_image_width = "1200"
 preview_image_height = "630"
 
 screenshots = [
+    { src = "screenshots/dashboard.png", caption = "Dashboard", alt = "Checkpost dashboard showing fleet health, compliance score, top failing policies, and alerts" },
     { src = "screenshots/inventory.png", caption = "Device inventory", alt = "Checkpost inventory listing enrolled hosts with status, owner, and platform" },
     { src = "screenshots/host-details.png", caption = "Host details", alt = "Checkpost host detail page showing owner, group, and live device metrics" },
     { src = "screenshots/host-policies.png", caption = "Host compliance", alt = "Checkpost host policy results showing passing and failing posture checks for one machine" },
