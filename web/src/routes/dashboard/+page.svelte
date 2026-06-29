@@ -6,6 +6,7 @@
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
   import RefreshCw from '@lucide/svelte/icons/refresh-cw'
+  import CircleHelp from '@lucide/svelte/icons/circle-help'
 
   let data = $state<DashboardOverview | null>(null)
   let loading = $state(true)
@@ -82,6 +83,14 @@
   const maxFailing = $derived(
     Math.max(1, ...(data?.compliance.top_failing_policies.map((p) => p.failing_count) ?? [0]))
   )
+
+  const postureHelp =
+    'Share of all policy checks across every enrolled machine, by their latest result: ' +
+    'pass, fail, or unknown (not yet reported).'
+
+  const scoreHelp =
+    'Compliance score = round(100 × passing checks ÷ total checks) for each machine. ' +
+    '100 means all checks pass, 0 means all fail. Machines are ranked by their passing ratio.'
 </script>
 
 <section class="vstack gap-4">
@@ -141,7 +150,18 @@
       <!-- Compliance posture -->
       <div class="col-6">
         <article class="card vstack gap-2 panel">
-          <h3>Compliance posture</h3>
+          <div class="panel-head">
+            <h3>Compliance posture</h3>
+            <button
+              type="button"
+              class="help-btn"
+              title={postureHelp}
+              data-tooltip-placement="left"
+              aria-label={postureHelp}
+            >
+              <CircleHelp size={16} aria-hidden="true" />
+            </button>
+          </div>
           {#if data.compliance.policy_rows.passing + data.compliance.policy_rows.failing + data.compliance.policy_rows.unknown === 0}
             <p class="text-light">No policies configured</p>
           {:else}
@@ -182,7 +202,18 @@
       <!-- Most compliant -->
       <div class="col-6">
         <article class="card vstack gap-2 panel">
-          <h3>Most compliant machines</h3>
+          <div class="panel-head">
+            <h3>Most compliant machines</h3>
+            <button
+              type="button"
+              class="help-btn"
+              title={scoreHelp}
+              data-tooltip-placement="left"
+              aria-label={scoreHelp}
+            >
+              <CircleHelp size={16} aria-hidden="true" />
+            </button>
+          </div>
           {#if data.compliance.most_compliant.length === 0}
             <p class="text-light">No machines with policies assigned</p>
           {:else}
@@ -209,7 +240,18 @@
       <!-- Least compliant -->
       <div class="col-6">
         <article class="card vstack gap-2 panel">
-          <h3>Least compliant machines</h3>
+          <div class="panel-head">
+            <h3>Least compliant machines</h3>
+            <button
+              type="button"
+              class="help-btn"
+              title={scoreHelp}
+              data-tooltip-placement="left"
+              aria-label={scoreHelp}
+            >
+              <CircleHelp size={16} aria-hidden="true" />
+            </button>
+          </div>
           {#if data.compliance.least_compliant.length === 0}
             <p class="text-light">No machines with policies assigned</p>
           {:else}
@@ -245,7 +287,7 @@
                 <div class="ranked">
                   <span class="ranked-label">{p.platform || 'unknown'}</span>
                   <div class="bar"><span class="seg primary" style="width:{pct(p.total, maxPlatformTotal)}%"></span></div>
-                  <span class="ranked-count">{p.total} <small class="text-light">({p.online} on)</small></span>
+                  <span class="ranked-count">{p.total}</span>
                 </div>
               {/each}
             </div>
@@ -340,6 +382,38 @@
   }
   .panel h3 {
     margin: 0;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+  }
+  .help-btn:hover {
+    color: var(--foreground);
+    background: var(--muted);
+  }
+  /* oat copies title -> data-tooltip at runtime and renders it nowrap; let the
+     longer compliance explanations wrap instead of clipping near the sidebar. */
+  :global(.help-btn[data-tooltip]::after) {
+    white-space: normal;
+    width: max-content;
+    max-width: 18rem;
+    text-align: left;
+    line-height: 1.4;
   }
   .bar {
     display: flex;
