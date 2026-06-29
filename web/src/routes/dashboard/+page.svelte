@@ -182,33 +182,6 @@
         </article>
       </div>
 
-      <!-- Least compliant -->
-      <div class="col-6">
-        <article class="card vstack gap-2 panel">
-          <h3>Least compliant machines</h3>
-          {#if data.compliance.least_compliant.length === 0}
-            <p class="text-light">No machines with policies assigned</p>
-          {:else}
-            <div class="table">
-              <table>
-                <thead>
-                  <tr><th>Machine</th><th class="align-right">Score</th><th class="align-right">Failing</th></tr>
-                </thead>
-                <tbody>
-                  {#each data.compliance.least_compliant as n}
-                    <tr>
-                      <td><a href="/machines/{n.uuid}">{n.display_name || n.hostname}</a></td>
-                      <td class="align-right">{n.score}</td>
-                      <td class="align-right">{n.failing}/{n.total}</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-          {/if}
-        </article>
-      </div>
-
       <!-- Most compliant -->
       <div class="col-6">
         <article class="card vstack gap-2 panel">
@@ -223,6 +196,33 @@
                 </thead>
                 <tbody>
                   {#each data.compliance.most_compliant as n}
+                    <tr>
+                      <td><a href="/machines/{n.uuid}">{n.display_name || n.hostname}</a></td>
+                      <td class="align-right">{n.score}</td>
+                      <td class="align-right">{n.failing}/{n.total}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </article>
+      </div>
+
+      <!-- Least compliant -->
+      <div class="col-6">
+        <article class="card vstack gap-2 panel">
+          <h3>Least compliant machines</h3>
+          {#if data.compliance.least_compliant.length === 0}
+            <p class="text-light">No machines with policies assigned</p>
+          {:else}
+            <div class="table">
+              <table>
+                <thead>
+                  <tr><th>Machine</th><th class="align-right">Score</th><th class="align-right">Failing</th></tr>
+                </thead>
+                <tbody>
+                  {#each data.compliance.least_compliant as n}
                     <tr>
                       <td><a href="/machines/{n.uuid}">{n.display_name || n.hostname}</a></td>
                       <td class="align-right">{n.score}</td>
