@@ -45,12 +45,36 @@ LIMIT @top_n;
 -- name: DashboardLeastCompliantNodes :many
 WITH per_node AS (
     SELECT
-        node_id,
-        count(*) FILTER (WHERE passes = true AND checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
-        count(*) FILTER (WHERE passes = false AND checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
+        nodes.id AS node_id,
+        count(*) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
+        count(*) FILTER (WHERE policy_membership.passes = false AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
         count(*)::bigint AS total
-    FROM policy_membership
-    GROUP BY node_id
+    FROM nodes
+    JOIN policies ON policies.enabled = true
+        AND (
+            policies.platform IN ('all', 'any')
+            OR policies.platform = nodes.platform
+            OR (policies.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
+            OR (policies.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
+        )
+        AND (
+            NOT EXISTS (
+                SELECT 1
+                FROM policy_groups
+                WHERE policy_groups.policy_id = policies.id
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM policy_groups
+                JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+                WHERE policy_groups.policy_id = policies.id
+                  AND group_membership.node_id = nodes.id
+            )
+        )
+    LEFT JOIN policy_membership
+        ON policy_membership.policy_id = policies.id
+       AND policy_membership.node_id = nodes.id
+    GROUP BY nodes.id
 )
 SELECT
     nodes.uuid,
@@ -67,12 +91,36 @@ LIMIT @top_n;
 -- name: DashboardMostCompliantNodes :many
 WITH per_node AS (
     SELECT
-        node_id,
-        count(*) FILTER (WHERE passes = true AND checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
-        count(*) FILTER (WHERE passes = false AND checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
+        nodes.id AS node_id,
+        count(*) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
+        count(*) FILTER (WHERE policy_membership.passes = false AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
         count(*)::bigint AS total
-    FROM policy_membership
-    GROUP BY node_id
+    FROM nodes
+    JOIN policies ON policies.enabled = true
+        AND (
+            policies.platform IN ('all', 'any')
+            OR policies.platform = nodes.platform
+            OR (policies.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
+            OR (policies.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
+        )
+        AND (
+            NOT EXISTS (
+                SELECT 1
+                FROM policy_groups
+                WHERE policy_groups.policy_id = policies.id
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM policy_groups
+                JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+                WHERE policy_groups.policy_id = policies.id
+                  AND group_membership.node_id = nodes.id
+            )
+        )
+    LEFT JOIN policy_membership
+        ON policy_membership.policy_id = policies.id
+       AND policy_membership.node_id = nodes.id
+    GROUP BY nodes.id
 )
 SELECT
     nodes.uuid,
