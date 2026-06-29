@@ -1,6 +1,6 @@
 services:
   checkpost:
-    image: ghcr.io/cvhariharan/checkpost:unstable
+    image: ghcr.io/cvhariharan/checkpost:latest
     restart: unless-stopped
     ports:
       - "1323:1323"
