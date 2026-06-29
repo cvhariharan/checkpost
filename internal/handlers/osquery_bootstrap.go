@@ -51,7 +51,9 @@ func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
 
 func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 	platform := strings.TrimSpace(c.Param("platform"))
-	script, contentType, err := h.osqueryBootstrapScript(platform)
+	// Each download mints a fresh, short-lived enrollment secret embedded in the
+	// rendered script. The secret is stateless and self-expiring.
+	script, contentType, err := h.osqueryBootstrapScript(platform, h.c.MintEnrollmentSecret())
 	if err != nil {
 		return wrapError(http.StatusNotFound, fmt.Sprintf("osquery bootstrap script %s not found", platform), err, nil)
 	}
@@ -64,9 +66,13 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 	packages := h.bootstrapPackages()
 	warnings = append(warnings, packageWarnings(h.cfg.OsqueryBootstrap, packages)...)
 
+	// One bootstrap view prepares a single host: mint one short-lived secret and
+	// reuse it across every platform snippet and rendered script.
+	secret := h.c.MintEnrollmentSecret()
+
 	scripts := make(map[string]string, 3)
 	for _, platform := range []string{"linux.sh", "macos.sh", "windows.ps1"} {
-		script, _, err := h.osqueryBootstrapScript(platform)
+		script, _, err := h.osqueryBootstrapScript(platform, secret)
 		if err != nil {
 			return OsqueryBootstrapResponse{}, err
 		}
@@ -86,7 +92,7 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 			InstallSteps:      []string{"If osquery is not installed, download the generic Linux tarball for the host architecture", "Verify SHA256, then copy osquery into /opt/osquery and link the binaries into /usr/bin", "Install a systemd unit and enable the osqueryd service"},
 			FlagfilePath:      linuxFlagfilePath,
 			SecretPath:        linuxSecretPath,
-			Secret:            h.cfg.EnrollmentKey,
+			Secret:            secret,
 			Flagfile:          osqueryFlagfile(tlsHostname, linuxSecretPath),
 			Script:            scripts["linux.sh"],
 			ArchitectureNotes: "Uses the generic osquery Linux tarball with amd64 and arm64 entries; works on any distribution running systemd.",
@@ -104,7 +110,7 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 			InstallSteps:      []string{"If osquery is not installed, download the configured PKG", "Verify SHA256", "Install with the macOS installer command"},
 			FlagfilePath:      macOSFlagfilePath,
 			SecretPath:        macOSSecretPath,
-			Secret:            h.cfg.EnrollmentKey,
+			Secret:            secret,
 			Flagfile:          osqueryFlagfile(tlsHostname, macOSSecretPath),
 			Script:            scripts["macos.sh"],
 			ArchitectureNotes: "Uses one universal macOS PKG entry.",
@@ -122,7 +128,7 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 			InstallSteps:      []string{"If osquery is not installed, download the configured MSI", "Verify SHA256", "Install silently with msiexec"},
 			FlagfilePath:      windowsFlagfilePath,
 			SecretPath:        windowsSecretPath,
-			Secret:            h.cfg.EnrollmentKey,
+			Secret:            secret,
 			Flagfile:          osqueryFlagfile(tlsHostname, windowsSecretPath),
 			Script:            scripts["windows.ps1"],
 			ArchitectureNotes: "Supports Windows amd64 MSI packages in v1.",
@@ -139,7 +145,7 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 	}, nil
 }
 
-func (h *Handler) osqueryBootstrapScript(platform string) (string, string, error) {
+func (h *Handler) osqueryBootstrapScript(platform, secret string) (string, string, error) {
 	filename := ""
 	contentType := "text/x-shellscript; charset=utf-8"
 	switch platform {
@@ -167,7 +173,7 @@ func (h *Handler) osqueryBootstrapScript(platform string) (string, string, error
 		return "", "", fmt.Errorf("parse bootstrap template: %w", err)
 	}
 
-	data := h.bootstrapTemplateData()
+	data := h.bootstrapTemplateData(secret)
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		return "", "", fmt.Errorf("render bootstrap template: %w", err)
@@ -175,13 +181,13 @@ func (h *Handler) osqueryBootstrapScript(platform string) (string, string, error
 	return buf.String(), contentType, nil
 }
 
-func (h *Handler) bootstrapTemplateData() bootstrapTemplateData {
+func (h *Handler) bootstrapTemplateData(secret string) bootstrapTemplateData {
 	_, tlsHostname, _ := bootstrapURLState(h.cfg.RootURL)
 	cfg := h.cfg.OsqueryBootstrap
 	nftables := cfg.Extensions.Nftables
 	return bootstrapTemplateData{
 		TLSHostname:             tlsHostname,
-		EnrollmentKey:           h.cfg.EnrollmentKey,
+		EnrollmentKey:           secret,
 		LinuxTarballAMD64URL:    cfg.Linux.AMD64.URL,
 		LinuxTarballAMD64SHA256: cfg.Linux.AMD64.SHA256,
 		LinuxTarballARM64URL:    cfg.Linux.ARM64.URL,

@@ -21,6 +21,9 @@ ON CONFLICT (host_identifier) DO UPDATE SET
     updated_at = now()
 RETURNING *;
 
+-- name: DeleteNodeByUUID :execrows
+DELETE FROM nodes WHERE uuid = $1;
+
 -- name: GetNodeByKey :one
 SELECT * FROM nodes WHERE node_key = $1;
 

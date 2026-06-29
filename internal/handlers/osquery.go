@@ -28,8 +28,8 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 		return err
 	}
 
-	if req.EnrollSecret != h.cfg.EnrollmentKey {
-		return wrapError(http.StatusUnauthorized, "invalid enrollment key", fmt.Errorf("enrollment key invalid"), EnrollmentResponse{NodeInvalid: true})
+	if !h.c.VerifyEnrollmentSecret(req.EnrollSecret) {
+		return wrapError(http.StatusUnauthorized, "invalid or expired enrollment secret", fmt.Errorf("enrollment secret invalid or expired"), EnrollmentResponse{NodeInvalid: true})
 	}
 
 	creds, err := h.c.EnrollNode(c.Request().Context(), req.ToNodeModel())

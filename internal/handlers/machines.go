@@ -92,6 +92,22 @@ func (h *Handler) HandleUpdateMachine(c echo.Context) error {
 	return c.JSON(http.StatusOK, node)
 }
 
+func (h *Handler) HandleDeleteMachine(c echo.Context) error {
+	var req GetRequest
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
+	}
+
+	if err := h.c.DeleteNode(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return wrapError(http.StatusNotFound, fmt.Sprintf("machine %s not found", req.ID), err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error deleting machine %s", req.ID), err, nil)
+	}
+
+	return c.NoContent(http.StatusOK)
+}
+
 func (h *Handler) HandleMachineQueries(c echo.Context) error {
 	var req MachineQueriesRequest
 	if err := h.bindAndValidate(c, &req, nil); err != nil {

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte'
   import { page } from '$app/state'
-  import { pushState } from '$app/navigation'
+  import { goto, pushState } from '$app/navigation'
   import {
+    deleteMachine,
     deleteMachineQuery,
     executeMachineQuery,
     fetchGroups,
@@ -44,6 +45,7 @@
   import Pencil from '@lucide/svelte/icons/pencil'
   import Save from '@lucide/svelte/icons/save'
   import Play from '@lucide/svelte/icons/play'
+  import Trash2 from '@lucide/svelte/icons/trash-2'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
 
@@ -74,6 +76,8 @@
   let deleteDialogOpen = $state(false)
   let queryToDelete = $state<MachineQueryRecord | null>(null)
   let deletingQuery = $state(false)
+  let deleteMachineDialogOpen = $state(false)
+  let deletingMachine = $state(false)
   let availableGroups = $state<Group[]>([])
   let selectedGroupIds = $state<string[]>([])
   let availableOwners = $state<DeviceOwner[]>([])
@@ -300,6 +304,21 @@
     }
   }
 
+  async function deleteSelectedMachine() {
+    if (!canDeleteMachine) return
+    deletingMachine = true
+    error = ''
+    try {
+      await deleteMachine(machineId)
+      deleteMachineDialogOpen = false
+      await goto('/inventory')
+    } catch (err) {
+      error = (err as Error).message || 'Failed to delete host'
+    } finally {
+      deletingMachine = false
+    }
+  }
+
   function setTab(index: number) {
     const slug = tabSlugs[index]
     // Skip if already on this tab: ot-tabs echoes activations back through
@@ -440,6 +459,7 @@
   const canEditOverview = $derived(canUpdateMachine || canUpdateInventory)
   const canExecuteMachine = $derived(canFrom($me, 'machine', 'execute'))
   const canDeleteQueryResult = $derived(canFrom($me, 'query_result', 'delete'))
+  const canDeleteMachine = $derived(canFrom($me, 'machine', 'delete'))
 </script>
 
 <section class="vstack gap-4">
@@ -469,6 +489,12 @@
             <button type="button" class="gap-1" onclick={startEdit}>
               <Pencil size={16} aria-hidden="true" />
               Edit
+            </button>
+          {/if}
+          {#if canDeleteMachine}
+            <button type="button" class="outline gap-1" data-variant="danger" onclick={() => (deleteMachineDialogOpen = true)}>
+              <Trash2 size={16} aria-hidden="true" />
+              Delete host
             </button>
           {/if}
         {/if}
@@ -621,7 +647,7 @@
                     {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
                   </td>
                   <td>
-                    <span class="badge" data-variant={postureVariant(policy.response)}>
+                    <span class="badge posture-badge" data-variant={postureVariant(policy.response)}>
                       {policy.stale ? `${policy.response} stale` : policy.response}
                     </span>
                   </td>
@@ -751,6 +777,16 @@
   onCancel={() => (queryToDelete = null)}
 />
 
+<ConfirmDialog
+  bind:open={deleteMachineDialogOpen}
+  title="Delete"
+  message="Deleting this host removes it and all of its collected data. Its agent will be forced to re-enroll on its next check-in. This action cannot be undone."
+  confirmLabel="Delete host"
+  confirming={deletingMachine}
+  confirmingLabel="Deleting..."
+  onConfirm={deleteSelectedMachine}
+/>
+
 <dialog bind:this={resultsDialog} class="query-results-modal" closedby="any" onclose={handleResultsClose}>
   {#if selectedQuery}
     <header>
@@ -784,6 +820,9 @@
 </dialog>
 
 <style>
+  .posture-badge {
+    white-space: nowrap;
+  }
   .query-text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;

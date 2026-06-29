@@ -4,7 +4,13 @@ admin_username = 'checkpost_admin'
 http_tls_cert = 'testdata/server_cert.pem'
 http_tls_key = 'testdata/server_key.pem'
 root_url = 'http://localhost:1323'
-enrollment_key = 'replace-with-a-random-secret'
+# Server-side HMAC key used to mint and verify short-lived enrollment secrets.
+# It is never sent to agents. Keep it stable across restarts (rotating it
+# invalidates any outstanding, not-yet-used enrollment secrets).
+enrollment_signing_key = 'replace-with-a-random-secret'
+# How long a minted enrollment secret stays valid. Agents must enroll within
+# this window; afterwards the secret is rejected and a new one must be issued.
+enrollment_secret_ttl = '1h'
 use_tls = false
 policy_update_interval = '1h'
 policy_stale_after = '2h'

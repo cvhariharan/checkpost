@@ -60,6 +60,7 @@ type Querier interface {
 	DeleteGroupMembershipForNode(ctx context.Context, arg DeleteGroupMembershipForNodeParams) error
 	DeleteGroupMembershipsForNode(ctx context.Context, nodeUuid uuid.UUID) error
 	DeleteMachineQueryResultByNodeAndUUID(ctx context.Context, arg DeleteMachineQueryResultByNodeAndUUIDParams) (int64, error)
+	DeleteNodeByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteNodeInventoryByNodeUUID(ctx context.Context, nodeUuid uuid.UUID) (int64, error)
 	DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeletePolicyGroupsForPolicy(ctx context.Context, policyUuid uuid.UUID) error

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,7 @@ var (
 	defaultPolicyStaleAfter     = 2 * time.Hour
 	defaultHeartbeatThreshold   = 5 * time.Minute
 	defaultSessionTTL           = 8 * time.Hour
+	defaultEnrollmentSecretTTL  = time.Hour
 	configValidator             = validator.New()
 )
 
@@ -54,7 +56,8 @@ type rawAppConfig struct {
 	TLSKeyPath           string `koanf:"app.http_tls_key"`
 	RootURL              string `koanf:"app.root_url"`
 	UseTLS               bool   `koanf:"app.use_tls"`
-	EnrollmentKey        string `koanf:"app.enrollment_key"`
+	EnrollmentSigningKey string `koanf:"app.enrollment_signing_key"`
+	EnrollmentSecretTTL  string `koanf:"app.enrollment_secret_ttl"`
 	PolicyUpdateInterval string `koanf:"app.policy_update_interval"`
 	PolicyStaleAfter     string `koanf:"app.policy_stale_after"`
 	HeartbeatThreshold   string `koanf:"app.heartbeat_threshold"`
@@ -166,6 +169,10 @@ func (r rawConfig) toConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	enrollmentSecretTTL, err := parsePositiveDuration("app.enrollment_secret_ttl", r.AppConfig.EnrollmentSecretTTL, defaultEnrollmentSecretTTL)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		AppConfig: AppConfig{
@@ -175,7 +182,8 @@ func (r rawConfig) toConfig() (Config, error) {
 			TLSKeyPath:           r.AppConfig.TLSKeyPath,
 			RootURL:              r.AppConfig.RootURL,
 			UseTLS:               r.AppConfig.UseTLS,
-			EnrollmentKey:        r.AppConfig.EnrollmentKey,
+			EnrollmentSigningKey: r.AppConfig.EnrollmentSigningKey,
+			EnrollmentSecretTTL:  enrollmentSecretTTL,
 			PolicyUpdateInterval: policyUpdateInterval,
 			PolicyStaleAfter:     policyStaleAfter,
 			HeartbeatThreshold:   heartbeatThreshold,
@@ -317,6 +325,24 @@ func loadOrCreateConfigFile(k *koanf.Koanf, configFile string) error {
 	if err := k.Load(file.Provider(configFile), toml.Parser()); err != nil {
 		return err
 	}
+
+	// Backward compatibility: the signing key was renamed from
+	// app.enrollment_key to app.enrollment_signing_key. If an existing config
+	// still uses the old key (and hasn't adopted the new one), honour it so
+	// previously distributed enrollment secrets keep working across the upgrade.
+	// An explicit app.enrollment_signing_key (file or env) still takes priority.
+	fileK := koanf.New(".")
+	if err := fileK.Load(file.Provider(configFile), toml.Parser()); err != nil {
+		return err
+	}
+	if !fileK.Exists("app.enrollment_signing_key") && fileK.Exists("app.enrollment_key") {
+		slog.Warn("config: app.enrollment_key is deprecated, rename it to app.enrollment_signing_key")
+		if err := k.Load(confmap.Provider(map[string]any{
+			"app.enrollment_signing_key": fileK.String("app.enrollment_key"),
+		}, "."), nil); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -346,9 +372,9 @@ func loadEnvConfig(k *koanf.Koanf) error {
 }
 
 func loadDefaults(k *koanf.Koanf) error {
-	enrollmentKey, err := generateSecret()
+	enrollmentSigningKey, err := generateSecret()
 	if err != nil {
-		return fmt.Errorf("generate enrollment key: %w", err)
+		return fmt.Errorf("generate enrollment signing key: %w", err)
 	}
 
 	defaults := map[string]any{
@@ -358,7 +384,8 @@ func loadDefaults(k *koanf.Koanf) error {
 		"app.http_tls_key":                             "server_key.pem",
 		"app.use_tls":                                  false,
 		"app.root_url":                                 "http://localhost:1323",
-		"app.enrollment_key":                           enrollmentKey,
+		"app.enrollment_signing_key":                   enrollmentSigningKey,
+		"app.enrollment_secret_ttl":                    "1h",
 		"app.policy_update_interval":                   "1h",
 		"app.policy_stale_after":                       "2h",
 		"app.oidc.issuer":                              "",

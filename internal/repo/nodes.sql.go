@@ -80,6 +80,18 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 	return i, err
 }
 
+const deleteNodeByUUID = `-- name: DeleteNodeByUUID :execrows
+DELETE FROM nodes WHERE uuid = $1
+`
+
+func (q *Queries) DeleteNodeByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNodeByUUID, argUuid)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getNodeByID = `-- name: GetNodeByID :one
 SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE id = $1
 `

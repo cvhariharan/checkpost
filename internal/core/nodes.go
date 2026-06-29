@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"unicode"
@@ -113,6 +114,22 @@ func (c *Core) UpdateNode(ctx context.Context, req models.UpdateNode) (models.No
 		return models.Node{}, err
 	}
 	return out, nil
+}
+
+func (c *Core) DeleteNode(ctx context.Context, req models.ResourceID) error {
+	id, err := uuid.Parse(req.UUID)
+	if err != nil {
+		return fmt.Errorf("parse node uuid: %w", err)
+	}
+
+	rows, err := c.store.DeleteNodeByUUID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("delete node: %w", err)
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (c *Core) PaginateNodes(ctx context.Context, req models.NodeListRequest) (models.Page[models.Node], error) {

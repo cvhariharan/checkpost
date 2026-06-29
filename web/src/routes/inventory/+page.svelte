@@ -4,6 +4,7 @@
   import { pushState, replaceState } from '$app/navigation'
   import {
     createOwner,
+    deleteMachine,
     deleteOwner,
     fetchMachines,
     fetchOwners,
@@ -74,9 +75,11 @@
   let editingMachine = $state<Machine | null>(null)
   let editingOwner = $state<DeviceOwner | null>(null)
   let ownerToDelete = $state<DeviceOwner | null>(null)
+  let machineToDelete = $state<Machine | null>(null)
   let savingInventory = $state(false)
   let savingOwner = $state(false)
   let deletingOwner = $state(false)
+  let deletingMachine = $state(false)
 
   let inventoryOwnerID = $state('')
   let internalTrackingID = $state('')
@@ -106,6 +109,7 @@
   const canUpdateInventory = $derived(canFrom($me, 'inventory', 'update'))
   const canDeleteInventory = $derived(canFrom($me, 'inventory', 'delete'))
   const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
+  const canDeleteMachine = $derived(canFrom($me, 'machine', 'delete'))
   const canViewSettings = $derived(canFrom($me, 'setting', 'view'))
 
   onMount(() => {
@@ -430,6 +434,24 @@
     }
   }
 
+  async function confirmDeleteMachine() {
+    if (!machineToDelete?.uuid || !canDeleteMachine) return
+    deletingMachine = true
+    error = ''
+    try {
+      await deleteMachine(machineToDelete.uuid)
+      machineToDelete = null
+      // Step back a page when deleting the last row on a trailing page.
+      const targetPage =
+        machines.length === 1 && currentMachinePage > 1 ? currentMachinePage - 1 : currentMachinePage
+      await loadMachines(targetPage)
+    } catch (err) {
+      error = (err as Error).message || 'Failed to delete host'
+    } finally {
+      deletingMachine = false
+    }
+  }
+
 </script>
 
 <section class="vstack gap-4">
@@ -549,9 +571,14 @@
                       <td>{formatTimestamp(machine.last_seen_at || machine.enrolled_at)}</td>
                     {#if !ownerOnlyMode}
                       <td class="align-right">
-                        {#if canUpdateInventory || canUpdateMachine}
+                        {#if canUpdateInventory || canUpdateMachine || canDeleteMachine}
                           <ActionsMenu label={`Actions for ${machineHostname(machine)}`}>
-                            <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit</button>
+                            {#if canUpdateInventory || canUpdateMachine}
+                              <button role="menuitem" type="button" onclick={() => openInventoryDialog(machine)}>Edit</button>
+                            {/if}
+                            {#if canDeleteMachine}
+                              <button role="menuitem" type="button" onclick={() => (machineToDelete = machine)}>Delete</button>
+                            {/if}
                           </ActionsMenu>
                         {/if}
                       </td>
@@ -787,6 +814,17 @@
   confirmingLabel="Deleting..."
   onConfirm={confirmDeleteOwner}
   onCancel={() => (ownerToDelete = null)}
+/>
+
+<ConfirmDialog
+  open={!!machineToDelete}
+  title="Delete host"
+  message="Deleting this host removes it and all of its collected data. Its agent will be forced to re-enroll on its next check-in. This action cannot be undone."
+  confirmLabel="Delete host"
+  confirming={deletingMachine}
+  confirmingLabel="Deleting..."
+  onConfirm={confirmDeleteMachine}
+  onCancel={() => (machineToDelete = null)}
 />
 
 <OsqueryBootstrapDialog bind:open={bootstrapDialogOpen} />

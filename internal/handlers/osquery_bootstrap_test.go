@@ -3,13 +3,16 @@ package handlers
 import (
 	"encoding/json"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cvhariharan/checkpost/assets"
 	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/labstack/echo/v4"
 )
 
@@ -22,8 +25,20 @@ func testBootstrapTemplates(t *testing.T) fs.FS {
 	return fsys
 }
 
+// testBootstrapCore builds a minimal Core that can mint enrollment secrets; the
+// bootstrap handlers only need MintEnrollmentSecret, so store/sink/etc. are nil.
+func testBootstrapCore(t *testing.T, cfg config.AppConfig) *core.Core {
+	t.Helper()
+	c, err := core.NewCore(slog.Default(), nil, nil, nil, nil, cfg)
+	if err != nil {
+		t.Fatalf("new core: %v", err)
+	}
+	return c
+}
+
 func TestOsqueryBootstrapProfileReady(t *testing.T) {
-	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com"), bootstrapTemplates: testBootstrapTemplates(t)}
+	cfg := testBootstrapConfig("https://checkpost.example.com")
+	h := &Handler{cfg: cfg, c: testBootstrapCore(t, cfg), bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
@@ -56,7 +71,7 @@ func TestOsqueryBootstrapProfileReady(t *testing.T) {
 func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 	cfg := testBootstrapConfig("http://localhost:1323")
 	cfg.OsqueryBootstrap.Linux.AMD64.URL = ""
-	h := &Handler{cfg: cfg, bootstrapTemplates: testBootstrapTemplates(t)}
+	h := &Handler{cfg: cfg, c: testBootstrapCore(t, cfg), bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
@@ -82,7 +97,8 @@ func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 }
 
 func TestOsqueryBootstrapScript(t *testing.T) {
-	h := &Handler{cfg: testBootstrapConfig("https://checkpost.example.com"), bootstrapTemplates: testBootstrapTemplates(t)}
+	cfg := testBootstrapConfig("https://checkpost.example.com")
+	h := &Handler{cfg: cfg, c: testBootstrapCore(t, cfg), bootstrapTemplates: testBootstrapTemplates(t)}
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap/linux.sh", nil)
 	rec := httptest.NewRecorder()
@@ -96,7 +112,7 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"TLS_HOSTNAME='checkpost.example.com'",
-		"ENROLL_SECRET='enroll-secret'",
+		"ENROLL_SECRET='" + core.EnrollmentSecretPrefix,
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"install_osquery_if_missing",
 		"TARBALL_AMD64_URL='https://packages.example/osquery'",
@@ -120,8 +136,9 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 func testBootstrapConfig(rootURL string) config.AppConfig {
 	pkg := config.BootstrapPackage{URL: "https://packages.example/osquery", SHA256: strings.Repeat("a", 64)}
 	return config.AppConfig{
-		RootURL:       rootURL,
-		EnrollmentKey: "enroll-secret",
+		RootURL:              rootURL,
+		EnrollmentSigningKey: "test-signing-key",
+		EnrollmentSecretTTL:  time.Hour,
 		OsqueryBootstrap: config.OsqueryBootstrapConfig{
 			Enabled: true,
 			Linux: config.BootstrapPackagesByArch{

@@ -7,7 +7,10 @@ services:
     environment:
       - CHECKPOST_APP__ROOT_URL=http://localhost:1323
       - CHECKPOST_APP__USE_TLS=false
-      - CHECKPOST_APP__ENROLLMENT_KEY=secret-key
+      # HMAC key used to mint/verify enrollment secrets. Must stay stable across
+      # restarts, otherwise outstanding enrollment secrets are invalidated.
+      # Replace with your own random secret before deploying.
+      - CHECKPOST_APP__ENROLLMENT_SIGNING_KEY=replace-with-a-random-secret
       - CHECKPOST_DB__HOST=postgres
       - CHECKPOST_DB__PORT=5432
       - CHECKPOST_DB__USER=checkpost

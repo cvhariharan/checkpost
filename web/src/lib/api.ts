@@ -635,6 +635,12 @@ export function updateMachine(id: string, payload: { display_name?: string }) {
   return jsonRequest<Machine>(`/machines/${encodeURIComponent(id)}`, 'PUT', payload)
 }
 
+export function deleteMachine(id: string) {
+  return fetch(apiUrl(`/machines/${encodeURIComponent(id)}`), { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
 export function fetchMachineQueries(id: string, opts: PageOpts = {}) {
   const { page = 1, countPerPage = 10 } = opts
   return fetch(
