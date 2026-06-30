@@ -853,6 +853,7 @@ type DashboardComplianceNode struct {
 	Hostname    string `json:"hostname"`
 	DisplayName string `json:"display_name"`
 	Score       int    `json:"score"`
+	Passing     int    `json:"passing"`
 	Failing     int    `json:"failing"`
 	Total       int    `json:"total"`
 }

@@ -174,6 +174,7 @@ func complianceNode(uuid, hostname, displayName string, passing, failing, total 
 		Hostname:    hostname,
 		DisplayName: dashboardHostname(hostname, displayName),
 		Score:       score,
+		Passing:     int(passing),
 		Failing:     int(failing),
 		Total:       int(total),
 	}

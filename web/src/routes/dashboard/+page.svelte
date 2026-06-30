@@ -220,14 +220,14 @@
             <div class="table">
               <table>
                 <thead>
-                  <tr><th>Machine</th><th class="align-right">Score</th><th class="align-right">Failing</th></tr>
+                  <tr><th>Machine</th><th class="align-right">Score</th><th class="align-right">Passing</th></tr>
                 </thead>
                 <tbody>
                   {#each data.compliance.most_compliant as n}
                     <tr>
                       <td><a href="/machines/{n.uuid}">{n.display_name || n.hostname}</a></td>
                       <td class="align-right">{n.score}</td>
-                      <td class="align-right">{n.failing}/{n.total}</td>
+                      <td class="align-right">{n.passing}/{n.total}</td>
                     </tr>
                   {/each}
                 </tbody>
@@ -258,14 +258,14 @@
             <div class="table">
               <table>
                 <thead>
-                  <tr><th>Machine</th><th class="align-right">Score</th><th class="align-right">Failing</th></tr>
+                  <tr><th>Machine</th><th class="align-right">Score</th><th class="align-right">Passing</th></tr>
                 </thead>
                 <tbody>
                   {#each data.compliance.least_compliant as n}
                     <tr>
                       <td><a href="/machines/{n.uuid}">{n.display_name || n.hostname}</a></td>
                       <td class="align-right">{n.score}</td>
-                      <td class="align-right">{n.failing}/{n.total}</td>
+                      <td class="align-right">{n.passing}/{n.total}</td>
                     </tr>
                   {/each}
                 </tbody>

@@ -385,6 +385,7 @@ export type DashboardComplianceNode = {
   hostname: string
   display_name: string
   score: number
+  passing: number
   failing: number
   total: number
 }
