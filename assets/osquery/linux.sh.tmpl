@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TLS_HOSTNAME={{ sh .TLSHostname }}
-ENROLL_SECRET={{ sh .EnrollmentKey }}
+ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-{{ sh .EnrollmentKey }}}
 FLAGS_PATH="/etc/osquery/osquery.flags"
 SECRET_PATH="/etc/osquery/enroll_secret"
 SERVICE_PATH="/etc/systemd/system/osqueryd.service"

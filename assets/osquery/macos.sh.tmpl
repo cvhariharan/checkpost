@@ -2,7 +2,7 @@
 set -euo pipefail
 
 TLS_HOSTNAME={{ sh .TLSHostname }}
-ENROLL_SECRET={{ sh .EnrollmentKey }}
+ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-{{ sh .EnrollmentKey }}}
 PACKAGE_URL={{ sh .MacOSPKGUniversalURL }}
 PACKAGE_SHA256={{ sh .MacOSPKGUniversalSHA256 }}
 FLAGS_PATH="/private/var/osquery/osquery.flags"

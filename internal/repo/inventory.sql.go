@@ -252,6 +252,30 @@ func (q *Queries) GetNodeInventoryByNodeUUID(ctx context.Context, nodeUuid uuid.
 	return i, err
 }
 
+const linkNodeInventoryOwnerIfUnassigned = `-- name: LinkNodeInventoryOwnerIfUnassigned :exec
+INSERT INTO node_inventory (
+    node_id,
+    owner_id
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (node_id) DO UPDATE SET
+    owner_id = EXCLUDED.owner_id,
+    updated_at = now()
+WHERE node_inventory.owner_id IS NULL
+`
+
+type LinkNodeInventoryOwnerIfUnassignedParams struct {
+	NodeID  int64         `db:"node_id" json:"node_id"`
+	OwnerID sql.NullInt64 `db:"owner_id" json:"owner_id"`
+}
+
+// Attribute a node to an owner only when it has no owner yet
+func (q *Queries) LinkNodeInventoryOwnerIfUnassigned(ctx context.Context, arg LinkNodeInventoryOwnerIfUnassignedParams) error {
+	_, err := q.db.ExecContext(ctx, linkNodeInventoryOwnerIfUnassigned, arg.NodeID, arg.OwnerID)
+	return err
+}
+
 const listDeviceOwnersWithCounts = `-- name: ListDeviceOwnersWithCounts :many
 WITH filtered AS (
     SELECT id, uuid, display_name, email, external_id, department, title, phone, notes, created_at, updated_at
@@ -602,6 +626,33 @@ func (q *Queries) UpdateDeviceOwnerByUUID(ctx context.Context, arg UpdateDeviceO
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertDeviceOwnerByEmail = `-- name: UpsertDeviceOwnerByEmail :one
+INSERT INTO device_owners (
+    display_name,
+    email
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (lower(trim(email))) WHERE length(trim(email)) > 0
+DO UPDATE SET email = device_owners.email
+RETURNING id
+`
+
+type UpsertDeviceOwnerByEmailParams struct {
+	DisplayName string `db:"display_name" json:"display_name"`
+	Email       string `db:"email" json:"email"`
+}
+
+// Race-free get-or-create keyed by email: insert a new owner, or on a concurrent
+// insert / pre-existing owner with the same email keep that row untouched and
+// return its id. external_id is left blank; it is reserved for company IDs.
+func (q *Queries) UpsertDeviceOwnerByEmail(ctx context.Context, arg UpsertDeviceOwnerByEmailParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, upsertDeviceOwnerByEmail, arg.DisplayName, arg.Email)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const upsertNodeInventory = `-- name: UpsertNodeInventory :one

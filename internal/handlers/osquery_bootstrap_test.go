@@ -112,7 +112,7 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"TLS_HOSTNAME='checkpost.example.com'",
-		"ENROLL_SECRET='" + core.EnrollmentSecretPrefix,
+		"ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-'" + core.EnrollmentSecretPrefix,
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"install_osquery_if_missing",
 		"TARBALL_AMD64_URL='https://packages.example/osquery'",

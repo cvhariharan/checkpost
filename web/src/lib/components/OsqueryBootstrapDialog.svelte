@@ -28,8 +28,16 @@
     let error = $state("");
     let loaded = $state(false);
     let activeTabIndex = $state(0);
+    let showGeneric = $state(false);
 
     const platforms = $derived(profile?.platforms || []);
+
+    // Generic mode shows the secret-less, shareable command. It is only
+    // meaningful when the profile is owner-bound; for anonymous profiles the
+    // command already carries no secret.
+    function activeCommand(platform: OsqueryBootstrapPlatform): string {
+        return showGeneric ? platform.generic_command : platform.command;
+    }
 
     $effect(() => {
         if (!tabs || tabs.activeIndex === activeTabIndex) return;
@@ -54,6 +62,7 @@
             profile = await fetchOsqueryBootstrapProfile();
             loaded = true;
             activeTabIndex = 0;
+            showGeneric = false;
         } catch (err) {
             error =
                 (err as Error).message || "Failed to load osquery bootstrap";
@@ -138,6 +147,27 @@
         {#if loading && !profile}
             <Spinner />
         {:else if profile}
+            {#if profile.owner}
+                <p class="attribution text-light">
+                    {#if showGeneric}
+                        Showing a <strong>generic</strong> command with no owner
+                        attribution. Share it to let anyone enroll a machine,
+                        then assign an owner in Inventory.
+                    {:else}
+                        This install registers the machine to
+                        <strong
+                            >{profile.owner.name || profile.owner.email}</strong
+                        >{#if profile.owner.name && profile.owner.email}
+                            ({profile.owner.email}){/if}.
+                    {/if}
+                </p>
+            {:else}
+                <p class="attribution text-light">
+                    This install is not attributed to an owner — assign one in
+                    Inventory after the machine enrolls.
+                </p>
+            {/if}
+
             <ot-tabs
                 bind:this={tabs}
                 class="bootstrap-tabs"
@@ -173,7 +203,7 @@
                                         class="gap-1"
                                         onclick={() =>
                                             copyText(
-                                                platform.command,
+                                                activeCommand(platform),
                                                 "Command",
                                             )}
                                     >
@@ -181,8 +211,18 @@
                                         Copy command
                                     </button>
                                 </div>
+                                {#if profile.owner}
+                                    <label class="generic-toggle hstack gap-2">
+                                        <input
+                                            type="checkbox"
+                                            role="switch"
+                                            bind:checked={showGeneric}
+                                        />
+                                        Generic command
+                                    </label>
+                                {/if}
                                 <pre data-code={commandLanguage(platform)}><code
-                                        >{platform.command}</code
+                                        >{activeCommand(platform)}</code
                                     ></pre>
                             </section>
                             <section>
@@ -444,6 +484,12 @@
 
     .bootstrap-tabs {
         display: block;
+    }
+
+    .generic-toggle {
+        align-self: flex-start;
+        align-items: center;
+        white-space: nowrap;
     }
 
     pre {

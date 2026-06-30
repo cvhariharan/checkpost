@@ -15,6 +15,20 @@ RETURNING *;
 -- name: GetDeviceOwnerByUUID :one
 SELECT * FROM device_owners WHERE uuid = $1;
 
+-- name: UpsertDeviceOwnerByEmail :one
+-- Race-free get-or-create keyed by email: insert a new owner, or on a concurrent
+-- insert / pre-existing owner with the same email keep that row untouched and
+-- return its id. external_id is left blank; it is reserved for company IDs.
+INSERT INTO device_owners (
+    display_name,
+    email
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (lower(trim(email))) WHERE length(trim(email)) > 0
+DO UPDATE SET email = device_owners.email
+RETURNING id;
+
 -- name: GetDeviceOwnerWithCountsByUUID :one
 SELECT
     device_owners.id,
@@ -171,6 +185,19 @@ ON CONFLICT (node_id) DO UPDATE SET
     notes = EXCLUDED.notes,
     updated_at = now()
 RETURNING *;
+
+-- name: LinkNodeInventoryOwnerIfUnassigned :exec
+-- Attribute a node to an owner only when it has no owner yet
+INSERT INTO node_inventory (
+    node_id,
+    owner_id
+) VALUES (
+    $1, $2
+)
+ON CONFLICT (node_id) DO UPDATE SET
+    owner_id = EXCLUDED.owner_id,
+    updated_at = now()
+WHERE node_inventory.owner_id IS NULL;
 
 -- name: DeleteNodeInventoryByNodeUUID :execrows
 DELETE FROM node_inventory

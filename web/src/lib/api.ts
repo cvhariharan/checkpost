@@ -248,6 +248,7 @@ export type OsqueryBootstrapPlatform = {
   key: string
   label: string
   command: string
+  generic_command: string
   script_url: string
   verify_command: string
   restart_command: string
@@ -263,11 +264,17 @@ export type OsqueryBootstrapPlatform = {
   caveats?: string[]
 }
 
+export type OsqueryBootstrapOwner = {
+  name: string
+  email: string
+}
+
 export type OsqueryBootstrapProfile = {
   ready: boolean
   checkpost_url: string
   tls_hostname: string
   warnings?: string[]
+  owner?: OsqueryBootstrapOwner
   platforms?: OsqueryBootstrapPlatform[]
 }
 

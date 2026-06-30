@@ -27,7 +27,52 @@ func (c *Core) EnrollNode(ctx context.Context, node models.NodeEnrollment) (mode
 		return models.NodeCredentials{}, fmt.Errorf("create node: %w", err)
 	}
 
+	if node.OwnerUserUUID != uuid.Nil {
+		if err := c.linkNodeOwner(ctx, created.ID, node.OwnerUserUUID); err != nil {
+			c.logger.Warn("could not attribute enrolled node to owner", "node_id", created.ID, "error", err)
+		}
+	}
+
 	return models.NodeCredentials{NodeKey: created.NodeKey.String()}, nil
+}
+
+func (c *Core) linkNodeOwner(ctx context.Context, nodeID int64, userUUID uuid.UUID) error {
+	ownerID, err := c.resolveDeviceOwnerID(ctx, userUUID)
+	if err != nil {
+		return err
+	}
+
+	if err := c.store.LinkNodeInventoryOwnerIfUnassigned(ctx, repo.LinkNodeInventoryOwnerIfUnassignedParams{
+		NodeID:  nodeID,
+		OwnerID: sql.NullInt64{Int64: ownerID, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("link node inventory owner: %w", err)
+	}
+
+	return nil
+}
+
+// resolveDeviceOwnerID maps a checkpost user to its device-owner row id,
+// identifying the owner by email and creating it on first use
+func (c *Core) resolveDeviceOwnerID(ctx context.Context, userUUID uuid.UUID) (int64, error) {
+	user, err := c.store.GetUserByUUID(ctx, userUUID)
+	if err != nil {
+		return 0, fmt.Errorf("get user: %w", err)
+	}
+
+	email := strings.TrimSpace(firstNonEmpty(user.Email, user.Username))
+	if email == "" {
+		return 0, fmt.Errorf("user %s has no email to attribute ownership", userUUID)
+	}
+
+	id, err := c.store.UpsertDeviceOwnerByEmail(ctx, repo.UpsertDeviceOwnerByEmailParams{
+		DisplayName: strings.TrimSpace(firstNonEmpty(user.Name, user.Username, email)),
+		Email:       email,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create device owner: %w", err)
+	}
+	return id, nil
 }
 
 func (c *Core) GetNode(ctx context.Context, req models.NodeKeyRequest) (models.Node, error) {

@@ -496,17 +496,29 @@ type DistributedWriteRequest struct {
 }
 
 type OsqueryBootstrapResponse struct {
-	Ready        bool                       `json:"ready"`
-	CheckpostURL string                     `json:"checkpost_url"`
-	TLSHostname  string                     `json:"tls_hostname"`
-	Warnings     []string                   `json:"warnings"`
-	Platforms    []OsqueryBootstrapPlatform `json:"platforms"`
+	Ready        bool     `json:"ready"`
+	CheckpostURL string   `json:"checkpost_url"`
+	TLSHostname  string   `json:"tls_hostname"`
+	Warnings     []string `json:"warnings"`
+	// Owner, when set, is the user the install command is attributed to. Nil for
+	// an anonymous install.
+	Owner     *OsqueryBootstrapOwner     `json:"owner,omitempty"`
+	Platforms []OsqueryBootstrapPlatform `json:"platforms"`
+}
+
+// OsqueryBootstrapOwner identifies the user an owner-bound install registers to.
+type OsqueryBootstrapOwner struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 type OsqueryBootstrapPlatform struct {
-	Key               string                    `json:"key"`
-	Label             string                    `json:"label"`
-	Command           string                    `json:"command"`
+	Key     string `json:"key"`
+	Label   string `json:"label"`
+	Command string `json:"command"`
+	// GenericCommand is the install command with no owner secret, suitable for
+	// sharing. Equals Command for an anonymous profile.
+	GenericCommand    string                    `json:"generic_command"`
 	ScriptURL         string                    `json:"script_url"`
 	VerifyCommand     string                    `json:"verify_command"`
 	RestartCommand    string                    `json:"restart_command"`

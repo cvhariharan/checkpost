@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $TlsHostname = {{ ps .TLSHostname }}
-$EnrollSecret = {{ ps .EnrollmentKey }}
+$EnrollSecret = if ($env:CHECKPOST_ENROLL_SECRET) { $env:CHECKPOST_ENROLL_SECRET } else { {{ ps .EnrollmentKey }} }
 $PackageUrl = {{ ps .WindowsMSIAMD64URL }}
 $PackageSha256 = {{ ps .WindowsMSIAMD64SHA256 }}
 $BaseDir = "C:\ProgramData\Checkpost\osquery"

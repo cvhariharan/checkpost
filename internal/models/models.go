@@ -3,6 +3,8 @@ package models
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // AlertTarget is a delivery destination. Config is opaque to the engine.
@@ -97,6 +99,10 @@ type Node struct {
 type NodeEnrollment struct {
 	HostIdentifier string
 	HostDetails    HostDetailsInfo
+
+	// OwnerUserUUID is the checkpost user embedded in an owner-bound enrollment
+	// secret. uuid.Nil for anonymous/legacy enrollments.
+	OwnerUserUUID uuid.UUID
 }
 
 type NodeCredentials struct {

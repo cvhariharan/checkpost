@@ -290,7 +290,7 @@ func runServer(flags *rootFlags) error {
 	api.POST("/role-bindings", h.HandleCreateRoleBinding, h.Authorize(core.ResourceRoleBinding, core.ActionCreate))
 	api.DELETE("/role-bindings/:id", h.HandleDeleteRoleBinding, h.Authorize(core.ResourceRoleBinding, core.ActionDelete))
 
-	e.GET("/bootstrap", h.HandleOsqueryBootstrap, h.Authenticate, h.Authorize(core.ResourceSetting, core.ActionView))
+	e.GET("/bootstrap", h.HandleOsqueryBootstrap, h.Authenticate)
 	e.GET("/bootstrap/:platform", h.HandleOsqueryBootstrapScript)
 
 	buildFS, err := fs.Sub(webassets.StaticFiles, "dist")

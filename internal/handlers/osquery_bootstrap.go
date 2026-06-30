@@ -10,6 +10,8 @@ import (
 	"text/template"
 
 	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
@@ -41,7 +43,15 @@ type bootstrapTemplateData struct {
 }
 
 func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
-	profile, err := h.osqueryBootstrapProfile()
+	// The authenticated profile is always owner-bound to the session user, so
+	// their machine enrolls attributed to them. Anonymous enrollment is only via
+	// the public /bootstrap/:platform script (curl ... | sudo bash).
+	var owner models.SessionUser
+	if user, err := h.currentUser(c); err == nil {
+		owner = user
+	}
+
+	profile, err := h.osqueryBootstrapProfile(owner)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error rendering osquery bootstrap profile", err, nil)
 	}
@@ -61,14 +71,22 @@ func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 	return c.Blob(http.StatusOK, contentType, []byte(script))
 }
 
-func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
+func (h *Handler) osqueryBootstrapProfile(owner models.SessionUser) (OsqueryBootstrapResponse, error) {
 	checkpostURL, tlsHostname, warnings := bootstrapURLState(h.cfg.RootURL)
 	packages := h.bootstrapPackages()
 	warnings = append(warnings, packageWarnings(h.cfg.OsqueryBootstrap, packages)...)
 
-	// One bootstrap view prepares a single host: mint one short-lived secret and
-	// reuse it across every platform snippet and rendered script.
+	// An owner-bound profile mints a secret carrying the user; otherwise a plain anonymous one
 	secret := h.c.MintEnrollmentSecret()
+	var ownerInfo *OsqueryBootstrapOwner
+	if ownerUUID, err := uuid.Parse(strings.TrimSpace(owner.UUID)); err == nil && ownerUUID != uuid.Nil {
+		secret = h.c.MintOwnedEnrollmentSecret(ownerUUID)
+		ownerInfo = &OsqueryBootstrapOwner{Name: owner.Name, Email: owner.Email}
+	}
+	commandSecret := ""
+	if ownerInfo != nil {
+		commandSecret = secret
+	}
 
 	scripts := make(map[string]string, 3)
 	for _, platform := range []string{"linux.sh", "macos.sh", "windows.ps1"} {
@@ -83,7 +101,8 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		{
 			Key:               "linux",
 			Label:             "Linux",
-			Command:           bootstrapCommand(checkpostURL, "linux"),
+			Command:           bootstrapCommand(checkpostURL, "linux", commandSecret),
+			GenericCommand:    bootstrapCommand(checkpostURL, "linux", ""),
 			ScriptURL:         bootstrapScriptURL(checkpostURL, "linux.sh"),
 			VerifyCommand:     "sudo systemctl status osqueryd --no-pager",
 			RestartCommand:    "sudo systemctl restart osqueryd && sudo systemctl enable osqueryd",
@@ -101,7 +120,8 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		{
 			Key:               "macos",
 			Label:             "macOS",
-			Command:           bootstrapCommand(checkpostURL, "macos"),
+			Command:           bootstrapCommand(checkpostURL, "macos", commandSecret),
+			GenericCommand:    bootstrapCommand(checkpostURL, "macos", ""),
 			ScriptURL:         bootstrapScriptURL(checkpostURL, "macos.sh"),
 			VerifyCommand:     "sudo launchctl print system/io.osquery.agent || sudo launchctl print system/com.facebook.osqueryd",
 			RestartCommand:    "sudo osqueryctl restart",
@@ -119,7 +139,8 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		{
 			Key:               "windows",
 			Label:             "Windows",
-			Command:           bootstrapCommand(checkpostURL, "windows"),
+			Command:           bootstrapCommand(checkpostURL, "windows", commandSecret),
+			GenericCommand:    bootstrapCommand(checkpostURL, "windows", ""),
 			ScriptURL:         bootstrapScriptURL(checkpostURL, "windows.ps1"),
 			VerifyCommand:     "Get-Service osqueryd",
 			RestartCommand:    "Restart-Service osqueryd",
@@ -141,6 +162,7 @@ func (h *Handler) osqueryBootstrapProfile() (OsqueryBootstrapResponse, error) {
 		CheckpostURL: checkpostURL,
 		TLSHostname:  tlsHostname,
 		Warnings:     warnings,
+		Owner:        ownerInfo,
 		Platforms:    platforms,
 	}, nil
 }
@@ -292,14 +314,21 @@ func bootstrapScriptURL(checkpostURL, script string) string {
 	return strings.TrimRight(checkpostURL, "/") + "/bootstrap/" + script
 }
 
-func bootstrapCommand(checkpostURL, platform string) string {
+func bootstrapCommand(checkpostURL, platform, secret string) string {
 	switch platform {
-	case "linux":
-		return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(checkpostURL, "linux.sh"))
-	case "macos":
-		return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(checkpostURL, "macos.sh"))
+	case "linux", "macos":
+		script := platform + ".sh"
+		if secret == "" {
+			return fmt.Sprintf("curl -fsSL %s | sudo bash", bootstrapScriptURL(checkpostURL, script))
+		}
+		return fmt.Sprintf("curl -fsSL %s | sudo CHECKPOST_ENROLL_SECRET=%s bash", bootstrapScriptURL(checkpostURL, script), shellQuote(secret))
 	case "windows":
-		return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -useb %s | iex\"", bootstrapScriptURL(checkpostURL, "windows.ps1"))
+		url := bootstrapScriptURL(checkpostURL, "windows.ps1")
+		if secret == "" {
+			return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -useb %s | iex\"", url)
+		}
+		inner := fmt.Sprintf("$env:CHECKPOST_ENROLL_SECRET=%s; iwr -useb %s | iex", powershellQuote(secret), url)
+		return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"%s\"", inner)
 	default:
 		return ""
 	}

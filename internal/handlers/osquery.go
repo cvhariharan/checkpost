@@ -28,11 +28,15 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 		return err
 	}
 
-	if !h.c.VerifyEnrollmentSecret(req.EnrollSecret) {
+	owner, ok := h.c.ParseEnrollmentSecret(req.EnrollSecret)
+	if !ok {
 		return wrapError(http.StatusUnauthorized, "invalid or expired enrollment secret", fmt.Errorf("enrollment secret invalid or expired"), EnrollmentResponse{NodeInvalid: true})
 	}
 
-	creds, err := h.c.EnrollNode(c.Request().Context(), req.ToNodeModel())
+	node := req.ToNodeModel()
+	node.OwnerUserUUID = owner
+
+	creds, err := h.c.EnrollNode(c.Request().Context(), node)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not enroll node", err, EnrollmentResponse{NodeInvalid: true})
 	}

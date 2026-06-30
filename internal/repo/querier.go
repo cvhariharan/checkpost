@@ -109,6 +109,8 @@ type Querier interface {
 	GetYaraScanByUUID(ctx context.Context, argUuid uuid.UUID) (GetYaraScanByUUIDRow, error)
 	GetYaraSignatureSourceByUUID(ctx context.Context, argUuid uuid.UUID) (YaraSignatureSource, error)
 	InsertYaraScanMatch(ctx context.Context, arg InsertYaraScanMatchParams) error
+	// Attribute a node to an owner only when it has no owner yet
+	LinkNodeInventoryOwnerIfUnassigned(ctx context.Context, arg LinkNodeInventoryOwnerIfUnassignedParams) error
 	ListAPITokensByUser(ctx context.Context, userUuid uuid.UUID) ([]ApiToken, error)
 	ListAlertRules(ctx context.Context, arg ListAlertRulesParams) ([]ListAlertRulesRow, error)
 	ListAlertStateByRule(ctx context.Context, ruleID int64) ([]AlertState, error)
@@ -196,6 +198,10 @@ type Querier interface {
 	UpdateUserGroupByUUID(ctx context.Context, arg UpdateUserGroupByUUIDParams) (UserGroup, error)
 	UpdateYaraSignatureSourceByUUID(ctx context.Context, arg UpdateYaraSignatureSourceByUUIDParams) (YaraSignatureSource, error)
 	UpsertAlertState(ctx context.Context, arg UpsertAlertStateParams) error
+	// Race-free get-or-create keyed by email: insert a new owner, or on a concurrent
+	// insert / pre-existing owner with the same email keep that row untouched and
+	// return its id. external_id is left blank; it is reserved for company IDs.
+	UpsertDeviceOwnerByEmail(ctx context.Context, arg UpsertDeviceOwnerByEmailParams) (int64, error)
 	UpsertNodeInventory(ctx context.Context, arg UpsertNodeInventoryParams) (NodeInventory, error)
 	UpsertNodeMetric(ctx context.Context, arg UpsertNodeMetricParams) error
 	UpsertPolicyMembership(ctx context.Context, arg UpsertPolicyMembershipParams) error

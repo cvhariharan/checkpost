@@ -110,7 +110,6 @@
   const canDeleteInventory = $derived(canFrom($me, 'inventory', 'delete'))
   const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
   const canDeleteMachine = $derived(canFrom($me, 'machine', 'delete'))
-  const canViewSettings = $derived(canFrom($me, 'setting', 'view'))
 
   onMount(() => {
     void initialize()
@@ -460,9 +459,7 @@
       <h1 class="mb-2">Inventory</h1>
       <p class="text-light">Track device owners and internal asset IDs</p>
     </div>
-    {#if canViewSettings}
-      <button type="button" onclick={() => (bootstrapDialogOpen = true)}>Install osquery</button>
-    {/if}
+    <button type="button" onclick={() => (bootstrapDialogOpen = true)}>Install osquery</button>
   </header>
 
   <ErrorMessage message={error} onClose={() => (error = '')} />
