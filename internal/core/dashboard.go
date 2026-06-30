@@ -38,6 +38,7 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 		leastCompliant []repo.DashboardLeastCompliantNodesRow
 		mostCompliant  []repo.DashboardMostCompliantNodesRow
 		firingBySev    []repo.DashboardFiringAlertsBySeverityRow
+		firingList     []repo.DashboardFiringAlertsRow
 		recentMatches  []repo.DashboardRecentYaraMatchesRow
 		recentEnrolled []repo.DashboardRecentEnrollmentsRow
 	)
@@ -69,6 +70,10 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 	})
 	g.Go(func() (err error) {
 		firingBySev, err = c.store.DashboardFiringAlertsBySeverity(gctx)
+		return err
+	})
+	g.Go(func() (err error) {
+		firingList, err = c.store.DashboardFiringAlerts(gctx, topN)
 		return err
 	})
 	g.Go(func() (err error) {
@@ -106,6 +111,7 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 		},
 		Security: models.DashboardSecurity{
 			FiringAlerts:      firingAlerts(firingBySev),
+			FiringAlertList:   make([]models.DashboardFiringAlert, 0, len(firingList)),
 			RecentYaraMatches: make([]models.DashboardYaraMatch, 0, len(recentMatches)),
 		},
 		RecentlyEnrolled: make([]models.DashboardEnrolledMachine, 0, len(recentEnrolled)),
@@ -131,6 +137,15 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 	}
 	for _, n := range mostCompliant {
 		out.Compliance.MostCompliant = append(out.Compliance.MostCompliant, complianceNode(n.Uuid.String(), n.Hostname, n.DisplayName, n.Passing, n.Failing, n.Total))
+	}
+	for _, a := range firingList {
+		out.Security.FiringAlertList = append(out.Security.FiringAlertList, models.DashboardFiringAlert{
+			UUID:       a.Uuid.String(),
+			Name:       a.Name,
+			Severity:   a.Severity,
+			Count:      int(a.Count),
+			LastSeenAt: a.LastSeenAt,
+		})
 	}
 	for _, m := range recentMatches {
 		out.Security.RecentYaraMatches = append(out.Security.RecentYaraMatches, models.DashboardYaraMatch{

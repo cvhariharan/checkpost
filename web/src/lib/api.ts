@@ -370,6 +370,13 @@ export type DashboardOverview = {
       info: number
       total: number
     }
+    firing_alert_list: {
+      uuid: string
+      name: string
+      severity: string
+      count: number
+      last_seen_at: string
+    }[]
     recent_yara_matches: {
       scan_uuid: string
       machine_uuid: string

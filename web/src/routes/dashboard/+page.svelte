@@ -22,7 +22,6 @@
     low: 'info',
     info: 'info'
   }
-  const severities = ['critical', 'high', 'medium', 'low', 'info'] as const
 
   const updatedAgo = $derived.by(() => {
     if (!data?.generated_at) return ''
@@ -298,17 +297,21 @@
       <!-- Active alerts -->
       <div class="col-6">
         <article class="card vstack gap-2 panel">
-          <h3>Active alerts by severity</h3>
-          {#if data.security.firing_alerts.total === 0}
+          <h3>Active alerts</h3>
+          {#if data.security.firing_alert_list.length === 0}
             <p class="text-light">No firing alerts</p>
           {:else}
-            <div class="hstack gap-2 wrap">
-              {#each severities as sev}
-                {#if data.security.firing_alerts[sev] > 0}
-                  <span class="badge" data-variant={severityVariant[sev]}>{sev} {data.security.firing_alerts[sev]}</span>
-                {/if}
+            <ul class="plain">
+              {#each data.security.firing_alert_list as a}
+                <li class="hstack justify-between gap-2">
+                  <a href="/alerts" class="hstack gap-2 items-center">
+                    <span class="badge" data-variant={severityVariant[a.severity]}>{a.severity}</span>
+                    <span>{a.name}</span>
+                  </a>
+                  <span class="text-light">{formatTimestamp(a.last_seen_at)}</span>
+                </li>
               {/each}
-            </div>
+            </ul>
           {/if}
         </article>
       </div>
@@ -485,9 +488,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-  }
-  .wrap {
-    flex-wrap: wrap;
   }
   .empty-access {
     padding: 2rem;

@@ -39,6 +39,7 @@ type Querier interface {
 	CreateYaraScan(ctx context.Context, arg CreateYaraScanParams) (YaraScan, error)
 	CreateYaraScanTarget(ctx context.Context, arg CreateYaraScanTargetParams) error
 	CreateYaraSignatureSource(ctx context.Context, arg CreateYaraSignatureSourceParams) (YaraSignatureSource, error)
+	DashboardFiringAlerts(ctx context.Context, topN int32) ([]DashboardFiringAlertsRow, error)
 	DashboardFiringAlertsBySeverity(ctx context.Context) ([]DashboardFiringAlertsBySeverityRow, error)
 	DashboardLeastCompliantNodes(ctx context.Context, arg DashboardLeastCompliantNodesParams) ([]DashboardLeastCompliantNodesRow, error)
 	DashboardMostCompliantNodes(ctx context.Context, arg DashboardMostCompliantNodesParams) ([]DashboardMostCompliantNodesRow, error)

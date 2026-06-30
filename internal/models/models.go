@@ -865,8 +865,9 @@ type DashboardComplianceNode struct {
 }
 
 type DashboardSecurity struct {
-	FiringAlerts      DashboardFiringAlerts `json:"firing_alerts"`
-	RecentYaraMatches []DashboardYaraMatch  `json:"recent_yara_matches"`
+	FiringAlerts      DashboardFiringAlerts  `json:"firing_alerts"`
+	FiringAlertList   []DashboardFiringAlert `json:"firing_alert_list"`
+	RecentYaraMatches []DashboardYaraMatch   `json:"recent_yara_matches"`
 }
 
 type DashboardFiringAlerts struct {
@@ -876,6 +877,14 @@ type DashboardFiringAlerts struct {
 	Low      int `json:"low"`
 	Info     int `json:"info"`
 	Total    int `json:"total"`
+}
+
+type DashboardFiringAlert struct {
+	UUID       string    `json:"uuid"`
+	Name       string    `json:"name"`
+	Severity   string    `json:"severity"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"last_seen_at"`
 }
 
 type DashboardYaraMatch struct {

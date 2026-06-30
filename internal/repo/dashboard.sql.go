@@ -12,6 +12,67 @@ import (
 	"github.com/google/uuid"
 )
 
+const dashboardFiringAlerts = `-- name: DashboardFiringAlerts :many
+SELECT
+    alert_rules.uuid,
+    alert_rules.name,
+    alert_rules.severity,
+    count(*)::bigint AS count,
+    max(alert_state.last_seen_at)::timestamptz AS last_seen_at
+FROM alert_state
+JOIN alert_rules ON alert_rules.id = alert_state.rule_id
+WHERE alert_state.status = 'firing'
+GROUP BY alert_rules.uuid, alert_rules.name, alert_rules.severity
+ORDER BY
+    CASE alert_rules.severity
+        WHEN 'critical' THEN 0
+        WHEN 'high' THEN 1
+        WHEN 'medium' THEN 2
+        WHEN 'low' THEN 3
+        WHEN 'info' THEN 4
+        ELSE 5
+    END,
+    last_seen_at DESC
+LIMIT $1
+`
+
+type DashboardFiringAlertsRow struct {
+	Uuid       uuid.UUID `db:"uuid" json:"uuid"`
+	Name       string    `db:"name" json:"name"`
+	Severity   string    `db:"severity" json:"severity"`
+	Count      int64     `db:"count" json:"count"`
+	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
+}
+
+func (q *Queries) DashboardFiringAlerts(ctx context.Context, topN int32) ([]DashboardFiringAlertsRow, error) {
+	rows, err := q.db.QueryContext(ctx, dashboardFiringAlerts, topN)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DashboardFiringAlertsRow
+	for rows.Next() {
+		var i DashboardFiringAlertsRow
+		if err := rows.Scan(
+			&i.Uuid,
+			&i.Name,
+			&i.Severity,
+			&i.Count,
+			&i.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const dashboardFiringAlertsBySeverity = `-- name: DashboardFiringAlertsBySeverity :many
 SELECT
     alert_rules.severity,
