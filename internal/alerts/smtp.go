@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	htmltemplate "html/template"
 	"io"
@@ -25,6 +26,7 @@ type emailData struct {
 }
 
 type emailItem struct {
+	Host       string
 	Summary    string
 	Resolution string
 }
@@ -129,14 +131,22 @@ func (s *SMTPNotifier) Send(ctx context.Context, kind EventKind, target Target, 
 		return err
 	}
 
-	to, err := s.resolveRecipients(ctx, c.Recipients, alerts)
+	// Bundle alerts that share a recipient set into a single email
+	batches, err := s.batchByRecipients(ctx, c.Recipients, alerts)
 	if err != nil {
 		return err
 	}
-	if len(to) == 0 {
-		return nil
-	}
 
+	var errs []error
+	for _, b := range batches {
+		if err := s.sendBatch(kind, rule, b.recipients, b.alerts); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *SMTPNotifier) sendBatch(kind EventKind, rule Rule, to []string, alerts []Alert) error {
 	data := buildEmailData(kind, rule, alerts)
 	text, err := render(s.textTmpl, data)
 	if err != nil {
@@ -147,18 +157,57 @@ func (s *SMTPNotifier) Send(ctx context.Context, kind EventKind, target Target, 
 		return fmt.Errorf("render html body: %w", err)
 	}
 
+	subject := fmt.Sprintf("[%s] %s %s", strings.ToUpper(rule.Severity), rule.Name, kindLabel(kind))
+	if len(alerts) > 1 {
+		subject = fmt.Sprintf("%s (%d alerts)", subject, len(alerts))
+	}
+
 	return s.pool.Send(smtppool.Email{
 		From:    s.from,
 		To:      to,
-		Subject: fmt.Sprintf("[%s] %s %s", strings.ToUpper(rule.Severity), rule.Name, kindLabel(kind)),
+		Subject: subject,
 		Text:    text,
 		HTML:    html,
 	})
 }
 
-func (s *SMTPNotifier) resolveRecipients(ctx context.Context, recipients []string, alerts []Alert) ([]string, error) {
+type emailBatch struct {
+	recipients []string
+	alerts     []Alert
+}
+
+func (s *SMTPNotifier) batchByRecipients(ctx context.Context, recipients []string, alerts []Alert) ([]emailBatch, error) {
+	base, wantOwner, err := s.resolveStatic(ctx, recipients)
+	if err != nil {
+		return nil, err
+	}
+
+	var order []string
+	batches := map[string]*emailBatch{}
+	for _, a := range alerts {
+		to := recipientsFor(base, wantOwner, a)
+		if len(to) == 0 {
+			continue
+		}
+		key := strings.Join(to, ",")
+		b, ok := batches[key]
+		if !ok {
+			b = &emailBatch{recipients: to}
+			batches[key] = b
+			order = append(order, key)
+		}
+		b.alerts = append(b.alerts, a)
+	}
+
+	out := make([]emailBatch, 0, len(order))
+	for _, k := range order {
+		out = append(out, *batches[k])
+	}
+	return out, nil
+}
+
+func (s *SMTPNotifier) resolveStatic(ctx context.Context, recipients []string) (base []string, wantOwner bool, err error) {
 	seen := map[string]struct{}{}
-	var out []string
 	add := func(addr string) {
 		addr = strings.TrimSpace(addr)
 		if addr == "" {
@@ -168,23 +217,21 @@ func (s *SMTPNotifier) resolveRecipients(ctx context.Context, recipients []strin
 			return
 		}
 		seen[addr] = struct{}{}
-		out = append(out, addr)
+		base = append(base, addr)
 	}
 
 	for _, r := range recipients {
 		r = strings.TrimSpace(r)
 		switch {
 		case r == "owner":
-			if len(alerts) > 0 {
-				add(alerts[0].Labels["owner_email"])
-			}
+			wantOwner = true
 		case strings.HasPrefix(r, "user-group:"):
 			if s.resolveGroup == nil {
 				continue
 			}
 			emails, err := s.resolveGroup(ctx, strings.TrimPrefix(r, "user-group:"))
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			for _, e := range emails {
 				add(e)
@@ -193,7 +240,26 @@ func (s *SMTPNotifier) resolveRecipients(ctx context.Context, recipients []strin
 			add(r)
 		}
 	}
-	return out, nil
+	return base, wantOwner, nil
+}
+
+// recipientsFor returns the full recipient list for a single alert, appending
+// its owner when requested and not already covered by the static set.
+func recipientsFor(base []string, wantOwner bool, a Alert) []string {
+	to := append([]string(nil), base...)
+	if !wantOwner {
+		return to
+	}
+	owner := strings.TrimSpace(a.Labels["owner_email"])
+	if owner == "" {
+		return to
+	}
+	for _, addr := range to {
+		if addr == owner {
+			return to
+		}
+	}
+	return append(to, owner)
 }
 
 func kindLabel(k EventKind) string {
@@ -207,11 +273,19 @@ func buildEmailData(kind EventKind, rule Rule, alerts []Alert) emailData {
 	d := emailData{Title: rule.Name, Kind: kindLabel(kind), Severity: rule.Severity}
 	for _, a := range alerts {
 		d.Items = append(d.Items, emailItem{
+			Host:       alertHost(a),
 			Summary:    a.Annotations["summary"],
 			Resolution: a.Annotations["resolution"],
 		})
 	}
 	return d
+}
+
+func alertHost(a Alert) string {
+	if h := strings.TrimSpace(a.Labels["hostname"]); h != "" {
+		return h
+	}
+	return a.Labels["host"]
 }
 
 type executor interface {

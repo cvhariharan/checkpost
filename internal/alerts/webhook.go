@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,12 +90,24 @@ func (w *WebhookNotifier) Send(ctx context.Context, kind EventKind, target Targe
 		return err
 	}
 
-	body, err := json.Marshal(buildWebhookPayload(kind, rule, alerts))
+	// One request per host preserves per-device delivery and unambiguous owner
+	// attribution in the payload.
+	var errs []error
+	for _, group := range groupByHost(alerts, rule.UUID) {
+		if err := w.post(ctx, c.URL, buildWebhookPayload(kind, rule, group)); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (w *WebhookNotifier) post(ctx context.Context, endpoint string, payload webhookPayload) error {
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal webhook payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.URL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create webhook request: %w", err)
 	}

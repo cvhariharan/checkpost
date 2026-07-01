@@ -1,7 +1,5 @@
 {{.Title}} — {{.Kind}} ({{.Severity}})
-{{range .Items}}
-- {{.Summary}}
-{{- if .Resolution}}
-  resolution: {{.Resolution}}
-{{- end}}
-{{- end}}
+
+Host | Summary | Resolution
+{{range .Items}}{{.Host}} | {{.Summary}} | {{if .Resolution}}{{.Resolution}}{{else}}-{{end}}
+{{end}}

@@ -21,6 +21,20 @@ type Alert struct {
 
 func (a Alert) Host() string { return a.Labels["host"] }
 
+// groupByHost buckets alerts by their host label, falling back to a shared key
+// for alerts without a host so they are still delivered together.
+func groupByHost(alerts []Alert, fallback string) map[string][]Alert {
+	groups := map[string][]Alert{}
+	for _, a := range alerts {
+		host := a.Host()
+		if host == "" {
+			host = fallback
+		}
+		groups[host] = append(groups[host], a)
+	}
+	return groups
+}
+
 type Rule struct {
 	UUID        string
 	Name        string

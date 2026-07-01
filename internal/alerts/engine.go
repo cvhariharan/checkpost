@@ -191,18 +191,12 @@ func (e *Engine) evaluateRule(ctx context.Context, rule repo.AlertRule) error {
 	return nil
 }
 
-// dispatch groups alerts by host label and sends one delivery per host × target.
+// dispatch hands the full alert set to each target's notifier. Each notifier
+// owns how it groups deliveries: webhooks fire one request per host while the
+// SMTP target bundles alerts sharing a recipient set into a single email.
 func (e *Engine) dispatch(ctx context.Context, rule repo.AlertRule, targets []repo.AlertTarget, kind EventKind, alerts []Alert) {
 	if len(alerts) == 0 || len(targets) == 0 {
 		return
-	}
-	groups := map[string][]Alert{}
-	for _, a := range alerts {
-		host := a.Host()
-		if host == "" {
-			host = rule.Uuid.String()
-		}
-		groups[host] = append(groups[host], a)
 	}
 
 	r := Rule{
@@ -216,10 +210,8 @@ func (e *Engine) dispatch(ctx context.Context, rule repo.AlertRule, targets []re
 			continue
 		}
 		target := Target{UUID: t.Uuid.String(), Name: t.Name, Type: t.Type, Config: t.Config}
-		for _, group := range groups {
-			if err := notifier.Send(ctx, kind, target, group, r); err != nil {
-				e.logger.Error("send alert", "rule", rule.Name, "target", t.Name, "kind", kind, "error", err)
-			}
+		if err := notifier.Send(ctx, kind, target, alerts, r); err != nil {
+			e.logger.Error("send alert", "rule", rule.Name, "target", t.Name, "kind", kind, "error", err)
 		}
 	}
 }
