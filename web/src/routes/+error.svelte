@@ -2,7 +2,7 @@
   import { page } from '$app/stores'
 </script>
 
-<section class="flex justify-center">
+<section class="error-page flex justify-center">
   <article class="card">
     <header>
       <h1>{$page.status}</h1>
@@ -13,3 +13,10 @@
     </footer>
   </article>
 </section>
+
+<style>
+  .error-page {
+    align-items: center;
+    min-height: 60vh;
+  }
+</style>
