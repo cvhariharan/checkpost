@@ -11,6 +11,7 @@
   import PolicyFormDialog from '$lib/components/PolicyFormDialog.svelte'
   import PolicyMachinesDialog from '$lib/components/PolicyMachinesDialog.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import CopyableId from '$lib/components/CopyableId.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import { canFrom, me } from '$lib/auth'
   import Plus from '@lucide/svelte/icons/plus'
@@ -172,6 +173,9 @@
                 <button type="button" class="cell-link" onclick={() => openMachinesModal(policy)}>
                   {policy.name || policy.title || 'Untitled'}
                 </button>
+                {#if policy.uuid}
+                  <div class="mt-1"><CopyableId value={policy.uuid} /></div>
+                {/if}
                 {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
               </td>
               <td><span class="badge outline">{policy.platform}</span></td>

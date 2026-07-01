@@ -103,7 +103,13 @@ SELECT
     n.id AS node_id,
     n.uuid AS node_uuid,
     COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
-    n.platform AS platform
+    n.platform AS platform,
+    COALESCE((
+        SELECT string_agg(g.name, ',' ORDER BY g.name)
+        FROM group_membership gm
+        JOIN groups g ON g.id = gm.group_id
+        WHERE gm.node_id = n.id
+    ), '')::text AS groups
 FROM policy_membership pm
 JOIN policies p ON p.id = pm.policy_id
 JOIN nodes n ON n.id = pm.node_id
@@ -148,7 +154,13 @@ SELECT
     n.uuid AS node_uuid,
     COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
     n.platform AS platform,
-    n.last_seen_at AS last_seen_at
+    n.last_seen_at AS last_seen_at,
+    COALESCE((
+        SELECT string_agg(g.name, ',' ORDER BY g.name)
+        FROM group_membership gm
+        JOIN groups g ON g.id = gm.group_id
+        WHERE gm.node_id = n.id
+    ), '')::text AS groups
 FROM nodes n
 WHERE (n.last_seen_at IS NULL OR n.last_seen_at < now() - sqlc.arg(threshold)::text::interval)
   AND (coalesce(cardinality(@platforms::text[]), 0) = 0 OR n.platform = ANY(@platforms::text[]))

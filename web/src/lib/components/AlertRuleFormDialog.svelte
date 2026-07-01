@@ -228,6 +228,10 @@
         />
       </div>
 
+      {#if source && fields.length === 0}
+        <small class="text-light">This source has no options.</small>
+      {/if}
+
       {#each fields as field (field.name)}
         {#if field.widget === 'multiselect'}
           <div class="vstack gap-1">
@@ -278,31 +282,32 @@
         {/if}
       {/each}
 
-      <div class="row">
-        <div class="col-6">
-          <SelectDropdown
-            label="Severity"
-            options={[
-              { value: 'critical', label: 'Critical' },
-              { value: 'high', label: 'High' },
-              { value: 'medium', label: 'Medium' },
-              { value: 'low', label: 'Low' },
-              { value: 'info', label: 'Info' }
-            ]}
-            bind:value={severity}
-          />
-        </div>
-        <label data-field class="col-6">
-          Evaluation interval (s)
-          <input type="number" min="60" bind:value={evalInterval} />
-        </label>
+      <div data-field>
+        <SelectDropdown
+          label="Severity"
+          options={[
+            { value: 'critical', label: 'Critical' },
+            { value: 'high', label: 'High' },
+            { value: 'medium', label: 'Medium' },
+            { value: 'low', label: 'Low' },
+            { value: 'info', label: 'Info' }
+          ]}
+          bind:value={severity}
+        />
       </div>
 
       <div class="row">
         <label data-field class="col-6">
+          Evaluation interval (s)
+          <input type="number" min="60" bind:value={evalInterval} />
+        </label>
+        <label data-field class="col-6">
           For (s)
           <input type="number" min="0" bind:value={forSeconds} />
         </label>
+      </div>
+
+      <div class="row">
         <label data-field class="col-6">
           Repeat (s)
           <input type="number" min="0" bind:value={repeatSeconds} />

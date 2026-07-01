@@ -9,6 +9,7 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import GroupFormDialog from '$lib/components/GroupFormDialog.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import CopyableId from '$lib/components/CopyableId.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import { canFrom, me } from '$lib/auth'
   import Plus from '@lucide/svelte/icons/plus'
@@ -157,6 +158,9 @@
                   </button>
                 {:else}
                   <strong>{group.name || 'Untitled'}</strong>
+                {/if}
+                {#if group.uuid}
+                  <div class="mt-1"><CopyableId value={group.uuid} /></div>
                 {/if}
               </td>
               <td>{group.description || ''}</td>

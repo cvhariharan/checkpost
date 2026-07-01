@@ -492,7 +492,13 @@ SELECT
     n.id AS node_id,
     n.uuid AS node_uuid,
     COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
-    n.platform AS platform
+    n.platform AS platform,
+    COALESCE((
+        SELECT string_agg(g.name, ',' ORDER BY g.name)
+        FROM group_membership gm
+        JOIN groups g ON g.id = gm.group_id
+        WHERE gm.node_id = n.id
+    ), '')::text AS groups
 FROM policy_membership pm
 JOIN policies p ON p.id = pm.policy_id
 JOIN nodes n ON n.id = pm.node_id
@@ -548,6 +554,7 @@ type ListFailingPolicyNodesRow struct {
 	NodeUuid   uuid.UUID `db:"node_uuid" json:"node_uuid"`
 	Hostname   string    `db:"hostname" json:"hostname"`
 	Platform   string    `db:"platform" json:"platform"`
+	Groups     string    `db:"groups" json:"groups"`
 }
 
 func (q *Queries) ListFailingPolicyNodes(ctx context.Context, arg ListFailingPolicyNodesParams) ([]ListFailingPolicyNodesRow, error) {
@@ -573,6 +580,7 @@ func (q *Queries) ListFailingPolicyNodes(ctx context.Context, arg ListFailingPol
 			&i.NodeUuid,
 			&i.Hostname,
 			&i.Platform,
+			&i.Groups,
 		); err != nil {
 			return nil, err
 		}
@@ -593,7 +601,13 @@ SELECT
     n.uuid AS node_uuid,
     COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
     n.platform AS platform,
-    n.last_seen_at AS last_seen_at
+    n.last_seen_at AS last_seen_at,
+    COALESCE((
+        SELECT string_agg(g.name, ',' ORDER BY g.name)
+        FROM group_membership gm
+        JOIN groups g ON g.id = gm.group_id
+        WHERE gm.node_id = n.id
+    ), '')::text AS groups
 FROM nodes n
 WHERE (n.last_seen_at IS NULL OR n.last_seen_at < now() - $1::text::interval)
   AND (coalesce(cardinality($2::text[]), 0) = 0 OR n.platform = ANY($2::text[]))
@@ -620,6 +634,7 @@ type ListOfflineNodesRow struct {
 	Hostname   string       `db:"hostname" json:"hostname"`
 	Platform   string       `db:"platform" json:"platform"`
 	LastSeenAt sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	Groups     string       `db:"groups" json:"groups"`
 }
 
 func (q *Queries) ListOfflineNodes(ctx context.Context, arg ListOfflineNodesParams) ([]ListOfflineNodesRow, error) {
@@ -637,6 +652,7 @@ func (q *Queries) ListOfflineNodes(ctx context.Context, arg ListOfflineNodesPara
 			&i.Hostname,
 			&i.Platform,
 			&i.LastSeenAt,
+			&i.Groups,
 		); err != nil {
 			return nil, err
 		}
