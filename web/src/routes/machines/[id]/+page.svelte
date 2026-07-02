@@ -28,6 +28,9 @@
     type NodeMetrics
   } from '$lib/api'
   import { formatTimestamp, isOnline, machineHostname, machineOS } from '$lib/util'
+  import { severityRank, severityVariant } from '$lib/severity'
+  import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
+  import SortableHeader from '$lib/components/SortableHeader.svelte'
   import { rootShape, type JSONSchema } from '$lib/metricSchema'
   import MetricRenderer from '$lib/components/MetricRenderer.svelte'
   import MultiSelectDropdown from '$lib/components/MultiSelectDropdown.svelte'
@@ -403,6 +406,20 @@
     return 'warning'
   }
 
+  // Sortable policy tab. Response is ranked failing → unknown → passing so the
+  // most actionable rows surface first; severity uses the canonical rank.
+  const responseRank: Record<string, number> = { failing: 0, unknown: 1, passing: 2 }
+
+  type PostureSortCol = 'severity' | 'response'
+  const postureAccessors: SortAccessors<MachinePolicyPosture, PostureSortCol> = {
+    severity: (p) => severityRank[p.severity || 'medium'] ?? 99,
+    response: (p) => responseRank[p.response || 'unknown'] ?? 99
+  }
+  let postureSort = $state<SortState<PostureSortCol>>(null)
+  const sortedPosture = $derived(
+    sortRows(policyPosture, postureSort, postureAccessors, (p) => p.name || p.title)
+  )
+
   function statusVariant(query: MachineQueryRecord): 'success' | 'danger' | 'warning' {
     if (query.status === 'complete') return 'success'
     if (query.status === 'error') return 'danger'
@@ -633,18 +650,24 @@
             <thead>
               <tr>
                 <th>Policy</th>
-                <th>Response</th>
+                <SortableHeader bind:state={postureSort} col="severity" label="Severity" />
+                <SortableHeader bind:state={postureSort} col="response" label="Response" />
                 <th>Checked</th>
                 <th>Error</th>
                 <th>Resolution</th>
               </tr>
             </thead>
             <tbody>
-              {#each policyPosture as policy}
+              {#each sortedPosture as policy}
                 <tr>
                   <td>
                     <strong>{policy.name || policy.title}</strong>
                     {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
+                  </td>
+                  <td>
+                    <span class="badge" data-variant={severityVariant[policy.severity || 'medium']}>
+                      {policy.severity || 'medium'}
+                    </span>
                   </td>
                   <td>
                     <span class="badge posture-badge" data-variant={postureVariant(policy.response)}>
@@ -657,7 +680,7 @@
                 </tr>
               {:else}
                 <tr>
-                  <td colspan="5" class="align-center text-light">No policies target this machine</td>
+                  <td colspan="6" class="align-center text-light">No policies target this machine</td>
                 </tr>
               {/each}
             </tbody>

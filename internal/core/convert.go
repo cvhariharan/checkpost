@@ -281,6 +281,7 @@ func toModelPolicyPosture(row repo.ListPoliciesForNodeRow) models.PolicyPosture 
 			Description:       row.Description,
 			Resolution:        row.Resolution,
 			Platform:          row.Platform,
+			Severity:          row.Severity,
 			Enabled:           row.Enabled,
 			IsSystem:          row.IsSystem,
 			TargetAllMachines: true,

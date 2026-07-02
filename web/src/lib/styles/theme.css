@@ -24,6 +24,8 @@
     --success-foreground: #fbf8f2;
     --warning: #c99846;
     --warning-foreground: #1a2e2a;
+    --info: #4a6f8c;
+    --info-foreground: #fbf8f2;
     --border: #d9cfb8;
     --input: #d9cfb8;
     --ring: #2d5f55;
@@ -52,6 +54,8 @@
     --success-foreground: #0e1816;
     --warning: #e2b25c;
     --warning-foreground: #14201e;
+    --info: #7ea6c9;
+    --info-foreground: #0e1816;
     --border: #2a3733;
     --input: #2a3733;
     --ring: #6faa9a;
@@ -64,4 +68,12 @@
   color: var(--danger);
   margin-inline-start: 0.15em;
   font-weight: 600;
+}
+
+.badge[data-variant='info'] {
+  color: var(--info);
+  background-color: light-dark(
+    color-mix(in srgb, var(--info) 8%, transparent),
+    color-mix(in srgb, var(--info) 20%, transparent)
+  );
 }

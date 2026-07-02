@@ -204,6 +204,7 @@ SELECT
     policies.platform,
     policies.enabled,
     policies.is_system,
+    policies.severity,
     policies.created_at,
     policies.updated_at,
     CASE

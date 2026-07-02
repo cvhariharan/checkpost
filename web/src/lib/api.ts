@@ -185,6 +185,7 @@ export type MachinePolicyPosture = {
   name?: string
   title?: string
   description?: string
+  severity?: string
   response?: 'passing' | 'failing' | 'unknown' | string
   resolution?: string
   stale?: boolean

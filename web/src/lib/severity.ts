@@ -9,6 +9,11 @@ export const severityOptions: { value: string; label: string }[] = [
   { value: 'info', label: 'Info' }
 ]
 
+// Rank for sorting, derived from the canonical order (critical = 0 … info = 4).
+export const severityRank: Record<string, number> = Object.fromEntries(
+  severityOptions.map((o, i) => [o.value, i])
+)
+
 // Maps a severity to its badge variant (oat data-variant).
 export const severityVariant: Record<string, string> = {
   critical: 'danger',

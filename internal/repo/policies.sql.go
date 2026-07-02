@@ -394,6 +394,7 @@ SELECT
     policies.platform,
     policies.enabled,
     policies.is_system,
+    policies.severity,
     policies.created_at,
     policies.updated_at,
     CASE
@@ -449,6 +450,7 @@ type ListPoliciesForNodeRow struct {
 	Platform    string         `db:"platform" json:"platform"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
 	IsSystem    bool           `db:"is_system" json:"is_system"`
+	Severity    string         `db:"severity" json:"severity"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	Response    string         `db:"response" json:"response"`
@@ -476,6 +478,7 @@ func (q *Queries) ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNo
 			&i.Platform,
 			&i.Enabled,
 			&i.IsSystem,
+			&i.Severity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Response,
