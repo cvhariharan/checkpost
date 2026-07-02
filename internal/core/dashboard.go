@@ -99,7 +99,7 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 			ByPlatform:    make([]models.DashboardPlatformCount, 0, len(platformCounts)),
 		},
 		Compliance: models.DashboardCompliance{
-			Score: complianceScore(policyRows.Passing, policyRows.Passing+policyRows.Failing+policyRows.Unknown),
+			Score: complianceScore(policyRows.WeightedPassing, policyRows.WeightedTotal),
 			PolicyRows: models.DashboardPolicyRows{
 				Passing: int(policyRows.Passing),
 				Failing: int(policyRows.Failing),
@@ -133,10 +133,10 @@ func (c *Core) DashboardOverview(ctx context.Context, top int) (models.Dashboard
 		})
 	}
 	for _, n := range leastCompliant {
-		out.Compliance.LeastCompliant = append(out.Compliance.LeastCompliant, complianceNode(n.Uuid.String(), n.Hostname, n.DisplayName, n.Passing, n.Failing, n.Total))
+		out.Compliance.LeastCompliant = append(out.Compliance.LeastCompliant, complianceNode(n.Uuid.String(), n.Hostname, n.DisplayName, n.Passing, n.Failing, n.Total, n.WeightedPassing, n.WeightedTotal))
 	}
 	for _, n := range mostCompliant {
-		out.Compliance.MostCompliant = append(out.Compliance.MostCompliant, complianceNode(n.Uuid.String(), n.Hostname, n.DisplayName, n.Passing, n.Failing, n.Total))
+		out.Compliance.MostCompliant = append(out.Compliance.MostCompliant, complianceNode(n.Uuid.String(), n.Hostname, n.DisplayName, n.Passing, n.Failing, n.Total, n.WeightedPassing, n.WeightedTotal))
 	}
 	for _, a := range firingList {
 		out.Security.FiringAlertList = append(out.Security.FiringAlertList, models.DashboardFiringAlert{
@@ -179,10 +179,10 @@ func complianceScore(passing, total int64) *int {
 	return &score
 }
 
-func complianceNode(uuid, hostname, displayName string, passing, failing, total int64) models.DashboardComplianceNode {
+func complianceNode(uuid, hostname, displayName string, passing, failing, total, weightedPassing, weightedTotal int64) models.DashboardComplianceNode {
 	score := 0
-	if total > 0 {
-		score = int(math.Round(100 * float64(passing) / float64(total)))
+	if weightedTotal > 0 {
+		score = int(math.Round(100 * float64(weightedPassing) / float64(weightedTotal)))
 	}
 	return models.DashboardComplianceNode{
 		UUID:        uuid,

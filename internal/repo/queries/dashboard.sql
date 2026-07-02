@@ -18,12 +18,24 @@ FROM nodes
 GROUP BY platform
 ORDER BY total DESC, platform;
 
+-- Fibonacci severity weights
 -- name: DashboardPolicyRowCounts :one
 SELECT
     count(*) FILTER (WHERE passes = true AND checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
     count(*) FILTER (WHERE passes = false AND checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
-    count(*) FILTER (WHERE passes IS NULL OR checked_at < @stale_cutoff::timestamptz)::bigint AS unknown
-FROM policy_membership;
+    count(*) FILTER (WHERE passes IS NULL OR checked_at < @stale_cutoff::timestamptz)::bigint AS unknown,
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ) FILTER (WHERE passes = true AND checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ), 0)::bigint AS weighted_total
+FROM policy_membership
+JOIN policies ON policies.id = policy_membership.policy_id;
 
 -- name: DashboardTopFailingPolicies :many
 SELECT
@@ -48,7 +60,17 @@ WITH per_node AS (
         nodes.id AS node_id,
         count(*) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
         count(*) FILTER (WHERE policy_membership.passes = false AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
-        count(*)::bigint AS total
+        count(*)::bigint AS total,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ), 0)::bigint AS weighted_total
     FROM nodes
     JOIN policies ON policies.enabled = true
         AND (
@@ -82,10 +104,12 @@ SELECT
     nodes.display_name,
     per_node.passing,
     per_node.failing,
-    per_node.total
+    per_node.total,
+    per_node.weighted_passing,
+    per_node.weighted_total
 FROM per_node
 JOIN nodes ON nodes.id = per_node.node_id
-ORDER BY per_node.passing::numeric / per_node.total ASC, per_node.failing DESC, nodes.hostname ASC
+ORDER BY per_node.weighted_passing::numeric / nullif(per_node.weighted_total, 0) ASC, per_node.failing DESC, nodes.hostname ASC
 LIMIT @top_n;
 
 -- name: DashboardMostCompliantNodes :many
@@ -94,7 +118,17 @@ WITH per_node AS (
         nodes.id AS node_id,
         count(*) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS passing,
         count(*) FILTER (WHERE policy_membership.passes = false AND policy_membership.checked_at >= @stale_cutoff::timestamptz)::bigint AS failing,
-        count(*)::bigint AS total
+        count(*)::bigint AS total,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ), 0)::bigint AS weighted_total
     FROM nodes
     JOIN policies ON policies.enabled = true
         AND (
@@ -128,10 +162,12 @@ SELECT
     nodes.display_name,
     per_node.passing,
     per_node.failing,
-    per_node.total
+    per_node.total,
+    per_node.weighted_passing,
+    per_node.weighted_total
 FROM per_node
 JOIN nodes ON nodes.id = per_node.node_id
-ORDER BY per_node.passing::numeric / per_node.total DESC, per_node.failing ASC, nodes.hostname ASC
+ORDER BY per_node.weighted_passing::numeric / nullif(per_node.weighted_total, 0) DESC, per_node.failing ASC, nodes.hostname ASC
 LIMIT @top_n;
 
 -- name: DashboardFiringAlertsBySeverity :many

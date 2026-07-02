@@ -45,6 +45,7 @@ type Querier interface {
 	DashboardMostCompliantNodes(ctx context.Context, arg DashboardMostCompliantNodesParams) ([]DashboardMostCompliantNodesRow, error)
 	DashboardNodeCounts(ctx context.Context, onlineCutoff time.Time) (DashboardNodeCountsRow, error)
 	DashboardNodeCountsByPlatform(ctx context.Context, onlineCutoff time.Time) ([]DashboardNodeCountsByPlatformRow, error)
+	// Fibonacci severity weights
 	DashboardPolicyRowCounts(ctx context.Context, staleCutoff time.Time) (DashboardPolicyRowCountsRow, error)
 	DashboardRecentEnrollments(ctx context.Context, topN int32) ([]DashboardRecentEnrollmentsRow, error)
 	DashboardRecentYaraMatches(ctx context.Context, topN int32) ([]DashboardRecentYaraMatchesRow, error)

@@ -117,7 +117,17 @@ WITH per_node AS (
         nodes.id AS node_id,
         count(*) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $2::timestamptz)::bigint AS passing,
         count(*) FILTER (WHERE policy_membership.passes = false AND policy_membership.checked_at >= $2::timestamptz)::bigint AS failing,
-        count(*)::bigint AS total
+        count(*)::bigint AS total,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $2::timestamptz), 0)::bigint AS weighted_passing,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ), 0)::bigint AS weighted_total
     FROM nodes
     JOIN policies ON policies.enabled = true
         AND (
@@ -151,10 +161,12 @@ SELECT
     nodes.display_name,
     per_node.passing,
     per_node.failing,
-    per_node.total
+    per_node.total,
+    per_node.weighted_passing,
+    per_node.weighted_total
 FROM per_node
 JOIN nodes ON nodes.id = per_node.node_id
-ORDER BY per_node.passing::numeric / per_node.total ASC, per_node.failing DESC, nodes.hostname ASC
+ORDER BY per_node.weighted_passing::numeric / nullif(per_node.weighted_total, 0) ASC, per_node.failing DESC, nodes.hostname ASC
 LIMIT $1
 `
 
@@ -164,12 +176,14 @@ type DashboardLeastCompliantNodesParams struct {
 }
 
 type DashboardLeastCompliantNodesRow struct {
-	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
-	Hostname    string    `db:"hostname" json:"hostname"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Passing     int64     `db:"passing" json:"passing"`
-	Failing     int64     `db:"failing" json:"failing"`
-	Total       int64     `db:"total" json:"total"`
+	Uuid            uuid.UUID `db:"uuid" json:"uuid"`
+	Hostname        string    `db:"hostname" json:"hostname"`
+	DisplayName     string    `db:"display_name" json:"display_name"`
+	Passing         int64     `db:"passing" json:"passing"`
+	Failing         int64     `db:"failing" json:"failing"`
+	Total           int64     `db:"total" json:"total"`
+	WeightedPassing int64     `db:"weighted_passing" json:"weighted_passing"`
+	WeightedTotal   int64     `db:"weighted_total" json:"weighted_total"`
 }
 
 func (q *Queries) DashboardLeastCompliantNodes(ctx context.Context, arg DashboardLeastCompliantNodesParams) ([]DashboardLeastCompliantNodesRow, error) {
@@ -188,6 +202,8 @@ func (q *Queries) DashboardLeastCompliantNodes(ctx context.Context, arg Dashboar
 			&i.Passing,
 			&i.Failing,
 			&i.Total,
+			&i.WeightedPassing,
+			&i.WeightedTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -208,7 +224,17 @@ WITH per_node AS (
         nodes.id AS node_id,
         count(*) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $2::timestamptz)::bigint AS passing,
         count(*) FILTER (WHERE policy_membership.passes = false AND policy_membership.checked_at >= $2::timestamptz)::bigint AS failing,
-        count(*)::bigint AS total
+        count(*)::bigint AS total,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $2::timestamptz), 0)::bigint AS weighted_passing,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ), 0)::bigint AS weighted_total
     FROM nodes
     JOIN policies ON policies.enabled = true
         AND (
@@ -242,10 +268,12 @@ SELECT
     nodes.display_name,
     per_node.passing,
     per_node.failing,
-    per_node.total
+    per_node.total,
+    per_node.weighted_passing,
+    per_node.weighted_total
 FROM per_node
 JOIN nodes ON nodes.id = per_node.node_id
-ORDER BY per_node.passing::numeric / per_node.total DESC, per_node.failing ASC, nodes.hostname ASC
+ORDER BY per_node.weighted_passing::numeric / nullif(per_node.weighted_total, 0) DESC, per_node.failing ASC, nodes.hostname ASC
 LIMIT $1
 `
 
@@ -255,12 +283,14 @@ type DashboardMostCompliantNodesParams struct {
 }
 
 type DashboardMostCompliantNodesRow struct {
-	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
-	Hostname    string    `db:"hostname" json:"hostname"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	Passing     int64     `db:"passing" json:"passing"`
-	Failing     int64     `db:"failing" json:"failing"`
-	Total       int64     `db:"total" json:"total"`
+	Uuid            uuid.UUID `db:"uuid" json:"uuid"`
+	Hostname        string    `db:"hostname" json:"hostname"`
+	DisplayName     string    `db:"display_name" json:"display_name"`
+	Passing         int64     `db:"passing" json:"passing"`
+	Failing         int64     `db:"failing" json:"failing"`
+	Total           int64     `db:"total" json:"total"`
+	WeightedPassing int64     `db:"weighted_passing" json:"weighted_passing"`
+	WeightedTotal   int64     `db:"weighted_total" json:"weighted_total"`
 }
 
 func (q *Queries) DashboardMostCompliantNodes(ctx context.Context, arg DashboardMostCompliantNodesParams) ([]DashboardMostCompliantNodesRow, error) {
@@ -279,6 +309,8 @@ func (q *Queries) DashboardMostCompliantNodes(ctx context.Context, arg Dashboard
 			&i.Passing,
 			&i.Failing,
 			&i.Total,
+			&i.WeightedPassing,
+			&i.WeightedTotal,
 		); err != nil {
 			return nil, err
 		}
@@ -361,20 +393,40 @@ const dashboardPolicyRowCounts = `-- name: DashboardPolicyRowCounts :one
 SELECT
     count(*) FILTER (WHERE passes = true AND checked_at >= $1::timestamptz)::bigint AS passing,
     count(*) FILTER (WHERE passes = false AND checked_at >= $1::timestamptz)::bigint AS failing,
-    count(*) FILTER (WHERE passes IS NULL OR checked_at < $1::timestamptz)::bigint AS unknown
+    count(*) FILTER (WHERE passes IS NULL OR checked_at < $1::timestamptz)::bigint AS unknown,
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ) FILTER (WHERE passes = true AND checked_at >= $1::timestamptz), 0)::bigint AS weighted_passing,
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ), 0)::bigint AS weighted_total
 FROM policy_membership
+JOIN policies ON policies.id = policy_membership.policy_id
 `
 
 type DashboardPolicyRowCountsRow struct {
-	Passing int64 `db:"passing" json:"passing"`
-	Failing int64 `db:"failing" json:"failing"`
-	Unknown int64 `db:"unknown" json:"unknown"`
+	Passing         int64 `db:"passing" json:"passing"`
+	Failing         int64 `db:"failing" json:"failing"`
+	Unknown         int64 `db:"unknown" json:"unknown"`
+	WeightedPassing int64 `db:"weighted_passing" json:"weighted_passing"`
+	WeightedTotal   int64 `db:"weighted_total" json:"weighted_total"`
 }
 
+// Fibonacci severity weights
 func (q *Queries) DashboardPolicyRowCounts(ctx context.Context, staleCutoff time.Time) (DashboardPolicyRowCountsRow, error) {
 	row := q.db.QueryRowContext(ctx, dashboardPolicyRowCounts, staleCutoff)
 	var i DashboardPolicyRowCountsRow
-	err := row.Scan(&i.Passing, &i.Failing, &i.Unknown)
+	err := row.Scan(
+		&i.Passing,
+		&i.Failing,
+		&i.Unknown,
+		&i.WeightedPassing,
+		&i.WeightedTotal,
+	)
 	return i, err
 }
 

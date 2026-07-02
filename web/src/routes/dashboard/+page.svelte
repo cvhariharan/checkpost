@@ -81,8 +81,8 @@
     'pass, fail, or unknown (not yet reported).'
 
   const scoreHelp =
-    'Compliance score = round(100 × passing checks ÷ total checks) for each machine. ' +
-    '100 means all checks pass, 0 means all fail. Machines are ranked by their passing ratio.'
+    'Compliance score = round(100 × weighted passing checks ÷ weighted total), weighted by policy severity (critical=8, high=5, medium=3, low=2, info=1). ' +
+    '100 means all checks pass, 0 means all fail. Machines are ranked by their weighted passing ratio.'
 </script>
 
 <section class="vstack gap-4">
