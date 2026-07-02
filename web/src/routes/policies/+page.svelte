@@ -4,7 +4,9 @@
   import { replaceState } from '$app/navigation'
   import { deletePolicy as apiDeletePolicy, fetchPolicies, type Policy } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
-  import { severityVariant } from '$lib/severity'
+  import { severityRank, severityVariant } from '$lib/severity'
+  import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
+  import SortableHeader from '$lib/components/SortableHeader.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import SearchInput from '$lib/components/SearchInput.svelte'
@@ -54,6 +56,33 @@
   const canCreatePolicy = $derived(canFrom($me, 'policy', 'create'))
   const canUpdatePolicy = $derived(canFrom($me, 'policy', 'update'))
   const canDeletePolicy = $derived(canFrom($me, 'policy', 'delete'))
+
+  type PolicySortCol =
+    | 'name'
+    | 'platform'
+    | 'severity'
+    | 'targets'
+    | 'status'
+    | 'passing'
+    | 'failing'
+    | 'unknown'
+    | 'updated'
+  const policyAccessors: SortAccessors<Policy, PolicySortCol> = {
+    name: (p) => p.name || p.title,
+    platform: (p) => p.platform,
+    severity: (p) => severityRank[p.severity || 'medium'] ?? 99,
+    targets: (p) => targetLabel(p),
+    status: (p) => (p.enabled ? 1 : 0),
+    passing: (p) => p.passing_count || 0,
+    failing: (p) => p.failing_count || 0,
+    unknown: (p) => p.unknown_count || 0,
+    updated: (p) => p.last_count_updated_at
+  }
+  // Sorts only the current page of results (server-side pagination is unchanged).
+  let policySort = $state<SortState<PolicySortCol>>(null)
+  const sortedPolicies = $derived(
+    sortRows(loadedPolicies, policySort, policyAccessors, (p) => p.name || p.title)
+  )
 
   $effect(() => {
     currentPage
@@ -156,20 +185,20 @@
       <table>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Platform</th>
-            <th>Severity</th>
-            <th>Targets</th>
-            <th>Status</th>
-            <th class="align-right">Passing</th>
-            <th class="align-right">Failing</th>
-            <th class="align-right">Unknown</th>
-            <th>Updated</th>
+            <SortableHeader bind:state={policySort} col="name" label="Name" />
+            <SortableHeader bind:state={policySort} col="platform" label="Platform" />
+            <SortableHeader bind:state={policySort} col="severity" label="Severity" />
+            <SortableHeader bind:state={policySort} col="targets" label="Targets" />
+            <SortableHeader bind:state={policySort} col="status" label="Status" />
+            <SortableHeader bind:state={policySort} col="passing" label="Passing" align="right" />
+            <SortableHeader bind:state={policySort} col="failing" label="Failing" align="right" />
+            <SortableHeader bind:state={policySort} col="unknown" label="Unknown" align="right" />
+            <SortableHeader bind:state={policySort} col="updated" label="Updated" />
             <th class="align-right"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
-          {#each loadedPolicies as policy}
+          {#each sortedPolicies as policy}
             <tr>
               <td>
                 <button type="button" class="cell-link" onclick={() => openMachinesModal(policy)}>
