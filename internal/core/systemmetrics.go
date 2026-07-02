@@ -179,10 +179,12 @@ func (CPUExtractor) Extract(rows []results.Row) (any, bool) {
 }
 
 type OSInfoValue struct {
-	Name     string `json:"name"               jsonschema:"title=Name"    jsonschema_extras:"x-primary=true"`
-	Version  string `json:"version"            jsonschema:"title=Version"`
-	Build    string `json:"build,omitempty"    jsonschema:"title=Build"`
-	Platform string `json:"platform,omitempty" jsonschema:"title=Platform"`
+	Name           string `json:"name"                      jsonschema:"title=Name"    jsonschema_extras:"x-primary=true"`
+	Version        string `json:"version"                   jsonschema:"title=Version"`
+	Build          string `json:"build,omitempty"           jsonschema:"title=Build"`
+	Platform       string `json:"platform,omitempty"        jsonschema:"title=Platform"`
+	OSQueryVersion string `json:"osquery_version,omitempty" jsonschema:"title=osquery Version"`
+	HardwareSerial string `json:"hardware_serial,omitempty" jsonschema:"title=Hardware Serial"`
 }
 
 type OSInfoExtractor struct{}
@@ -200,10 +202,12 @@ func (OSInfoExtractor) Extract(rows []results.Row) (any, bool) {
 			continue
 		}
 		return OSInfoValue{
-			Name:     name,
-			Version:  version,
-			Build:    row.Columns["build"],
-			Platform: row.Columns["platform"],
+			Name:           name,
+			Version:        version,
+			Build:          row.Columns["build"],
+			Platform:       row.Columns["platform"],
+			OSQueryVersion: strings.TrimSpace(row.Columns["osquery_version"]),
+			HardwareSerial: strings.TrimSpace(row.Columns["hardware_serial"]),
 		}, true
 	}
 	return nil, false

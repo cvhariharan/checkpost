@@ -297,6 +297,23 @@ func (c *Core) applySystemMetric(ctx context.Context, nodeID int64, scheduleName
 	}); err != nil {
 		c.logger.Warn("upsert node metric", "node_id", nodeID, "kind", snap.Kind, "error", err)
 	}
+
+	// The os_info snapshot carries the host attributes
+	// Write them through to the nodes columns
+	if snap.Kind == KindOSInfo {
+		if os, ok := snap.Value.(OSInfoValue); ok {
+			if err := c.store.UpdateNodeSystemInfo(ctx, repo.UpdateNodeSystemInfoParams{
+				NodeID:         nodeID,
+				Platform:       os.Platform,
+				OsName:         os.Name,
+				OsVersion:      os.Version,
+				OsqueryVersion: os.OSQueryVersion,
+				HardwareSerial: os.HardwareSerial,
+			}); err != nil {
+				c.logger.Warn("update node system info", "node_id", nodeID, "error", err)
+			}
+		}
+	}
 }
 
 // parseResultLog decodes one raw result-log map into a resultLog, splitting the versioned name into schedule name + sql version and extracting either the differential `columns` or the `snapshot` rows. Returns false if the name is missing or unversioned.

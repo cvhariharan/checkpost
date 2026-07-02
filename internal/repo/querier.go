@@ -192,6 +192,7 @@ type Querier interface {
 	UpdateGroupByUUID(ctx context.Context, arg UpdateGroupByUUIDParams) (Group, error)
 	UpdateNodeDisplayNameByUUID(ctx context.Context, arg UpdateNodeDisplayNameByUUIDParams) (Node, error)
 	UpdateNodeLastPolicyCheckAt(ctx context.Context, id int64) error
+	UpdateNodeSystemInfo(ctx context.Context, arg UpdateNodeSystemInfoParams) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)

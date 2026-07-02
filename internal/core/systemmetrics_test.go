@@ -231,12 +231,12 @@ func TestOSInfoExtractor(t *testing.T) {
 		t.Fatalf("kind: got %q, want %q", e.Kind(), KindOSInfo)
 	}
 
-	rows := []results.Row{row(map[string]string{"name": "macOS", "version": "14.5", "build": "23F79", "platform": "darwin"})}
+	rows := []results.Row{row(map[string]string{"name": "macOS", "version": "14.5", "build": "23F79", "platform": "darwin", "osquery_version": "5.12.1", "hardware_serial": "C02ABC123"})}
 	got, ok := e.Extract(rows)
 	if !ok {
 		t.Fatalf("expected ok=true")
 	}
-	want := OSInfoValue{Name: "macOS", Version: "14.5", Build: "23F79", Platform: "darwin"}
+	want := OSInfoValue{Name: "macOS", Version: "14.5", Build: "23F79", Platform: "darwin", OSQueryVersion: "5.12.1", HardwareSerial: "C02ABC123"}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}

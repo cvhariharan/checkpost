@@ -57,6 +57,16 @@ LIMIT @max_count::int;
 -- name: TouchNode :exec
 UPDATE nodes SET last_seen_at = now(), updated_at = now() WHERE node_key = $1;
 
+-- name: UpdateNodeSystemInfo :exec
+UPDATE nodes SET
+    platform        = COALESCE(NULLIF(@platform::text, ''), platform),
+    os_name         = COALESCE(NULLIF(@os_name::text, ''), os_name),
+    os_version      = COALESCE(NULLIF(@os_version::text, ''), os_version),
+    osquery_version = COALESCE(NULLIF(@osquery_version::text, ''), osquery_version),
+    hardware_serial = COALESCE(NULLIF(@hardware_serial::text, ''), hardware_serial),
+    updated_at      = now()
+WHERE id = @node_id;
+
 -- name: ListNodes :many
 WITH filtered AS (
     SELECT

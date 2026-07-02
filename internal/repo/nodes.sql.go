@@ -437,3 +437,35 @@ func (q *Queries) UpdateNodeDisplayNameByUUID(ctx context.Context, arg UpdateNod
 	)
 	return i, err
 }
+
+const updateNodeSystemInfo = `-- name: UpdateNodeSystemInfo :exec
+UPDATE nodes SET
+    platform        = COALESCE(NULLIF($1::text, ''), platform),
+    os_name         = COALESCE(NULLIF($2::text, ''), os_name),
+    os_version      = COALESCE(NULLIF($3::text, ''), os_version),
+    osquery_version = COALESCE(NULLIF($4::text, ''), osquery_version),
+    hardware_serial = COALESCE(NULLIF($5::text, ''), hardware_serial),
+    updated_at      = now()
+WHERE id = $6
+`
+
+type UpdateNodeSystemInfoParams struct {
+	Platform       string `db:"platform" json:"platform"`
+	OsName         string `db:"os_name" json:"os_name"`
+	OsVersion      string `db:"os_version" json:"os_version"`
+	OsqueryVersion string `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial string `db:"hardware_serial" json:"hardware_serial"`
+	NodeID         int64  `db:"node_id" json:"node_id"`
+}
+
+func (q *Queries) UpdateNodeSystemInfo(ctx context.Context, arg UpdateNodeSystemInfoParams) error {
+	_, err := q.db.ExecContext(ctx, updateNodeSystemInfo,
+		arg.Platform,
+		arg.OsName,
+		arg.OsVersion,
+		arg.OsqueryVersion,
+		arg.HardwareSerial,
+		arg.NodeID,
+	)
+	return err
+}
