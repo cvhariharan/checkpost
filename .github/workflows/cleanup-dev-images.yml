@@ -39,17 +39,39 @@ jobs:
           # Dev builds are tagged dev-<short-sha> (see dev-build.yml). The
           # floating "dev", per-arch "dev-amd64"/"dev-arm64", and all release
           # tags (v*, latest) share this package and must NOT be touched.
+          #
+          # dev-<sha> and "dev" are multi-arch INDEXES: each references
+          # per-arch image manifests (plus attestation/SBOM manifests) that
+          # live as their own, mostly UNTAGGED, package versions. Deleting the
+          # index alone leaves those children — and their layers — behind, so
+          # we walk every manifest and clean up orphaned children too.
           DEV_TAG_RE='^dev-[0-9a-f]{7,}$'
 
           echo "owner=$OWNER package=$PACKAGE keep=$KEEP dry_run=$DRY_RUN"
 
-          # Collect every version (across pages) as newline-delimited JSON.
+          # A registry pull token lets us read manifests to discover children.
+          REG_TOKEN=$(curl -fsSL -u "${OWNER}:${GH_TOKEN}" \
+            "https://ghcr.io/token?scope=repository:${OWNER}/${PACKAGE}:pull" \
+            | jq -r '.token')
+
+          # Emit child manifest digests for an index (nothing for a plain image
+          # or an unreadable/already-gone manifest — never aborts the run).
+          children() {
+            local body
+            body=$(curl -fsSL -H "Authorization: Bearer ${REG_TOKEN}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+              "https://ghcr.io/v2/${OWNER}/${PACKAGE}/manifests/$1" 2>/dev/null) || return 0
+            printf '%s' "$body" | jq -r '.manifests[]?.digest // empty' 2>/dev/null || true
+          }
+
+          # Every version with id, digest (.name), created_at and tags.
           gh api --paginate \
             "/users/${OWNER}/packages/container/${PACKAGE}/versions?per_page=100" \
-            --jq '.[] | {id, created_at, tags: (.metadata.container.tags // [])}' \
+            --jq '.[] | {id, digest: .name, created_at, tags: (.metadata.container.tags // [])}' \
             > versions.ndjson
 
-          # Keep only versions carrying a dev-<sha> tag, newest first.
+          # dev-<sha> indexes, newest first.
           jq -s --arg re "$DEV_TAG_RE" '
             map(select(.tags | any(test($re))))
             | sort_by(.created_at) | reverse
@@ -58,18 +80,56 @@ jobs:
           total=$(jq 'length' dev_versions.json)
           echo "Found $total dev image version(s)."
 
-          # Everything past the newest $KEEP is deleted.
-          jq -r --argjson keep "$KEEP" \
-            '.[$keep:][] | "\(.id)\t\(.tags | join(","))"' dev_versions.json > to_delete.tsv
+          # Indexes to delete = past the newest $KEEP; the rest are kept.
+          jq -r --argjson keep "$KEEP" '.[$keep:][] | .digest' dev_versions.json > delete_indexes.txt
+          jq -r --argjson keep "$KEEP" '.[:$keep][] | .digest' dev_versions.json > keep_indexes.txt
+
+          # Protect children of everything we keep: the newest $KEEP dev indexes
+          # plus every other tagged version (dev, latest, v*, ...). Walk each and
+          # collect referenced child digests into the protected set.
+          jq -r 'select((.tags | length) > 0) | .digest' versions.ndjson > tagged_kept.txt
+          cat keep_indexes.txt tagged_kept.txt | sort -u > protected_parents.txt
+
+          : > protected_children.txt
+          while read -r d; do
+            [ -z "$d" ] && continue
+            children "$d" >> protected_children.txt
+          done < protected_parents.txt
+          sort -u protected_children.txt -o protected_children.txt
+
+          # Children of the indexes we're deleting, minus anything still protected.
+          : > orphan_children.txt
+          while read -r d; do
+            [ -z "$d" ] && continue
+            children "$d" >> orphan_children.txt
+          done < delete_indexes.txt
+          sort -u orphan_children.txt -o orphan_children.txt
+          comm -23 orphan_children.txt protected_children.txt > delete_children.txt
+
+          # Map the digests we want gone (indexes + orphaned children) back to
+          # version ids. Never touch a version that still carries a tag.
+          cat delete_indexes.txt delete_children.txt | sort -u > delete_digests.txt
+
+          jq -s --rawfile dd delete_digests.txt '
+            ($dd | split("\n") | map(select(length > 0)) | unique) as $del
+            | map(select((.digest | IN($del[])))
+                  | select((.tags | length) == 0 or (.tags | all(test("^dev-[0-9a-f]{7,}$")))))
+            | .[] | "\(.id)\t\(.digest)\t\(.tags | join(","))"
+          ' versions.ndjson > to_delete.tsv
+
           del_count=$(grep -c . to_delete.tsv || true)
+          idx_count=$(grep -c . delete_indexes.txt || true)
+          child_count=$(grep -c . delete_children.txt || true)
 
           {
             echo "### Cleanup dev images"
             echo ""
             echo "- Package: \`$OWNER/$PACKAGE\`"
-            echo "- Dev versions found: **$total**"
+            echo "- Dev index versions found: **$total**"
             echo "- Keeping newest: **$KEEP**"
-            echo "- Deleting: **$del_count**"
+            echo "- Stale indexes: **$idx_count**"
+            echo "- Orphaned child manifests: **$child_count**"
+            echo "- Total versions deleting: **$del_count**"
             echo "- Dry run: **$DRY_RUN**"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
@@ -80,16 +140,30 @@ jobs:
             exit 0
           fi
 
-          while IFS=$'\t' read -r id tags; do
+          delete_version() {
+            # $1=id  $2=kind  $3=digest  $4=tags
+            echo "Deleting $2 version $1 ($3, tags: ${4:-<none>})"
+            echo "- \`$1\` ($2) — \`$3\` tags: ${4:-<none>}" >> "$GITHUB_STEP_SUMMARY"
+            [ "$DRY_RUN" = "true" ] && return 0
+            if ! gh api --method DELETE \
+              "/users/${OWNER}/packages/container/${PACKAGE}/versions/$1"; then
+              echo "::error::Failed to delete version $1. A 403 here usually means the token lacks delete:packages for this user-owned package — set the GHCR_CLEANUP_TOKEN secret to a classic PAT with read:packages + delete:packages."
+              exit 1
+            fi
+          }
+
+          # Delete parent indexes first so an orphaned child is never briefly
+          # referenced by a live index, then the orphaned children themselves.
+          while IFS=$'\t' read -r id digest tags; do
             [ -z "$id" ] && continue
-            echo "Deleting version $id (tags: ${tags:-<none>})"
-            echo "- \`$id\` — tags: ${tags:-<none>}" >> "$GITHUB_STEP_SUMMARY"
-            if [ "$DRY_RUN" != "true" ]; then
-              if ! gh api --method DELETE \
-                "/users/${OWNER}/packages/container/${PACKAGE}/versions/${id}"; then
-                echo "::error::Failed to delete version $id. A 403 here usually means the token lacks delete:packages for this user-owned package — set the GHCR_CLEANUP_TOKEN secret to a classic PAT with read:packages + delete:packages."
-                exit 1
-              fi
+            if grep -F -x -q "$digest" delete_indexes.txt; then
+              delete_version "$id" index "$digest" "$tags"
+            fi
+          done < to_delete.tsv
+          while IFS=$'\t' read -r id digest tags; do
+            [ -z "$id" ] && continue
+            if ! grep -F -x -q "$digest" delete_indexes.txt; then
+              delete_version "$id" child "$digest" "$tags"
             fi
           done < to_delete.tsv
 
