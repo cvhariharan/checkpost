@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/alerts"
+	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/google/uuid"
 	"github.com/invopop/jsonschema"
 )
 
@@ -17,6 +19,15 @@ var sourceSchemaReflector = &jsonschema.Reflector{ExpandedStruct: true, DoNotRef
 func RegisterAlertSources(store repo.Store, staleAfter time.Duration) {
 	alerts.RegisterSource(policyFailureSource{store: store, staleAfter: staleAfter})
 	alerts.RegisterSource(machineOfflineSource{store: store})
+}
+
+func validateSeverities(severities []string) error {
+	for _, s := range severities {
+		if !models.IsValidPolicySeverity(s) {
+			return fmt.Errorf("invalid severity %q", s)
+		}
+	}
+	return nil
 }
 
 func enrichWithOwner(ctx context.Context, store repo.Store, nodeID int64, labels map[string]string) {
@@ -35,7 +46,11 @@ func enrichWithOwner(ctx context.Context, store repo.Store, nodeID int64, labels
 	}
 }
 
-type policyFailureParams struct{}
+type policyFailureParams struct {
+	Policies   []uuid.UUID `json:"policies,omitempty" jsonschema:"title=Policies,description=Empty = all enabled policies" jsonschema_extras:"x-widget=resource-select,x-resource=policies"`
+	Groups     []uuid.UUID `json:"groups,omitempty" jsonschema:"title=Machine groups,description=Empty = all groups" jsonschema_extras:"x-widget=resource-select,x-resource=groups"`
+	Severities []string    `json:"severities,omitempty" jsonschema:"title=Policy severities,description=Empty = all severities,enum=critical,enum=high,enum=medium,enum=low,enum=info" jsonschema_extras:"x-widget=multiselect"`
+}
 
 type policyFailureSource struct {
 	store      repo.Store
@@ -46,10 +61,28 @@ func (policyFailureSource) Type() string { return "policy_failure" }
 
 func (policyFailureSource) Schema() any { return sourceSchemaReflector.Reflect(policyFailureParams{}) }
 
-func (policyFailureSource) ValidateParams(raw json.RawMessage) error { return nil }
+func (policyFailureSource) ValidateParams(raw json.RawMessage) error {
+	if len(raw) == 0 {
+		return nil
+	}
+	var p policyFailureParams
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return err
+	}
+	return validateSeverities(p.Severities)
+}
 
 func (s policyFailureSource) Evaluate(ctx context.Context, raw json.RawMessage) ([]alerts.Alert, error) {
+	var p policyFailureParams
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return nil, err
+		}
+	}
 	rows, err := s.store.ListFailingPolicyNodes(ctx, repo.ListFailingPolicyNodesParams{
+		Policies:   p.Policies,
+		Groups:     p.Groups,
+		Severities: p.Severities,
 		StaleAfter: postgresInterval(s.staleAfter),
 	})
 	if err != nil {
@@ -59,11 +92,12 @@ func (s policyFailureSource) Evaluate(ctx context.Context, raw json.RawMessage) 
 	out := make([]alerts.Alert, 0, len(rows))
 	for _, r := range rows {
 		labels := map[string]string{
-			"host":     r.NodeUuid.String(),
-			"hostname": r.Hostname,
-			"policy":   r.PolicyName,
-			"platform": r.Platform,
-			"groups":   r.Groups,
+			"host":            r.NodeUuid.String(),
+			"hostname":        r.Hostname,
+			"policy":          r.PolicyName,
+			"policy_severity": r.Severity,
+			"platform":        r.Platform,
+			"groups":          r.Groups,
 		}
 		enrichWithOwner(ctx, s.store, r.NodeID, labels)
 		out = append(out, alerts.Alert{
@@ -79,7 +113,8 @@ func (s policyFailureSource) Evaluate(ctx context.Context, raw json.RawMessage) 
 }
 
 type machineOfflineParams struct {
-	Threshold string `json:"threshold,omitempty" jsonschema:"title=Threshold,description=Default 24h"`
+	Threshold string      `json:"threshold,omitempty" jsonschema:"title=Threshold,description=Default 24h"`
+	Groups    []uuid.UUID `json:"groups,omitempty" jsonschema:"title=Machine groups,description=Empty = all groups" jsonschema_extras:"x-widget=resource-select,x-resource=groups"`
 }
 
 func (p machineOfflineParams) thresholdDuration() (time.Duration, error) {
@@ -125,6 +160,7 @@ func (s machineOfflineSource) Evaluate(ctx context.Context, raw json.RawMessage)
 	}
 	rows, err := s.store.ListOfflineNodes(ctx, repo.ListOfflineNodesParams{
 		Threshold: postgresInterval(d),
+		Groups:    p.Groups,
 	})
 	if err != nil {
 		return nil, err

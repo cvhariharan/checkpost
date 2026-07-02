@@ -274,6 +274,7 @@ type Policy struct {
 	Description        string     `json:"description"`
 	Resolution         string     `json:"resolution"`
 	Platform           string     `json:"platform"`
+	Severity           string     `json:"severity"`
 	Enabled            bool       `json:"enabled"`
 	IsSystem           bool       `json:"is_system"`
 	Groups             []Group    `json:"groups,omitempty"`
@@ -292,6 +293,7 @@ type CreatePolicy struct {
 	Description string
 	Resolution  string
 	Platform    string
+	Severity    string
 	Enabled     bool
 	IsSystem    bool
 	GroupIDs    []string
@@ -304,6 +306,7 @@ type UpdatePolicy struct {
 	Description string
 	Resolution  string
 	Platform    string
+	Severity    string
 	Enabled     bool
 	GroupIDs    []string
 }

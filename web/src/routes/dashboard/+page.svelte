@@ -3,6 +3,7 @@
   import { fetchDashboardOverview, type DashboardOverview } from '$lib/api'
   import { canFrom, me } from '$lib/auth'
   import { formatTimestamp } from '$lib/util'
+  import { severityVariant } from '$lib/severity'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
   import RefreshCw from '@lucide/svelte/icons/refresh-cw'
@@ -14,14 +15,6 @@
   let now = $state(Date.now())
 
   const hasAccess = $derived(canFrom($me, 'dashboard', 'view'))
-
-  const severityVariant: Record<string, string> = {
-    critical: 'danger',
-    high: 'danger',
-    medium: 'warning',
-    low: 'info',
-    info: 'info'
-  }
 
   const updatedAgo = $derived.by(() => {
     if (!data?.generated_at) return ''

@@ -1,5 +1,5 @@
 {{.Title}} — {{.Kind}} ({{.Severity}})
 
-Host | Summary | Resolution
-{{range .Items}}{{.Host}} | {{.Summary}} | {{if .Resolution}}{{.Resolution}}{{else}}-{{end}}
+Host | Severity | Summary | Resolution
+{{range .Items}}{{.Host}} | {{if .Severity}}{{.Severity}}{{else}}-{{end}} | {{.Summary}} | {{if .Resolution}}{{.Resolution}}{{else}}-{{end}}
 {{end}}

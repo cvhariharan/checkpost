@@ -12,6 +12,7 @@
         type AlertTarget,
     } from "$lib/api";
     import { formatTimestamp } from "$lib/util";
+    import { severityVariant } from "$lib/severity";
     import ErrorMessage from "$lib/components/ErrorMessage.svelte";
     import Pagination from "$lib/components/Pagination.svelte";
     import Spinner from "$lib/components/Spinner.svelte";
@@ -73,14 +74,6 @@
     const canUpdateTarget = $derived(canFrom($me, "alert_target", "update"));
     const canDeleteTarget = $derived(canFrom($me, "alert_target", "delete"));
     const canTestTarget = $derived(canFrom($me, "alert_target", "execute"));
-
-    const severityVariant: Record<string, string> = {
-        critical: "danger",
-        high: "danger",
-        medium: "warning",
-        low: "info",
-        info: "info",
-    };
 
     onMount(() => {
         void loadRules();

@@ -25,6 +25,7 @@ func (h *Handler) HandleCreatePolicy(c echo.Context) error {
 		Description: req.Description,
 		Resolution:  req.Resolution,
 		Platform:    req.Platform,
+		Severity:    req.Severity,
 		Enabled:     enabled,
 		GroupIDs:    req.GroupIDs,
 	})
@@ -91,6 +92,7 @@ func (h *Handler) HandleUpdatePolicy(c echo.Context) error {
 		Description: req.Description,
 		Resolution:  req.Resolution,
 		Platform:    req.Platform,
+		Severity:    req.Severity,
 		Enabled:     enabled,
 		GroupIDs:    req.GroupIDs,
 	})

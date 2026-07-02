@@ -4,6 +4,7 @@
   import { replaceState } from '$app/navigation'
   import { deletePolicy as apiDeletePolicy, fetchPolicies, type Policy } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
+  import { severityVariant } from '$lib/severity'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import SearchInput from '$lib/components/SearchInput.svelte'
@@ -157,6 +158,7 @@
           <tr>
             <th>Name</th>
             <th>Platform</th>
+            <th>Severity</th>
             <th>Targets</th>
             <th>Status</th>
             <th class="align-right">Passing</th>
@@ -179,6 +181,11 @@
                 {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
               </td>
               <td><span class="badge outline">{policy.platform}</span></td>
+              <td>
+                <span class="badge" data-variant={severityVariant[policy.severity || 'medium']}>
+                  {policy.severity || 'medium'}
+                </span>
+              </td>
               <td>{targetLabel(policy)}</td>
               <td>
                 <span class="badge" data-variant={policy.enabled ? 'success' : 'warning'}>
@@ -205,7 +212,7 @@
             </tr>
           {:else}
             <tr>
-              <td colspan="9" class="align-center text-light">No policies found</td>
+              <td colspan="10" class="align-center text-light">No policies found</td>
             </tr>
           {/each}
         </tbody>

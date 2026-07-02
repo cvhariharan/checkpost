@@ -431,6 +431,7 @@ type policyDoc struct {
 	Description string   `yaml:"description"`
 	Query       string   `yaml:"query" validate:"required"`
 	Platform    string   `yaml:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Severity    string   `yaml:"severity" validate:"omitempty,oneof=critical high medium low info"`
 	Resolution  string   `yaml:"resolution"`
 	Enabled     *bool    `yaml:"enabled"`
 	Groups      []string `yaml:"groups"`
@@ -659,6 +660,7 @@ type policyPayload struct {
 	Description string   `json:"description"`
 	Resolution  string   `json:"resolution"`
 	Platform    string   `json:"platform,omitempty"`
+	Severity    string   `json:"severity,omitempty"`
 	Enabled     *bool    `json:"enabled,omitempty"`
 	GroupIDs    []string `json:"group_ids,omitempty"`
 }
@@ -678,6 +680,7 @@ func (rc *reconciler) applyPolicy(p *policyDoc) (string, error) {
 		Description: p.Description,
 		Resolution:  p.Resolution,
 		Platform:    p.Platform,
+		Severity:    p.Severity,
 		Enabled:     p.Enabled,
 		GroupIDs:    groupIDs,
 	}

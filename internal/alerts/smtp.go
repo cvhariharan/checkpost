@@ -27,6 +27,7 @@ type emailData struct {
 
 type emailItem struct {
 	Host       string
+	Severity   string
 	Summary    string
 	Resolution string
 }
@@ -274,6 +275,7 @@ func buildEmailData(kind EventKind, rule Rule, alerts []Alert) emailData {
 	for _, a := range alerts {
 		d.Items = append(d.Items, emailItem{
 			Host:       alertHost(a),
+			Severity:   a.Labels["policy_severity"],
 			Summary:    a.Annotations["summary"],
 			Resolution: a.Annotations["resolution"],
 		})

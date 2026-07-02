@@ -100,6 +100,7 @@ SELECT
     p.uuid AS policy_uuid,
     p.name AS policy_name,
     p.resolution AS resolution,
+    p.severity AS severity,
     n.id AS node_id,
     n.uuid AS node_uuid,
     COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
@@ -137,6 +138,7 @@ WHERE pm.passes = false
     )
   )
   AND (coalesce(cardinality(@platforms::text[]), 0) = 0 OR n.platform = ANY(@platforms::text[]))
+  AND (coalesce(cardinality(@severities::text[]), 0) = 0 OR p.severity = ANY(@severities::text[]))
   AND (
     coalesce(cardinality(@groups::uuid[]), 0) = 0
     OR EXISTS (

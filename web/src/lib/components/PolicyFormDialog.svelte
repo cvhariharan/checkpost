@@ -4,6 +4,7 @@
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
   import SelectDropdown from './SelectDropdown.svelte'
   import SqlEditor from './SqlEditor.svelte'
+  import { severityOptions } from '$lib/severity'
 
   let {
     open = false,
@@ -34,6 +35,7 @@
   let description = $state('')
   let resolution = $state('')
   let platform = $state('all')
+  let severity = $state('medium')
   let enabled = $state(true)
   let groupIds = $state<string[]>([])
   let availableGroups = $state<Group[]>([])
@@ -63,6 +65,7 @@
     description = record?.description || ''
     resolution = record?.resolution || ''
     platform = record?.platform || 'all'
+    severity = record?.severity || 'medium'
     enabled = record?.enabled ?? true
     groupIds = (record?.groups || []).map((g) => g.uuid)
     error = ''
@@ -92,7 +95,7 @@
       return
     }
     try {
-      const payload = { title, query, description, resolution, platform, enabled, group_ids: groupIds }
+      const payload = { title, query, description, resolution, platform, severity, enabled, group_ids: groupIds }
       if (policy?.uuid) await updatePolicy(policy.uuid, payload)
       else await createPolicy(payload)
       onSaved()
@@ -143,8 +146,13 @@
         <textarea bind:value={resolution} rows="3" placeholder="How to resolve failing machines"></textarea>
       </label>
 
-      <div data-field>
-        <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} />
+      <div class="row">
+        <div data-field class="col-6">
+          <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} />
+        </div>
+        <div data-field class="col-6">
+          <SelectDropdown label="Severity" options={severityOptions} bind:value={severity} />
+        </div>
       </div>
 
       <div data-field class="vstack gap-2">

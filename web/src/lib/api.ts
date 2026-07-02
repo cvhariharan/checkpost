@@ -42,6 +42,7 @@ export type Policy = {
   query?: string
   resolution?: string
   platform?: string
+  severity?: string
   enabled?: boolean
   groups?: Group[]
   target_all_machines?: boolean
@@ -457,6 +458,10 @@ export function fetchPolicies(opts: PageOpts & { query?: string } = {}) {
   )
 }
 
+export function fetchPolicy(uuid: string) {
+  return fetch(apiUrl(`/policies/${encodeURIComponent(uuid)}`)).then((r) => handleResponse<Policy>(r))
+}
+
 export function createPolicy(payload: Record<string, unknown>) {
   return jsonRequest<Policy>('/policies', 'POST', payload)
 }
@@ -487,6 +492,10 @@ export function fetchGroups(opts: PageOpts & { query?: string } = {}) {
   return fetch(apiUrl('/groups', { page, count_per_page: countPerPage, q: query })).then((r) =>
     handleResponse<Paginated<Group, 'groups'>>(r)
   )
+}
+
+export function fetchGroup(uuid: string) {
+  return fetch(apiUrl(`/groups/${encodeURIComponent(uuid)}`)).then((r) => handleResponse<Group>(r))
 }
 
 export function createGroup(payload: Record<string, unknown>) {

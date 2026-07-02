@@ -4,6 +4,7 @@
   <thead>
     <tr style="background:#f5f5f5">
       <th align="left" style="border:1px solid #ddd">Host</th>
+      <th align="left" style="border:1px solid #ddd">Severity</th>
       <th align="left" style="border:1px solid #ddd">Summary</th>
       <th align="left" style="border:1px solid #ddd">Resolution</th>
     </tr>
@@ -12,6 +13,7 @@
   {{- range .Items}}
     <tr>
       <td style="border:1px solid #ddd">{{.Host}}</td>
+      <td style="border:1px solid #ddd">{{if .Severity}}{{.Severity}}{{else}}—{{end}}</td>
       <td style="border:1px solid #ddd">{{.Summary}}</td>
       <td style="border:1px solid #ddd">{{if .Resolution}}{{.Resolution}}{{else}}—{{end}}</td>
     </tr>

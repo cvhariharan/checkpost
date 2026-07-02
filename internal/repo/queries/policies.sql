@@ -6,9 +6,10 @@ INSERT INTO policies (
     resolution,
     platform,
     enabled,
-    is_system
+    is_system,
+    severity
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7, $8
 )
 RETURNING *;
 
@@ -49,7 +50,7 @@ ORDER BY name;
 
 -- name: ListPoliciesWithCounts :many
 WITH filtered AS (
-    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, severity, created_at, updated_at
     FROM policies
     WHERE (
         @query::text = ''
@@ -130,6 +131,7 @@ SELECT
     page.platform,
     page.enabled,
     page.is_system,
+    page.severity,
     page.created_at,
     page.updated_at,
     COALESCE(counts.passing_count, 0)::bigint AS passing_count,
@@ -158,6 +160,7 @@ UPDATE policies SET
     resolution = $5,
     platform = $6,
     enabled = $7,
+    severity = $8,
     updated_at = now()
 WHERE uuid = $1 AND is_system = false
 RETURNING *;

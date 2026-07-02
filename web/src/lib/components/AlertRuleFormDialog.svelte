@@ -10,10 +10,13 @@
   } from '$lib/api'
   import ErrorMessage from './ErrorMessage.svelte'
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
+  import ResourceSelect from './ResourceSelect.svelte'
   import SelectDropdown from './SelectDropdown.svelte'
   import TextListInput from './TextListInput.svelte'
 
-  const LIST_WIDGETS = ['text-list', 'multiselect']
+  // Widgets whose params round-trip as a string[] (stored in listValues).
+  // resource-select is multi (array) in every current alert source schema.
+  const LIST_WIDGETS = ['text-list', 'multiselect', 'resource-select']
 
   let {
     open = false,
@@ -34,6 +37,7 @@
     title: string
     description: string
     widget: string
+    resource: string
     placeholder: string
     options: string[]
   }
@@ -119,6 +123,7 @@
         title: (def.title as string) || key,
         description: (def.description as string) || '',
         widget: (def['x-widget'] as string) || '',
+        resource: (def['x-resource'] as string) || '',
         placeholder: (def['x-placeholder'] as string) || '',
         options: Array.isArray(items?.enum) ? (items!.enum as string[]) : []
       }
@@ -233,7 +238,19 @@
       {/if}
 
       {#each fields as field (field.name)}
-        {#if field.widget === 'multiselect'}
+        {#if field.widget === 'resource-select'}
+          <div class="vstack gap-1">
+            <ResourceSelect
+              resource={(field.resource as 'policies' | 'groups') || 'policies'}
+              multiple
+              label={field.title}
+              bind:value={listValues[field.name]}
+              placeholder={`Select ${field.title.toLowerCase()}`}
+              searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
+            />
+            {#if field.description}<small class="text-light">{field.description}</small>{/if}
+          </div>
+        {:else if field.widget === 'multiselect'}
           <div class="vstack gap-1">
             <MultiSelectDropdown
               label={field.title}

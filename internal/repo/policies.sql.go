@@ -21,11 +21,12 @@ INSERT INTO policies (
     resolution,
     platform,
     enabled,
-    is_system
+    is_system,
+    severity
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7, $8
 )
-RETURNING id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+RETURNING id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity
 `
 
 type CreatePolicyParams struct {
@@ -36,6 +37,7 @@ type CreatePolicyParams struct {
 	Platform    string `db:"platform" json:"platform"`
 	Enabled     bool   `db:"enabled" json:"enabled"`
 	IsSystem    bool   `db:"is_system" json:"is_system"`
+	Severity    string `db:"severity" json:"severity"`
 }
 
 func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Policy, error) {
@@ -47,6 +49,7 @@ func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Pol
 		arg.Platform,
 		arg.Enabled,
 		arg.IsSystem,
+		arg.Severity,
 	)
 	var i Policy
 	err := row.Scan(
@@ -61,6 +64,7 @@ func (q *Queries) CreatePolicy(ctx context.Context, arg CreatePolicyParams) (Pol
 		&i.IsSystem,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Severity,
 	)
 	return i, err
 }
@@ -78,7 +82,7 @@ func (q *Queries) DeletePolicyByUUID(ctx context.Context, argUuid uuid.UUID) (in
 }
 
 const getPolicyByID = `-- name: GetPolicyByID :one
-SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE id = $1
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity FROM policies WHERE id = $1
 `
 
 func (q *Queries) GetPolicyByID(ctx context.Context, id int64) (Policy, error) {
@@ -96,12 +100,13 @@ func (q *Queries) GetPolicyByID(ctx context.Context, id int64) (Policy, error) {
 		&i.IsSystem,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Severity,
 	)
 	return i, err
 }
 
 const getPolicyByName = `-- name: GetPolicyByName :one
-SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE name = $1
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity FROM policies WHERE name = $1
 `
 
 func (q *Queries) GetPolicyByName(ctx context.Context, name string) (Policy, error) {
@@ -119,12 +124,13 @@ func (q *Queries) GetPolicyByName(ctx context.Context, name string) (Policy, err
 		&i.IsSystem,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Severity,
 	)
 	return i, err
 }
 
 const getPolicyByUUID = `-- name: GetPolicyByUUID :one
-SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at FROM policies WHERE uuid = $1
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity FROM policies WHERE uuid = $1
 `
 
 func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error) {
@@ -142,12 +148,13 @@ func (q *Queries) GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Polic
 		&i.IsSystem,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Severity,
 	)
 	return i, err
 }
 
 const listEnabledPoliciesForNode = `-- name: ListEnabledPoliciesForNode :many
-SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity
 FROM policies
 WHERE enabled = true
   AND (
@@ -199,6 +206,7 @@ func (q *Queries) ListEnabledPoliciesForNode(ctx context.Context, arg ListEnable
 			&i.IsSystem,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Severity,
 		); err != nil {
 			return nil, err
 		}
@@ -215,7 +223,7 @@ func (q *Queries) ListEnabledPoliciesForNode(ctx context.Context, arg ListEnable
 
 const listNodesByPolicyResponse = `-- name: ListNodesByPolicyResponse :many
 WITH target_policy AS (
-    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity
     FROM policies
     WHERE policies.uuid = $3
 ),
@@ -490,7 +498,7 @@ func (q *Queries) ListPoliciesForNode(ctx context.Context, arg ListPoliciesForNo
 
 const listPoliciesWithCounts = `-- name: ListPoliciesWithCounts :many
 WITH filtered AS (
-    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, severity, created_at, updated_at
     FROM policies
     WHERE (
         $1::text = ''
@@ -503,7 +511,7 @@ total AS (
     SELECT count(*) AS total_count FROM filtered
 ),
 page AS (
-    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+    SELECT id, uuid, name, query, description, resolution, platform, enabled, is_system, severity, created_at, updated_at
     FROM filtered
     ORDER BY created_at DESC, id DESC
     LIMIT $3 OFFSET $2
@@ -571,6 +579,7 @@ SELECT
     page.platform,
     page.enabled,
     page.is_system,
+    page.severity,
     page.created_at,
     page.updated_at,
     COALESCE(counts.passing_count, 0)::bigint AS passing_count,
@@ -609,6 +618,7 @@ type ListPoliciesWithCountsRow struct {
 	Platform           string         `db:"platform" json:"platform"`
 	Enabled            bool           `db:"enabled" json:"enabled"`
 	IsSystem           bool           `db:"is_system" json:"is_system"`
+	Severity           string         `db:"severity" json:"severity"`
 	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
 	PassingCount       int64          `db:"passing_count" json:"passing_count"`
@@ -648,6 +658,7 @@ func (q *Queries) ListPoliciesWithCounts(ctx context.Context, arg ListPoliciesWi
 			&i.Platform,
 			&i.Enabled,
 			&i.IsSystem,
+			&i.Severity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PassingCount,
@@ -692,9 +703,10 @@ UPDATE policies SET
     resolution = $5,
     platform = $6,
     enabled = $7,
+    severity = $8,
     updated_at = now()
 WHERE uuid = $1 AND is_system = false
-RETURNING id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at
+RETURNING id, uuid, name, query, description, resolution, platform, enabled, is_system, created_at, updated_at, severity
 `
 
 type UpdatePolicyByUUIDParams struct {
@@ -705,6 +717,7 @@ type UpdatePolicyByUUIDParams struct {
 	Resolution  string    `db:"resolution" json:"resolution"`
 	Platform    string    `db:"platform" json:"platform"`
 	Enabled     bool      `db:"enabled" json:"enabled"`
+	Severity    string    `db:"severity" json:"severity"`
 }
 
 func (q *Queries) UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error) {
@@ -716,6 +729,7 @@ func (q *Queries) UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUID
 		arg.Resolution,
 		arg.Platform,
 		arg.Enabled,
+		arg.Severity,
 	)
 	var i Policy
 	err := row.Scan(
@@ -730,6 +744,7 @@ func (q *Queries) UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUID
 		&i.IsSystem,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Severity,
 	)
 	return i, err
 }

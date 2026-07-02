@@ -188,6 +188,7 @@ type Policy struct {
 	IsSystem    bool      `db:"is_system" json:"is_system"`
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Severity    string    `db:"severity" json:"severity"`
 }
 
 type PolicyGroup struct {

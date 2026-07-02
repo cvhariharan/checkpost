@@ -489,6 +489,7 @@ SELECT
     p.uuid AS policy_uuid,
     p.name AS policy_name,
     p.resolution AS resolution,
+    p.severity AS severity,
     n.id AS node_id,
     n.uuid AS node_uuid,
     COALESCE(NULLIF(n.display_name, ''), n.hostname) AS hostname,
@@ -526,21 +527,23 @@ WHERE pm.passes = false
     )
   )
   AND (coalesce(cardinality($2::text[]), 0) = 0 OR n.platform = ANY($2::text[]))
+  AND (coalesce(cardinality($3::text[]), 0) = 0 OR p.severity = ANY($3::text[]))
   AND (
-    coalesce(cardinality($3::uuid[]), 0) = 0
+    coalesce(cardinality($4::uuid[]), 0) = 0
     OR EXISTS (
         SELECT 1 FROM group_membership gm
         JOIN groups g ON g.id = gm.group_id
-        WHERE gm.node_id = n.id AND g.uuid = ANY($3::uuid[])
+        WHERE gm.node_id = n.id AND g.uuid = ANY($4::uuid[])
     )
   )
-  AND ($4::bool OR pm.checked_at >= now() - $5::text::interval)
+  AND ($5::bool OR pm.checked_at >= now() - $6::text::interval)
 ORDER BY n.id
 `
 
 type ListFailingPolicyNodesParams struct {
 	Policies     []uuid.UUID `db:"policies" json:"policies"`
 	Platforms    []string    `db:"platforms" json:"platforms"`
+	Severities   []string    `db:"severities" json:"severities"`
 	Groups       []uuid.UUID `db:"groups" json:"groups"`
 	IncludeStale bool        `db:"include_stale" json:"include_stale"`
 	StaleAfter   string      `db:"stale_after" json:"stale_after"`
@@ -550,6 +553,7 @@ type ListFailingPolicyNodesRow struct {
 	PolicyUuid uuid.UUID `db:"policy_uuid" json:"policy_uuid"`
 	PolicyName string    `db:"policy_name" json:"policy_name"`
 	Resolution string    `db:"resolution" json:"resolution"`
+	Severity   string    `db:"severity" json:"severity"`
 	NodeID     int64     `db:"node_id" json:"node_id"`
 	NodeUuid   uuid.UUID `db:"node_uuid" json:"node_uuid"`
 	Hostname   string    `db:"hostname" json:"hostname"`
@@ -561,6 +565,7 @@ func (q *Queries) ListFailingPolicyNodes(ctx context.Context, arg ListFailingPol
 	rows, err := q.db.QueryContext(ctx, listFailingPolicyNodes,
 		pq.Array(arg.Policies),
 		pq.Array(arg.Platforms),
+		pq.Array(arg.Severities),
 		pq.Array(arg.Groups),
 		arg.IncludeStale,
 		arg.StaleAfter,
@@ -576,6 +581,7 @@ func (q *Queries) ListFailingPolicyNodes(ctx context.Context, arg ListFailingPol
 			&i.PolicyUuid,
 			&i.PolicyName,
 			&i.Resolution,
+			&i.Severity,
 			&i.NodeID,
 			&i.NodeUuid,
 			&i.Hostname,

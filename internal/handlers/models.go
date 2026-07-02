@@ -250,6 +250,7 @@ type CreatePolicyRequest struct {
 	Description string   `json:"description"`
 	Resolution  string   `json:"resolution"`
 	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Severity    string   `json:"severity" validate:"omitempty,oneof=critical high medium low info"`
 	Enabled     *bool    `json:"enabled"`
 	GroupIDs    []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
@@ -261,6 +262,7 @@ type UpdatePolicyRequest struct {
 	Description string   `json:"description"`
 	Resolution  string   `json:"resolution"`
 	Platform    string   `json:"platform" validate:"omitempty,oneof=darwin linux posix windows any all"`
+	Severity    string   `json:"severity" validate:"omitempty,oneof=critical high medium low info"`
 	Enabled     *bool    `json:"enabled"`
 	GroupIDs    []string `json:"group_ids" validate:"omitempty,dive,uuid"`
 }
