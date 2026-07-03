@@ -176,7 +176,7 @@ SELECT
     count(*)::bigint AS count
 FROM alert_state
 JOIN alert_rules ON alert_rules.id = alert_state.rule_id
-WHERE alert_state.status = 'firing'
+WHERE alert_state.status = 'firing' AND alert_rules.enabled = true
 GROUP BY alert_rules.severity;
 
 -- name: DashboardFiringAlerts :many
@@ -188,7 +188,7 @@ SELECT
     max(alert_state.last_seen_at)::timestamptz AS last_seen_at
 FROM alert_state
 JOIN alert_rules ON alert_rules.id = alert_state.rule_id
-WHERE alert_state.status = 'firing'
+WHERE alert_state.status = 'firing' AND alert_rules.enabled = true
 GROUP BY alert_rules.uuid, alert_rules.name, alert_rules.severity
 ORDER BY
     CASE alert_rules.severity

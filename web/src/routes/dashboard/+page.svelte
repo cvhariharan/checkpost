@@ -294,17 +294,23 @@
           {#if data.security.firing_alert_list.length === 0}
             <p class="text-light">No firing alerts</p>
           {:else}
-            <ul class="plain">
-              {#each data.security.firing_alert_list as a}
-                <li class="hstack justify-between gap-2">
-                  <a href="/alerts" class="hstack gap-2 items-center">
-                    <span class="badge" data-variant={severityVariant[a.severity]}>{a.severity}</span>
-                    <span>{a.name}</span>
-                  </a>
-                  <span class="text-light">{formatTimestamp(a.last_seen_at)}</span>
-                </li>
-              {/each}
-            </ul>
+            <div class="table">
+              <table>
+                <thead>
+                  <tr><th>Severity</th><th>Alert</th><th class="align-right">Count</th><th class="align-right">Last seen</th></tr>
+                </thead>
+                <tbody>
+                  {#each data.security.firing_alert_list as a}
+                    <tr>
+                      <td><span class="badge" data-variant={severityVariant[a.severity]}>{a.severity}</span></td>
+                      <td><a href="/alerts">{a.name}</a></td>
+                      <td class="align-right">{a.count}</td>
+                      <td class="align-right text-light">{formatTimestamp(a.last_seen_at)}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
           {/if}
         </article>
       </div>
