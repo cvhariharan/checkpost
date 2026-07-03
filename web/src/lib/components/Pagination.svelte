@@ -17,7 +17,29 @@
     onPageChange?: (page: number) => void
   } = $props()
 
-  const pages = $derived(Array.from({ length: Math.max(1, pageCount) }, (_, index) => index + 1))
+  // Windowed page list: always show first/last plus a range around the current
+  // page, collapsing the rest into ellipses so the control never overflows.
+  const SIBLINGS = 1
+
+  const items = $derived.by((): (number | 'ellipsis')[] => {
+    const total = Math.max(1, pageCount)
+    const current = Math.min(Math.max(1, currentPage), total)
+
+    // Small enough to show every page without truncation.
+    if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1)
+
+    const first = 1
+    const last = total
+    const start = Math.max(first + 1, current - SIBLINGS)
+    const end = Math.min(last - 1, current + SIBLINGS)
+
+    const result: (number | 'ellipsis')[] = [first]
+    if (start > first + 1) result.push('ellipsis')
+    for (let n = start; n <= end; n++) result.push(n)
+    if (end < last - 1) result.push('ellipsis')
+    result.push(last)
+    return result
+  })
 
   function hrefFor(target: number): string {
     const params = new URLSearchParams(page.url.search)
@@ -55,20 +77,26 @@
         &larr; Previous
       </a>
     </li>
-    {#each pages as n}
-      <li>
-        <a
-          href={param ? hrefFor(n) : '#pagination'}
-          class={currentPage === n ? 'button small' : 'button outline small'}
-          aria-current={currentPage === n ? 'page' : undefined}
-          aria-disabled={disabled ? 'true' : undefined}
-          tabindex={disabled ? -1 : 0}
-          data-sveltekit-noscroll
-          onclick={(e) => goToPage(e, n)}
-        >
-          {n}
-        </a>
-      </li>
+    {#each items as item}
+      {#if item === 'ellipsis'}
+        <li>
+          <span class="ellipsis" aria-hidden="true">&hellip;</span>
+        </li>
+      {:else}
+        <li>
+          <a
+            href={param ? hrefFor(item) : '#pagination'}
+            class={currentPage === item ? 'button small' : 'button outline small'}
+            aria-current={currentPage === item ? 'page' : undefined}
+            aria-disabled={disabled ? 'true' : undefined}
+            tabindex={disabled ? -1 : 0}
+            data-sveltekit-noscroll
+            onclick={(e) => goToPage(e, item)}
+          >
+            {item}
+          </a>
+        </li>
+      {/if}
     {/each}
     <li>
       <a
@@ -90,5 +118,14 @@
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
+  }
+
+  .ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    opacity: 0.6;
+    user-select: none;
   }
 </style>
