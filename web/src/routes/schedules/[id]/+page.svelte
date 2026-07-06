@@ -4,11 +4,13 @@
   import {
     fetchSchedule,
     fetchScheduleResults,
+    scheduleResultsExportUrl,
     type Schedule,
     type ScheduleResultRow
   } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
+  import DownloadResultsButton from '$lib/components/DownloadResultsButton.svelte'
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
 
@@ -22,10 +24,12 @@
   let resultsLoading = $state(false)
   let error = $state('')
   let browsingDisabled = $state(false)
+  let exportSupported = $state(false)
   let filterQuery = $state('')
   const countPerPage = 100
 
   const scheduleId = $derived(page.params.id as string)
+  const downloadHref = $derived(exportSupported && !browsingDisabled ? scheduleResultsExportUrl(scheduleId) : '')
 
   // Flatten schedule rows into the plain {column: value} shape QueryResultTable
   // expects, prepending machine + last seen so they show as the first columns.
@@ -63,6 +67,7 @@
         query: filterQuery
       })
       browsingDisabled = data.browsing_disabled || false
+      exportSupported = data.export_supported || false
       columns = data.columns || []
       rows = data.rows || []
       total = data.total || 0
@@ -97,6 +102,9 @@
         <p class="text-light">{schedule.description || ''}</p>
       </div>
       <menu class="buttons">
+        {#if downloadHref}
+          <li><DownloadResultsButton href={downloadHref} /></li>
+        {/if}
         <li><button type="button" class="small outline" disabled={resultsLoading} onclick={() => loadResults(currentPage)}>Refresh</button></li>
       </menu>
     </header>

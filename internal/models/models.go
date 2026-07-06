@@ -247,12 +247,13 @@ type ScheduleResultRow struct {
 }
 
 type ScheduleResults struct {
-	Columns      []string            `json:"columns"`
-	Rows         []ScheduleResultRow `json:"rows"`
-	Total        int                 `json:"total"`
-	Page         int                 `json:"page"`
-	CountPerPage int                 `json:"count_per_page"`
-	PageCount    int                 `json:"page_count"`
+	Columns         []string            `json:"columns"`
+	Rows            []ScheduleResultRow `json:"rows"`
+	Total           int                 `json:"total"`
+	Page            int                 `json:"page"`
+	CountPerPage    int                 `json:"count_per_page"`
+	PageCount       int                 `json:"page_count"`
+	ExportSupported bool                `json:"export_supported"`
 	// BrowsingDisabled is set when no reader backend is enabled
 	BrowsingDisabled bool `json:"browsing_disabled,omitempty"`
 }
@@ -478,6 +479,7 @@ type AdHocQueryResults struct {
 	Page             int                 `json:"page"`
 	CountPerPage     int                 `json:"count_per_page"`
 	PageCount        int                 `json:"page_count"`
+	ExportSupported  bool                `json:"export_supported"`
 	Pending          bool                `json:"pending,omitempty"`
 	BrowsingDisabled bool                `json:"browsing_disabled,omitempty"`
 	Error            string              `json:"error,omitempty"`
@@ -807,8 +809,8 @@ type LookupResult struct {
 
 // DashboardOverview is the full aggregate payload for the machine overview dashboard.
 type DashboardOverview struct {
-	GeneratedAt               time.Time           `json:"generated_at"`
-	HeartbeatThresholdSeconds int                 `json:"heartbeat_threshold_seconds"`
+	GeneratedAt               time.Time                  `json:"generated_at"`
+	HeartbeatThresholdSeconds int                        `json:"heartbeat_threshold_seconds"`
 	Machines                  DashboardMachines          `json:"machines"`
 	Compliance                DashboardCompliance        `json:"compliance"`
 	Security                  DashboardSecurity          `json:"security"`
@@ -837,11 +839,11 @@ type DashboardPlatformCount struct {
 }
 
 type DashboardCompliance struct {
-	Score              *int                        `json:"score"`
-	PolicyRows         DashboardPolicyRows         `json:"policy_rows"`
-	TopFailingPolicies []DashboardFailingPolicy    `json:"top_failing_policies"`
-	LeastCompliant     []DashboardComplianceNode   `json:"least_compliant"`
-	MostCompliant      []DashboardComplianceNode   `json:"most_compliant"`
+	Score              *int                      `json:"score"`
+	PolicyRows         DashboardPolicyRows       `json:"policy_rows"`
+	TopFailingPolicies []DashboardFailingPolicy  `json:"top_failing_policies"`
+	LeastCompliant     []DashboardComplianceNode `json:"least_compliant"`
+	MostCompliant      []DashboardComplianceNode `json:"most_compliant"`
 }
 
 type DashboardPolicyRows struct {
@@ -898,4 +900,3 @@ type DashboardYaraMatch struct {
 	Rules       string    `json:"rules"`
 	MatchedAt   time.Time `json:"matched_at"`
 }
-

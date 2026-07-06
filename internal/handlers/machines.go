@@ -232,6 +232,9 @@ func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {
 }
 
 func (h *Handler) HandleAdHocQueryResults(c echo.Context) error {
+	if c.QueryParam("format") != "" {
+		return h.HandleExportAdHocResults(c)
+	}
 	var req AdHocResultsRequest
 	if err := h.bindAndValidate(c, &req, nil); err != nil {
 		return err

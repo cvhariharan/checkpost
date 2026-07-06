@@ -1,9 +1,18 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte'
   import { page } from '$app/state'
-  import { fetchQueryRun, fetchQueryRunHostResults, type QueryRun, type AdHocQueryResults } from '$lib/api'
+  import {
+    fetchQueryRun,
+    fetchQueryRunHostResults,
+    queryRunExportUrl,
+    queryRunHostExportUrl,
+    type QueryRun,
+    type AdHocQueryResults
+  } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
+  import { canFrom, me } from '$lib/auth'
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
+  import DownloadResultsButton from '$lib/components/DownloadResultsButton.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
 
@@ -19,6 +28,7 @@
   let resultsDialog = $state<HTMLDialogElement>()
   let hostResults = $state<AdHocQueryResults | null>(null)
   let hostLoading = $state(false)
+  let runExportSupported = $state(false)
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let pollAttempts = 0
   let pollEpoch = 0
@@ -26,6 +36,19 @@
   const runId = $derived(page.params.id as string)
   // Resolve the open host from the live run so polling updates flow into the modal.
   const selectedHost = $derived(run?.hosts?.find((h) => h.query_id === selectedHostId) || null)
+  const canViewQueryResult = $derived(canFrom($me, 'query_result', 'view'))
+  const completedHostsWithRows = $derived(run?.hosts?.filter((h) => h.status === 'complete' && (h.row_count ?? 0) > 0) ?? [])
+  const runDownloadHref = $derived(canViewQueryResult && runExportSupported && completedHostsWithRows.length > 0 ? queryRunExportUrl(runId) : '')
+  const hostDownloadHref = $derived(
+    canViewQueryResult &&
+      selectedHost?.query_id &&
+      hostResults?.export_supported &&
+      !hostResults.pending &&
+      !hostResults.error &&
+      (hostResults.total ?? 0) > 0
+      ? queryRunHostExportUrl(runId, selectedHost.query_id)
+      : ''
+  )
 
   onMount(load)
   onDestroy(stopPolling)
@@ -35,6 +58,7 @@
     error = ''
     try {
       run = await fetchQueryRun(runId)
+      await loadRunExportSupport(run)
       if (hasPendingHosts(run)) startPolling()
     } catch (err) {
       error = (err as Error).message || 'Failed to load query run'
@@ -71,6 +95,7 @@
       const data = await fetchQueryRun(runId)
       if (epoch !== pollEpoch) return
       run = data
+      if (!runExportSupported) await loadRunExportSupport(run)
     } catch {
       // transient failure — keep current view and retry below
     }
@@ -101,6 +126,20 @@
       }
     } finally {
       hostLoading = false
+    }
+  }
+
+  async function loadRunExportSupport(value: QueryRun | null) {
+    const host = value?.hosts?.find((h) => h.status === 'complete' && (h.row_count ?? 0) > 0)
+    if (!host) {
+      runExportSupported = false
+      return
+    }
+    try {
+      const res = await fetchQueryRunHostResults(runId, host.query_id, { page: 1, countPerPage: 1 })
+      runExportSupported = !!res.export_supported
+    } catch {
+      runExportSupported = false
     }
   }
 
@@ -148,6 +187,13 @@
     <article class="card">
       <code class="query-text">{run.query}</code>
     </article>
+
+    <div class="hstack justify-between">
+      <h2>Hosts</h2>
+      {#if runDownloadHref}
+        <DownloadResultsButton href={runDownloadHref} label="Download all CSV" />
+      {/if}
+    </div>
 
     <div class="table">
       <table class="hosts-table">
@@ -201,6 +247,9 @@
         <span class="text-light">{selectedHost.platform || '—'}</span>
         {#if selectedHost.status === 'complete'}
           <span class="text-light">· {selectedHost.row_count ?? 0} row{selectedHost.row_count === 1 ? '' : 's'}</span>
+          {#if hostDownloadHref}
+            <DownloadResultsButton href={hostDownloadHref} />
+          {/if}
         {/if}
       </p>
     </header>

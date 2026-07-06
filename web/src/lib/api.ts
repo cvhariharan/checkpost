@@ -115,6 +115,7 @@ export type AdHocQueryResults = {
   page: number
   count_per_page: number
   page_count: number
+  export_supported?: boolean
   pending?: boolean
   browsing_disabled?: boolean
   error?: string
@@ -218,6 +219,7 @@ export type ScheduleResultsPayload = {
   total: number
   page: number
   page_count: number
+  export_supported?: boolean
   browsing_disabled?: boolean
 }
 
@@ -449,6 +451,10 @@ export function fetchScheduleResults(
   return fetch(
     apiUrl(`/schedules/${encodeURIComponent(uuid)}/results`, { page, count_per_page: countPerPage, q: query })
   ).then((r) => handleResponse<ScheduleResultsPayload>(r))
+}
+
+export function scheduleResultsExportUrl(uuid: string) {
+  return apiUrl(`/schedules/${encodeURIComponent(uuid)}/results`, { format: 'csv' })
 }
 
 // Policies
@@ -686,7 +692,7 @@ export function fetchMachineQueryResults(
 ) {
   const { page = 1, countPerPage = 100 } = opts
   return fetch(
-    apiUrl(`/machines/${encodeURIComponent(machineId)}/queries/${encodeURIComponent(queryId)}/results`, {
+    apiUrl(`/machines/${encodeURIComponent(machineId)}/results/${encodeURIComponent(queryId)}`, {
       page,
       count_per_page: countPerPage
     })
@@ -696,11 +702,23 @@ export function fetchMachineQueryResults(
 export function fetchQueryRunHostResults(runId: string, queryId: string, opts: PageOpts = {}) {
   const { page = 1, countPerPage = 100 } = opts
   return fetch(
-    apiUrl(`/query-runs/${encodeURIComponent(runId)}/hosts/${encodeURIComponent(queryId)}/results`, {
+    apiUrl(`/query-runs/${encodeURIComponent(runId)}/results/${encodeURIComponent(queryId)}`, {
       page,
       count_per_page: countPerPage
     })
   ).then((r) => handleResponse<AdHocQueryResults>(r))
+}
+
+export function machineQueryExportUrl(machineId: string, queryId: string) {
+  return apiUrl(`/machines/${encodeURIComponent(machineId)}/results/${encodeURIComponent(queryId)}`, { format: 'csv' })
+}
+
+export function queryRunHostExportUrl(runId: string, queryId: string) {
+  return apiUrl(`/query-runs/${encodeURIComponent(runId)}/results/${encodeURIComponent(queryId)}`, { format: 'csv' })
+}
+
+export function queryRunExportUrl(runId: string) {
+  return apiUrl(`/query-runs/${encodeURIComponent(runId)}/results`, { format: 'csv' })
 }
 
 export function fetchMachinePolicies(id: string) {

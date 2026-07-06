@@ -6,6 +6,7 @@ package results
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/resultquery"
@@ -69,6 +70,30 @@ type Flusher interface {
 type Reader interface {
 	Read(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, columns []string, opts ReadOptions) (Result, error)
 	Close() error
+}
+
+// Exporter is an optional Reader capability for writing the full matching
+// result set without buffering rows in Go.
+type Exporter interface {
+	Export(ctx context.Context, w io.Writer, req ExportRequest) error
+}
+
+type ExportRequest struct {
+	Format         string
+	Snapshot       bool
+	Columns        []string
+	Filters        []resultquery.Term
+	Sources        []ExportSource
+	Hostnames      []ExportSource
+	IncludeHost    bool
+	IncludeMachine bool
+}
+
+type ExportSource struct {
+	SourceUUID uuid.UUID
+	SQLVersion int32
+	Hostname   string
+	NodeID     int64
 }
 
 // ReadOptions controls a single Reader.Read call.

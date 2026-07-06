@@ -223,6 +223,7 @@ func runServer(flags *rootFlags) error {
 	api.PUT("/machines/:id", h.HandleUpdateMachine, h.Authorize(core.ResourceMachine, core.ActionUpdate))
 	api.DELETE("/machines/:id", h.HandleDeleteMachine, h.Authorize(core.ResourceMachine, core.ActionDelete))
 	api.GET("/machines/:id/queries", h.HandleMachineQueries, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.GET("/machines/:id/results/:query_id", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.GET("/machines/:id/queries/:query_id/results", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.DELETE("/machines/:id/queries/:query_id", h.HandleDeleteMachineQuery, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
 	api.GET("/machines/:id/policies", h.HandleMachinePolicies, h.AuthorizeOwnedMachineView())
@@ -240,6 +241,8 @@ func runServer(flags *rootFlags) error {
 	api.POST("/query-runs/preview", h.HandlePreviewQueryTargets, h.Authorize(core.ResourceMachine, core.ActionExecute))
 	api.GET("/query-runs", h.HandleQueryRuns, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.GET("/query-runs/:id", h.HandleGetQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.GET("/query-runs/:id/results", h.HandleExportQueryRunResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
+	api.GET("/query-runs/:id/results/:query_id", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.GET("/query-runs/:id/hosts/:query_id/results", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.DELETE("/query-runs/:id", h.HandleDeleteQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
 

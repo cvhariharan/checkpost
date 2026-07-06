@@ -17,6 +17,8 @@ var (
 	ErrInvalidNodeDisplayName = errors.New("invalid node display name")
 	ErrInvalidQuery           = errors.New("invalid query")
 	ErrResultsBackendDisabled = errors.New("results backend not configured")
+	ErrExportUnsupported      = errors.New("result export unsupported")
+	ErrResultNotReady         = errors.New("result not ready for export")
 )
 
 type Core struct {

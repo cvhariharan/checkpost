@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/google/uuid"
 )
 
@@ -190,6 +192,61 @@ func (c *Core) GetQueryRun(ctx context.Context, req models.ResourceID) (models.Q
 	}
 
 	return toModelQueryRun(run, hosts), nil
+}
+
+func (c *Core) ExportQueryRunResults(ctx context.Context, runID string, w io.Writer, format string) error {
+	if format != "csv" {
+		return ErrExportUnsupported
+	}
+	exp, err := c.resultExporter()
+	if err != nil {
+		return err
+	}
+	runUUID, err := uuid.Parse(runID)
+	if err != nil {
+		return fmt.Errorf("parse query run uuid: %w", err)
+	}
+	if _, err := c.store.GetQueryRunByUUID(ctx, runUUID); err != nil {
+		return fmt.Errorf("get query run: %w", err)
+	}
+	hosts, err := c.store.ListMachineQueryResultsByRunUUID(ctx, runUUID)
+	if err != nil {
+		return fmt.Errorf("list query run hosts: %w", err)
+	}
+
+	var columns []string
+	sources := make([]results.ExportSource, 0, len(hosts))
+	for _, host := range hosts {
+		if host.Status != "complete" || host.Error != "" || host.RowCount <= 0 {
+			continue
+		}
+		// loadResultColumns returns a non-nil empty slice when a host has no
+		// recorded schema, so guard on length (not nil) and keep looking until
+		// a host yields columns
+		if len(columns) == 0 {
+			cols, err := c.loadResultColumns(ctx, host.Uuid, adHocSQLVersion)
+			if err != nil {
+				return err
+			}
+			columns = cols
+		}
+		sources = append(sources, results.ExportSource{
+			SourceUUID: host.Uuid,
+			SQLVersion: adHocSQLVersion,
+			Hostname:   host.Hostname,
+			NodeID:     host.NodeID,
+		})
+	}
+	if len(sources) == 0 {
+		return ErrResultNotReady
+	}
+	return exp.Export(ctx, w, results.ExportRequest{
+		Format:      format,
+		Snapshot:    true,
+		Columns:     columns,
+		Sources:     sources,
+		IncludeHost: true,
+	})
 }
 
 func (c *Core) DeleteQueryRun(ctx context.Context, req models.ResourceID) error {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/cvhariharan/checkpost/internal/models"
@@ -87,6 +88,7 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 		// Disable frontend browsing, no reader available
 		return models.ScheduleResults{BrowsingDisabled: true}, nil
 	}
+	_, exportSupported := c.reader.(results.Exporter)
 
 	scheduleID, err := uuid.Parse(req.ScheduleUUID)
 	if err != nil {
@@ -145,13 +147,67 @@ func (c *Core) ListScheduleResults(ctx context.Context, req models.ScheduleResul
 	}
 
 	return models.ScheduleResults{
-		Columns:      columns,
-		Rows:         out,
-		Total:        res.Total,
-		Page:         page + 1,
-		CountPerPage: count,
-		PageCount:    pageCountFor(res.Total, count),
+		Columns:         columns,
+		Rows:            out,
+		Total:           res.Total,
+		Page:            page + 1,
+		CountPerPage:    count,
+		PageCount:       pageCountFor(res.Total, count),
+		ExportSupported: exportSupported,
 	}, nil
+}
+
+func (c *Core) ExportScheduleResults(ctx context.Context, scheduleUUID string, w io.Writer, format string) error {
+	if format != "csv" {
+		return ErrExportUnsupported
+	}
+	exp, err := c.resultExporter()
+	if err != nil {
+		return err
+	}
+	id, err := uuid.Parse(scheduleUUID)
+	if err != nil {
+		return fmt.Errorf("parse schedule uuid: %w", err)
+	}
+	sched, err := c.store.GetScheduleByUUID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("get schedule: %w", err)
+	}
+	columns, err := c.loadResultColumns(ctx, sched.Uuid, sched.SqlVersion)
+	if err != nil {
+		return err
+	}
+	hostnames, err := c.exportHostnames(ctx)
+	if err != nil {
+		return err
+	}
+	return exp.Export(ctx, w, results.ExportRequest{
+		Format:         format,
+		Snapshot:       sched.Snapshot,
+		Columns:        columns,
+		Sources:        []results.ExportSource{{SourceUUID: sched.Uuid, SQLVersion: sched.SqlVersion}},
+		Hostnames:      hostnames,
+		IncludeMachine: true,
+	})
+}
+
+func (c *Core) exportHostnames(ctx context.Context) ([]results.ExportSource, error) {
+	ids, err := c.store.ListAllNodeIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list nodes for export: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	nodes, err := c.store.ListNodesByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list node names for export: %w", err)
+	}
+	out := make([]results.ExportSource, 0, len(nodes))
+	for _, node := range nodes {
+		out = append(out, results.ExportSource{NodeID: node.ID, Hostname: node.Hostname})
+	}
+	return out, nil
 }
 
 // prepareResultFilters parses the user's q parameter, validates it against

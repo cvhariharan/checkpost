@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"path/filepath"
 
@@ -94,6 +95,10 @@ func (b *Backend) Flush(ctx context.Context, sourceUUID uuid.UUID) error {
 
 func (b *Backend) Read(ctx context.Context, sourceUUID uuid.UUID, sqlVersion int32, columns []string, opts results.ReadOptions) (results.Result, error) {
 	return b.reader.Read(ctx, sourceUUID, sqlVersion, columns, opts)
+}
+
+func (b *Backend) Export(ctx context.Context, w io.Writer, req results.ExportRequest) error {
+	return b.reader.Export(ctx, w, req)
 }
 
 // Close stops the workers before flushing and closing the writer and reader.

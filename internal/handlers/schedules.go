@@ -126,6 +126,9 @@ func (h *Handler) HandleUpdateSchedule(c echo.Context) error {
 }
 
 func (h *Handler) HandleScheduleResults(c echo.Context) error {
+	if c.QueryParam("format") != "" {
+		return h.HandleExportScheduleResults(c)
+	}
 	var req ScheduleResultsRequest
 	if err := h.bindAndValidate(c, &req, nil); err != nil {
 		return err

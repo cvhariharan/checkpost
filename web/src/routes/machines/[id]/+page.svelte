@@ -17,6 +17,7 @@
     updateMachine,
     updateMachineInventory,
     updateMachineGroups,
+    machineQueryExportUrl,
     type AdHocQueryResults,
     type DeviceOwner,
     type Group,
@@ -42,6 +43,7 @@
   import BadgeList from '$lib/components/BadgeList.svelte'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
+  import DownloadResultsButton from '$lib/components/DownloadResultsButton.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import Truncate from '$lib/components/Truncate.svelte'
   import { canFrom, me, ownerOnlyFrom } from '$lib/auth'
@@ -117,6 +119,17 @@
   })
   const queryStartResult = $derived(queryTotalCount === 0 ? 0 : (currentQueryPage - 1) * queryCountPerPage + 1)
   const queryEndResult = $derived(Math.min(currentQueryPage * queryCountPerPage, queryTotalCount))
+  const canViewQueryResult = $derived(canFrom(currentMe, 'query_result', 'view'))
+  const queryResultsDownloadHref = $derived(
+    canViewQueryResult &&
+      selectedQuery?.id &&
+      queryResults?.export_supported &&
+      !queryResults.pending &&
+      !queryResults.error &&
+      (queryResults.total ?? 0) > 0
+      ? machineQueryExportUrl(machineId, String(selectedQuery.id))
+      : ''
+  )
 
   onMount(() => {
     loadedMachineId = machineId
@@ -819,6 +832,9 @@
           <span class="badge" data-variant={statusVariant(selectedQuery)}>{selectedQuery.status}</span>
         {/if}
         <span class="text-light">{selectedQuery.row_count ?? 0} row{selectedQuery.row_count === 1 ? '' : 's'}</span>
+        {#if queryResultsDownloadHref}
+          <DownloadResultsButton href={queryResultsDownloadHref} />
+        {/if}
       </p>
     </header>
     <section>

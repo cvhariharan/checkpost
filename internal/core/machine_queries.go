@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -65,6 +66,7 @@ func (c *Core) GetAdHocQueryResults(ctx context.Context, queryUUID string, page,
 	if c.reader == nil {
 		return models.AdHocQueryResults{BrowsingDisabled: true}, nil
 	}
+	_, exportSupported := c.reader.(results.Exporter)
 
 	qUUID, err := uuid.Parse(queryUUID)
 	if err != nil {
@@ -76,10 +78,10 @@ func (c *Core) GetAdHocQueryResults(ctx context.Context, queryUUID string, page,
 		return models.AdHocQueryResults{}, fmt.Errorf("get machine query result: %w", err)
 	}
 	if rec.Status == "pending" {
-		return models.AdHocQueryResults{Pending: true}, nil
+		return models.AdHocQueryResults{Pending: true, ExportSupported: exportSupported}, nil
 	}
 	if rec.Error != "" {
-		return models.AdHocQueryResults{Error: rec.Error}, nil
+		return models.AdHocQueryResults{Error: rec.Error, ExportSupported: exportSupported}, nil
 	}
 
 	if count <= 0 {
@@ -108,13 +110,60 @@ func (c *Core) GetAdHocQueryResults(ctx context.Context, queryUUID string, page,
 		rows = append(rows, r.Values)
 	}
 	return models.AdHocQueryResults{
-		Columns:      res.Columns,
-		Rows:         rows,
-		Total:        res.Total,
-		Page:         page + 1,
-		CountPerPage: count,
-		PageCount:    pageCountFor(res.Total, count),
+		Columns:         res.Columns,
+		Rows:            rows,
+		Total:           res.Total,
+		Page:            page + 1,
+		CountPerPage:    count,
+		PageCount:       pageCountFor(res.Total, count),
+		ExportSupported: exportSupported,
 	}, nil
+}
+
+func (c *Core) ExportAdHocQueryResults(ctx context.Context, queryUUID string, w io.Writer, format string) error {
+	if format != "csv" {
+		return ErrExportUnsupported
+	}
+	exp, err := c.resultExporter()
+	if err != nil {
+		return err
+	}
+	qUUID, err := uuid.Parse(queryUUID)
+	if err != nil {
+		return fmt.Errorf("parse query uuid: %w", err)
+	}
+	rec, err := c.store.GetMachineQueryResultByUUID(ctx, qUUID)
+	if err != nil {
+		return fmt.Errorf("get machine query result: %w", err)
+	}
+	if rec.Status != "complete" || rec.Error != "" {
+		return ErrResultNotReady
+	}
+	columns, err := c.loadResultColumns(ctx, qUUID, adHocSQLVersion)
+	if err != nil {
+		return err
+	}
+	return exp.Export(ctx, w, results.ExportRequest{
+		Format:   format,
+		Snapshot: true,
+		Columns:  columns,
+		Sources: []results.ExportSource{{
+			SourceUUID: qUUID,
+			SQLVersion: adHocSQLVersion,
+			NodeID:     rec.NodeID,
+		}},
+	})
+}
+
+func (c *Core) resultExporter() (results.Exporter, error) {
+	if c.reader == nil {
+		return nil, ErrResultsBackendDisabled
+	}
+	exp, ok := c.reader.(results.Exporter)
+	if !ok {
+		return nil, ErrExportUnsupported
+	}
+	return exp, nil
 }
 
 func (c *Core) DeleteMachineQuery(ctx context.Context, nodeReq models.NodeIdentity, queryReq models.ResourceID) error {
