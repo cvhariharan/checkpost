@@ -141,6 +141,7 @@ func (c *Core) TestTarget(ctx context.Context, req models.ResourceID) error {
 	sample := []alerts.Alert{{
 		Key:         "test:sample",
 		Labels:      map[string]string{"host": "test-host", "hostname": "test-host"},
+		Machine:     map[string]string{"hostname": "test-host", "platform": "darwin", "serial": "TESTSERIAL123", "compliance_score": "42"},
 		Annotations: map[string]string{"summary": "This is a test alert from Checkpost."},
 	}}
 	rule := alerts.Rule{Name: "Test alert", Severity: "info", Source: target.Type}

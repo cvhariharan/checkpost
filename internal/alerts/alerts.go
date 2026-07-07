@@ -17,6 +17,7 @@ type Alert struct {
 	Key         string            `json:"key"`
 	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
+	Machine map[string]string `json:"machine,omitempty"`
 }
 
 func (a Alert) Host() string { return a.Labels["host"] }

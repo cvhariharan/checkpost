@@ -40,11 +40,12 @@ type webhookPayloadAlert struct {
 }
 
 type webhookPayload struct {
-	Kind   EventKind             `json:"kind"`
-	Status string                `json:"status"`
-	Rule   webhookPayloadRule    `json:"rule"`
-	Owner  webhookPayloadOwner   `json:"owner,omitempty"`
-	Alerts []webhookPayloadAlert `json:"alerts"`
+	Kind    EventKind             `json:"kind"`
+	Status  string                `json:"status"`
+	Rule    webhookPayloadRule    `json:"rule"`
+	Owner   webhookPayloadOwner   `json:"owner,omitempty"`
+	Machine map[string]string     `json:"machine,omitempty"`
+	Alerts  []webhookPayloadAlert `json:"alerts"`
 }
 
 // WebhookNotifier sends alert groups as JSON POST requests to per-target URLs.
@@ -138,8 +139,9 @@ func buildWebhookPayload(kind EventKind, rule Rule, alerts []Alert) webhookPaylo
 			Source:      rule.Source,
 			Severity:    rule.Severity,
 		},
-		Owner:  ownerFromAlerts(alerts),
-		Alerts: make([]webhookPayloadAlert, 0, len(alerts)),
+		Owner:   ownerFromAlerts(alerts),
+		Machine: machineFromAlerts(alerts),
+		Alerts:  make([]webhookPayloadAlert, 0, len(alerts)),
 	}
 	for _, a := range alerts {
 		payload.Alerts = append(payload.Alerts, webhookPayloadAlert{
@@ -151,6 +153,14 @@ func buildWebhookPayload(kind EventKind, rule Rule, alerts []Alert) webhookPaylo
 		})
 	}
 	return payload
+}
+
+// machineFromAlerts returns the machine details of the first alert
+func machineFromAlerts(alerts []Alert) map[string]string {
+	if len(alerts) == 0 {
+		return nil
+	}
+	return alerts[0].Machine
 }
 
 func ownerFromAlerts(alerts []Alert) webhookPayloadOwner {

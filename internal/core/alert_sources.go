@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/alerts"
@@ -18,7 +19,33 @@ var sourceSchemaReflector = &jsonschema.Reflector{ExpandedStruct: true, DoNotRef
 
 func RegisterAlertSources(store repo.Store, staleAfter time.Duration) {
 	alerts.RegisterSource(policyFailureSource{store: store, staleAfter: staleAfter})
-	alerts.RegisterSource(machineOfflineSource{store: store})
+	alerts.RegisterSource(machineOfflineSource{store: store, staleAfter: staleAfter})
+}
+
+// enrichMachine adds device details (serial, OS, compliance score) to the alert's machine map
+func enrichMachine(ctx context.Context, store repo.Store, nodeUUID uuid.UUID, staleAfter time.Duration, machine map[string]string) {
+	if n, err := store.GetNodeByUUID(ctx, nodeUUID); err == nil {
+		if n.HardwareSerial != "" {
+			machine["serial"] = n.HardwareSerial
+		}
+		if n.OsName != "" {
+			machine["os_name"] = n.OsName
+		}
+		if n.OsVersion != "" {
+			machine["os_version"] = n.OsVersion
+		}
+		if n.OsqueryVersion != "" {
+			machine["osquery_version"] = n.OsqueryVersion
+		}
+	}
+	if score, err := store.GetNodeComplianceScore(ctx, repo.GetNodeComplianceScoreParams{
+		NodeUuid:    nodeUUID,
+		StaleCutoff: time.Now().UTC().Add(-staleAfter),
+	}); err == nil {
+		if s := weightedComplianceScore(score.WeightedPassing, score.WeightedTotal); s != nil {
+			machine["compliance_score"] = strconv.Itoa(*s)
+		}
+	}
 }
 
 func validateSeverities(severities []string) error {
@@ -100,9 +127,15 @@ func (s policyFailureSource) Evaluate(ctx context.Context, raw json.RawMessage) 
 			"groups":          r.Groups,
 		}
 		enrichWithOwner(ctx, s.store, r.NodeID, labels)
+		machine := map[string]string{
+			"hostname": r.Hostname,
+			"platform": r.Platform,
+		}
+		enrichMachine(ctx, s.store, r.NodeUuid, s.staleAfter, machine)
 		out = append(out, alerts.Alert{
-			Key:    fmt.Sprintf("policy:%s:node:%s", r.PolicyUuid, r.NodeUuid),
-			Labels: labels,
+			Key:     fmt.Sprintf("policy:%s:node:%s", r.PolicyUuid, r.NodeUuid),
+			Labels:  labels,
+			Machine: machine,
 			Annotations: map[string]string{
 				"summary":    fmt.Sprintf("%s fails policy %q", r.Hostname, r.PolicyName),
 				"resolution": r.Resolution,
@@ -125,7 +158,8 @@ func (p machineOfflineParams) thresholdDuration() (time.Duration, error) {
 }
 
 type machineOfflineSource struct {
-	store repo.Store
+	store      repo.Store
+	staleAfter time.Duration
 }
 
 func (machineOfflineSource) Type() string { return "machine_offline" }
@@ -180,9 +214,15 @@ func (s machineOfflineSource) Evaluate(ctx context.Context, raw json.RawMessage)
 			"last_seen": lastSeen,
 		}
 		enrichWithOwner(ctx, s.store, r.NodeID, labels)
+		machine := map[string]string{
+			"hostname": r.Hostname,
+			"platform": r.Platform,
+		}
+		enrichMachine(ctx, s.store, r.NodeUuid, s.staleAfter, machine)
 		out = append(out, alerts.Alert{
-			Key:    fmt.Sprintf("offline:node:%s", r.NodeUuid),
-			Labels: labels,
+			Key:     fmt.Sprintf("offline:node:%s", r.NodeUuid),
+			Labels:  labels,
+			Machine: machine,
 			Annotations: map[string]string{
 				"summary": fmt.Sprintf("%s offline since %s", r.Hostname, lastSeen),
 			},
