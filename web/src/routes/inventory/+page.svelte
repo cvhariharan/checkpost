@@ -16,6 +16,8 @@
     type Me
   } from '$lib/api'
   import { formatTimestamp, isOnline, machineHostname } from '$lib/util'
+  import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
+  import SortableHeader from '$lib/components/SortableHeader.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import SearchInput from '$lib/components/SearchInput.svelte'
   import SelectFilter from '$lib/components/SelectFilter.svelte'
@@ -110,6 +112,22 @@
   const canDeleteInventory = $derived(canFrom($me, 'inventory', 'delete'))
   const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
   const canDeleteMachine = $derived(canFrom($me, 'machine', 'delete'))
+
+  type MachineSortCol = 'status' | 'name' | 'owner' | 'tracking' | 'serial' | 'platform' | 'lastSeen'
+  const machineAccessors: SortAccessors<Machine, MachineSortCol> = {
+    status: (m) => statusLabel(m),
+    name: (m) => machineHostname(m),
+    owner: (m) => m.inventory?.owner?.display_name || m.inventory?.owner?.email,
+    tracking: (m) => m.inventory?.internal_tracking_id,
+    serial: (m) => m.hardware_serial,
+    platform: (m) => m.platform,
+    lastSeen: (m) => m.last_seen_at || m.enrolled_at
+  }
+  // Sorts only the current page of results (server-side pagination is unchanged).
+  let machineSort = $state<SortState<MachineSortCol>>(null)
+  const sortedMachines = $derived(
+    sortRows(machines, machineSort, machineAccessors, (m) => machineHostname(m))
+  )
 
   onMount(() => {
     void initialize()
@@ -533,20 +551,20 @@
               <table>
                 <thead>
                   <tr>
-                    <th>Status</th>
-                    <th>Name</th>
-                    <th>Owner</th>
-                    <th>Tracking ID</th>
-                    <th>Serial</th>
-                    <th>Platform</th>
-                    <th>Last Seen</th>
+                    <SortableHeader bind:state={machineSort} col="status" label="Status" />
+                    <SortableHeader bind:state={machineSort} col="name" label="Name" />
+                    <SortableHeader bind:state={machineSort} col="owner" label="Owner" />
+                    <SortableHeader bind:state={machineSort} col="tracking" label="Tracking ID" />
+                    <SortableHeader bind:state={machineSort} col="serial" label="Serial" />
+                    <SortableHeader bind:state={machineSort} col="platform" label="Platform" />
+                    <SortableHeader bind:state={machineSort} col="lastSeen" label="Last Seen" />
                     {#if !ownerOnlyMode}
                       <th class="align-right"><span class="sr-only">Actions</span></th>
                     {/if}
                   </tr>
                 </thead>
                 <tbody>
-                  {#each machines as machine}
+                  {#each sortedMachines as machine}
                     <tr>
                       <td>
                         <span class="badge" data-variant={statusVariant(machine)}>{statusLabel(machine)}</span>
