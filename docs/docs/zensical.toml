@@ -15,6 +15,7 @@ nav = [
     { "Overview" = "features/index.md" },
     { "Inventory" = "features/inventory.md" },
     { "Detections" = "features/detections.md" },
+    { "Alerts" = "features/alerts.md" },
     { "Access" = "features/access.md" },
   ] },
   { "GitOps" = "gitops.md" }
@@ -59,8 +60,10 @@ toggle.name = "Switch to system preference"
 permalink = true
 toc_depth = "2-3"
 
+[project.markdown_extensions.admonition]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.md_in_html]
+[project.markdown_extensions.pymdownx.details]
 [project.markdown_extensions.pymdownx.highlight]
 anchor_linenums = true
 line_spans = "__span"

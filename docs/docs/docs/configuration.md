@@ -135,6 +135,38 @@ Checkpost does not rotate the output file.
 | `results.clickhouse.ttl_days` | `0` | Global row retention in days. `0` disables the TTL. |
 | `results.clickhouse.required` | `false` | Propagates submission errors instead of treating this backend as best effort. |
 
+#### Creating the table manually
+
+On startup Checkpost probes for the table with `EXISTS TABLE` and issues a `CREATE TABLE IF NOT EXISTS` if it is missing. If the DSN user lacks DDL permission, create the table manually with the statement below before enabling the backend.
+
+```sql
+CREATE TABLE IF NOT EXISTS query_results (
+    schedule_uuid UUID,
+    sql_version   Int32,
+    schedule_name String,
+    node_id       Int64,
+    unix_time     DateTime64(6, 'UTC'),
+    calendar_time String,
+    action        LowCardinality(String),
+    row_hash      String,
+    ingested_at   DateTime64(6, 'UTC') DEFAULT now64(6),
+    columns       Map(String, String)
+) ENGINE = MergeTree
+PARTITION BY (schedule_uuid, toYYYYMM(unix_time))
+ORDER BY (schedule_uuid, sql_version, node_id, unix_time);
+```
+
+Replace `query_results` with the value of `results.clickhouse.table` if you changed it.
+
+To enforce retention yourself, append a `TTL` clause matching `results.clickhouse.ttl_days`:
+
+```sql
+) ENGINE = MergeTree
+PARTITION BY (schedule_uuid, toYYYYMM(unix_time))
+ORDER BY (schedule_uuid, sql_version, node_id, unix_time)
+TTL toDateTime(unix_time) + INTERVAL 30 DAY;
+```
+
 ## Alerts
 
 | Field | Default | What it does |

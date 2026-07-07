@@ -47,19 +47,7 @@ Checkpost sends YARA work through osquery and records the returned matches. It d
 
 Refer to [osquery YARA docs](https://osquery.readthedocs.io/en/stable/deployment/yara/) for further reference.
 
-## Alerts
-
-Set `alerts.enabled = true` in `config.toml` to run the alert engine.
-
-![Alerts](../assets/images/screenshots/alerts.png){ loading=lazy }
-
-The **Rules** tab defines what to watch. Checkpost currently supports policy failures and machines that have been offline past a threshold. Rules set severity, evaluation timing, optional filters, and delivery targets.
-
-The **Targets** tab configures webhook or SMTP delivery.
-
-SMTP uses the global relay under `[alerts.smtp]`. A target's recipients may be literal addresses, `user-group:<name>`, or `owner`, which resolves to the affected machine owner's email.
-
-Rules send firing and resolved notifications. `repeat_interval` controls repeated firing notifications.
+Alerts on policy failures and offline machines are covered on the [Alerts](alerts.md) page.
 
 ## Result storage
 
