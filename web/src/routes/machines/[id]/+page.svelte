@@ -29,7 +29,6 @@
     type NodeMetrics
   } from '$lib/api'
   import { formatTimestamp, isOnline, machineHostname, machineOS } from '$lib/util'
-  import { severityRank, severityVariant } from '$lib/severity'
   import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
   import SortableHeader from '$lib/components/SortableHeader.svelte'
   import { rootShape, type JSONSchema } from '$lib/metricSchema'
@@ -420,12 +419,11 @@
   }
 
   // Sortable policy tab. Response is ranked failing → unknown → passing so the
-  // most actionable rows surface first; severity uses the canonical rank.
+  // most actionable rows surface first.
   const responseRank: Record<string, number> = { failing: 0, unknown: 1, passing: 2 }
 
-  type PostureSortCol = 'severity' | 'response'
+  type PostureSortCol = 'response'
   const postureAccessors: SortAccessors<MachinePolicyPosture, PostureSortCol> = {
-    severity: (p) => severityRank[p.severity || 'medium'] ?? 99,
     response: (p) => responseRank[p.response || 'unknown'] ?? 99
   }
   let postureSort = $state<SortState<PostureSortCol>>(null)
@@ -667,7 +665,6 @@
             <thead>
               <tr>
                 <th>Policy</th>
-                <SortableHeader bind:state={postureSort} col="severity" label="Severity" />
                 <SortableHeader bind:state={postureSort} col="response" label="Response" />
                 <th>Checked</th>
                 <th>Error</th>
@@ -678,13 +675,11 @@
               {#each sortedPosture as policy}
                 <tr>
                   <td>
-                    <strong>{policy.name || policy.title}</strong>
-                    {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
-                  </td>
-                  <td>
-                    <span class="badge" data-variant={severityVariant[policy.severity || 'medium']}>
-                      {policy.severity || 'medium'}
+                    <span class="policy-title">
+                      <strong>{policy.name || policy.title}</strong>
+                      <span class="severity-pill" data-severity={policy.severity || 'medium'}>{policy.severity || 'medium'}</span>
                     </span>
+                    {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
                   </td>
                   <td>
                     <span class="badge posture-badge" data-variant={postureVariant(policy.response)}>
@@ -697,7 +692,7 @@
                 </tr>
               {:else}
                 <tr>
-                  <td colspan="6" class="align-center text-light">No policies target this machine</td>
+                  <td colspan="5" class="align-center text-light">No policies target this machine</td>
                 </tr>
               {/each}
             </tbody>
@@ -866,6 +861,44 @@
   .posture-badge {
     white-space: nowrap;
   }
+  .policy-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .severity-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: capitalize;
+    white-space: nowrap;
+  }
+  .severity-pill::before {
+    content: '';
+    flex: none;
+    width: 0.45em;
+    height: 0.45em;
+    border-radius: 50%;
+    background: var(--sev-color, var(--info));
+  }
+  .severity-pill[data-severity='critical'],
+  .severity-pill[data-severity='high'] {
+    --sev-color: var(--danger);
+  }
+  .severity-pill[data-severity='medium'] {
+    --sev-color: var(--warning);
+  }
+  .severity-pill[data-severity='low'],
+  .severity-pill[data-severity='info'] {
+    --sev-color: var(--info);
+  }
   .query-text {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -884,8 +917,6 @@
     width: 3rem;
     text-align: right;
   }
-  /* .cell-link is display:inline globally, so it can't clip; make the id link
-     block-level so the UUID truncates to the column instead of overflowing. */
   .queries-table .cell-link {
     display: block;
     min-width: 0;
