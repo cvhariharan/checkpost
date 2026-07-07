@@ -30,6 +30,15 @@
 
   onMount(() => {
     let destroyed = false
+    let schemaRequested = false
+    // Defer the ~270KB osquery schema until the user actually engages an editor
+    const loadSchema = () => {
+      if (schemaRequested) return
+      schemaRequested = true
+      fetchOsquerySchema()
+        .then((schema) => !destroyed && handle?.setSchema(schema))
+        .catch(() => (schemaRequested = false))
+    }
     // Lazy-load CodeMirror (browser-only, code-split); the textarea shows until ready.
     import('$lib/sqlEditor')
       .then(({ createSqlEditor }) => {
@@ -43,12 +52,9 @@
           minHeight: `${minLines * 1.5}em`,
           maxHeight: `${maxLines * 1.5}em`,
           onChange: (v) => (value = v),
-          onSubmit: onsubmit
+          onSubmit: onsubmit,
+          onFocus: loadSchema
         })
-        // Memoized fetch shared across editors; completion upgrades once it loads.
-        fetchOsquerySchema()
-          .then((schema) => !destroyed && handle?.setSchema(schema))
-          .catch(() => {})
       })
       .catch(() => {})
 

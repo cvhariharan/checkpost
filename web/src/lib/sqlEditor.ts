@@ -103,6 +103,7 @@ export type SqlEditorOptions = {
   maxHeight?: string
   onChange: (value: string) => void
   onSubmit?: () => void
+  onFocus?: () => void
 }
 
 export type SqlEditorHandle = {
@@ -142,6 +143,13 @@ export function createSqlEditor(opts: SqlEditorOptions): SqlEditorHandle {
     editableCompartment.of(EditorView.editable.of(!opts.disabled)),
     EditorView.updateListener.of((u) => {
       if (u.docChanged) opts.onChange(u.state.doc.toString())
+    }),
+    // Fires when the user first engages the editor; used to lazy-load the schema.
+    EditorView.domEventHandlers({
+      focus: () => {
+        opts.onFocus?.()
+        return false
+      }
     })
   ]
   if (opts.placeholder) extensions.push(placeholderExt(opts.placeholder))
