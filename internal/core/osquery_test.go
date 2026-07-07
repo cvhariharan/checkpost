@@ -55,6 +55,10 @@ func (s *fakePolicyStore) GetNodeByUUID(ctx context.Context, id uuid.UUID) (repo
 	return s.node, nil
 }
 
+func (s *fakePolicyStore) GetNodeComplianceScore(ctx context.Context, arg repo.GetNodeComplianceScoreParams) (repo.GetNodeComplianceScoreRow, error) {
+	return repo.GetNodeComplianceScoreRow{}, nil
+}
+
 func (s *fakePolicyStore) GetNodeInventoryByNodeUUID(ctx context.Context, nodeUUID uuid.UUID) (repo.GetNodeInventoryByNodeUUIDRow, error) {
 	return repo.GetNodeInventoryByNodeUUIDRow{}, sql.ErrNoRows
 }

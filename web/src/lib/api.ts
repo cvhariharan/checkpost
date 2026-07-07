@@ -80,6 +80,7 @@ export type Machine = {
   hardware_serial?: string
   groups?: Group[]
   inventory?: NodeInventory | null
+  compliance_score?: number | null
 }
 
 export type MachineQueryRecord = {

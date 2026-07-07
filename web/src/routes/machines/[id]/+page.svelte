@@ -619,6 +619,10 @@
                 <dd>{machine?.inventory?.internal_tracking_id || '—'}</dd>
               </div>
               <div>
+                <dt>Compliance score</dt>
+                <dd>{machine?.compliance_score ?? '—'}{#if machine?.compliance_score != null}<small>/100</small>{/if}</dd>
+              </div>
+              <div>
                 <dt>Groups</dt>
                 <dd><BadgeList items={machine?.groups || []} max={99} /></dd>
               </div>

@@ -91,6 +91,7 @@ type Node struct {
 	LastPolicyCheckAt *time.Time      `json:"last_policy_check_at,omitempty"`
 	Groups            []Group         `json:"groups,omitempty"`
 	Inventory         *NodeInventory  `json:"inventory,omitempty"`
+	ComplianceScore   *int            `json:"compliance_score,omitempty"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 	EnrollmentInput   HostDetailsInfo `json:"-"`

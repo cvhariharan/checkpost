@@ -586,3 +586,61 @@ func (q *Queries) DashboardTopFailingPolicies(ctx context.Context, arg Dashboard
 	}
 	return items, nil
 }
+
+const getNodeComplianceScore = `-- name: GetNodeComplianceScore :one
+SELECT
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $1::timestamptz), 0)::bigint AS weighted_passing,
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ), 0)::bigint AS weighted_total
+FROM nodes
+LEFT JOIN policies ON policies.enabled = true
+    AND (
+        policies.platform IN ('all', 'any')
+        OR policies.platform = nodes.platform
+        OR (policies.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
+        OR (policies.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
+    )
+    AND (
+        NOT EXISTS (
+            SELECT 1
+            FROM policy_groups
+            WHERE policy_groups.policy_id = policies.id
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM policy_groups
+            JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+            WHERE policy_groups.policy_id = policies.id
+              AND group_membership.node_id = nodes.id
+        )
+    )
+LEFT JOIN policy_membership
+    ON policy_membership.policy_id = policies.id
+   AND policy_membership.node_id = nodes.id
+WHERE nodes.uuid = $2
+GROUP BY nodes.id
+`
+
+type GetNodeComplianceScoreParams struct {
+	StaleCutoff time.Time `db:"stale_cutoff" json:"stale_cutoff"`
+	NodeUuid    uuid.UUID `db:"node_uuid" json:"node_uuid"`
+}
+
+type GetNodeComplianceScoreRow struct {
+	WeightedPassing int64 `db:"weighted_passing" json:"weighted_passing"`
+	WeightedTotal   int64 `db:"weighted_total" json:"weighted_total"`
+}
+
+func (q *Queries) GetNodeComplianceScore(ctx context.Context, arg GetNodeComplianceScoreParams) (GetNodeComplianceScoreRow, error) {
+	row := q.db.QueryRowContext(ctx, getNodeComplianceScore, arg.StaleCutoff, arg.NodeUuid)
+	var i GetNodeComplianceScoreRow
+	err := row.Scan(&i.WeightedPassing, &i.WeightedTotal)
+	return i, err
+}

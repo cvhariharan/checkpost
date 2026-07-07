@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -122,7 +123,23 @@ func (c *Core) GetNodeByID(ctx context.Context, req models.NodeIdentity) (models
 	if err != nil {
 		return models.Node{}, err
 	}
+	out, err = c.attachComplianceScore(ctx, out, id)
+	if err != nil {
+		return models.Node{}, err
+	}
 	return out, nil
+}
+
+func (c *Core) attachComplianceScore(ctx context.Context, node models.Node, id uuid.UUID) (models.Node, error) {
+	row, err := c.store.GetNodeComplianceScore(ctx, repo.GetNodeComplianceScoreParams{
+		NodeUuid:    id,
+		StaleCutoff: time.Now().UTC().Add(-c.policyStaleAfter),
+	})
+	if err != nil {
+		return node, fmt.Errorf("get node compliance score: %w", err)
+	}
+	node.ComplianceScore = weightedComplianceScore(row.WeightedPassing, row.WeightedTotal)
+	return node, nil
 }
 
 func (c *Core) UpdateNode(ctx context.Context, req models.UpdateNode) (models.Node, error) {

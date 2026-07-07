@@ -93,6 +93,7 @@ type Querier interface {
 	GetNodeByID(ctx context.Context, id int64) (Node, error)
 	GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error)
 	GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error)
+	GetNodeComplianceScore(ctx context.Context, arg GetNodeComplianceScoreParams) (GetNodeComplianceScoreRow, error)
 	GetNodeInventoryByNodeUUID(ctx context.Context, nodeUuid uuid.UUID) (GetNodeInventoryByNodeUUIDRow, error)
 	GetNodeOwnerLabels(ctx context.Context, nodeID int64) (GetNodeOwnerLabelsRow, error)
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)

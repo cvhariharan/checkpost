@@ -222,3 +222,43 @@ SELECT uuid, hostname, display_name, enrolled_at
 FROM nodes
 ORDER BY enrolled_at DESC
 LIMIT @top_n;
+
+-- name: GetNodeComplianceScore :one
+SELECT
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
+    coalesce(sum(
+        CASE policies.severity
+            WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+        END
+    ), 0)::bigint AS weighted_total
+FROM nodes
+LEFT JOIN policies ON policies.enabled = true
+    AND (
+        policies.platform IN ('all', 'any')
+        OR policies.platform = nodes.platform
+        OR (policies.platform = 'linux' AND nodes.platform NOT IN ('', 'darwin', 'windows'))
+        OR (policies.platform = 'posix' AND nodes.platform NOT IN ('', 'windows'))
+    )
+    AND (
+        NOT EXISTS (
+            SELECT 1
+            FROM policy_groups
+            WHERE policy_groups.policy_id = policies.id
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM policy_groups
+            JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+            WHERE policy_groups.policy_id = policies.id
+              AND group_membership.node_id = nodes.id
+        )
+    )
+LEFT JOIN policy_membership
+    ON policy_membership.policy_id = policies.id
+   AND policy_membership.node_id = nodes.id
+WHERE nodes.uuid = @node_uuid
+GROUP BY nodes.id;

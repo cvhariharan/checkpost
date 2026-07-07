@@ -179,10 +179,21 @@ func complianceScore(passing, total int64) *int {
 	return &score
 }
 
+// weightedComplianceScore returns round(100*weightedPassing/weightedTotal), or
+// nil when no policies are assigned (weightedTotal == 0) so callers can render an
+// em-dash rather than a misleading 0.
+func weightedComplianceScore(weightedPassing, weightedTotal int64) *int {
+	if weightedTotal <= 0 {
+		return nil
+	}
+	score := int(math.Round(100 * float64(weightedPassing) / float64(weightedTotal)))
+	return &score
+}
+
 func complianceNode(uuid, hostname, displayName string, passing, failing, total, weightedPassing, weightedTotal int64) models.DashboardComplianceNode {
 	score := 0
-	if weightedTotal > 0 {
-		score = int(math.Round(100 * float64(weightedPassing) / float64(weightedTotal)))
+	if s := weightedComplianceScore(weightedPassing, weightedTotal); s != nil {
+		score = *s
 	}
 	return models.DashboardComplianceNode{
 		UUID:        uuid,
