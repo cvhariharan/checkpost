@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { page } from '$app/state'
-  import { replaceState } from '$app/navigation'
+  import { goto } from '$app/navigation'
   import { deleteGroup as apiDeleteGroup, fetchGroups, type Group } from '$lib/api'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
@@ -35,13 +35,16 @@
   $effect(() => {
     if (!initialized || searchTerm === previousSearch) return
     previousSearch = searchTerm
-    if (currentPage !== 1) {
-      const url = new URL(page.url)
-      url.searchParams.delete('page')
-      replaceState(url, {})
-    }
     clearTimeout(searchTimer)
-    searchTimer = setTimeout(() => void loadGroups(), 250)
+    searchTimer = setTimeout(() => {
+      if (currentPage !== 1) {
+        const url = new URL(page.url)
+        url.searchParams.delete('page')
+        void goto(url, { replaceState: true, keepFocus: true, noScroll: true })
+      } else {
+        void loadGroups()
+      }
+    }, 250)
   })
 
   const startResult = $derived(loadedGroups.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)

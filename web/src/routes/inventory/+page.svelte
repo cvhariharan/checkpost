@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte'
   import { page } from '$app/state'
-  import { pushState, replaceState } from '$app/navigation'
+  import { goto, pushState, replaceState } from '$app/navigation'
   import {
     createOwner,
     deleteMachine,
@@ -167,11 +167,12 @@
     untrack(() => void loadOwners())
   })
 
-  function resetPageParam(name: string) {
-    if (!page.url.searchParams.has(name)) return
+  function resetPageParam(name: string): boolean {
+    if (!page.url.searchParams.has(name)) return false
     const url = new URL(page.url)
     url.searchParams.delete(name)
-    replaceState(url, {})
+    void goto(url, { replaceState: true, keepFocus: true, noScroll: true })
+    return true
   }
 
   $effect(() => {
@@ -179,28 +180,25 @@
     const nextFilterKey = JSON.stringify([selectedPlatform, selectedOwner, assignmentFilter])
     if (nextFilterKey !== previousMachineFilterKey) {
       previousMachineFilterKey = nextFilterKey
-      resetPageParam('devices')
-      void loadMachines()
+      if (!resetPageParam('devices')) void loadMachines()
     }
   })
 
   $effect(() => {
     if (!initialized || searchTerm === previousMachineSearch) return
     previousMachineSearch = searchTerm
-    resetPageParam('devices')
     clearTimeout(machineSearchTimer)
     machineSearchTimer = setTimeout(() => {
-      void loadMachines()
+      if (!resetPageParam('devices')) void loadMachines()
     }, 250)
   })
 
   $effect(() => {
     if (!initialized || ownerSearchTerm === previousOwnerSearch) return
     previousOwnerSearch = ownerSearchTerm
-    resetPageParam('owners')
     clearTimeout(ownerSearchTimer)
     ownerSearchTimer = setTimeout(() => {
-      void loadOwners()
+      if (!resetPageParam('owners')) void loadOwners()
     }, 250)
   })
 

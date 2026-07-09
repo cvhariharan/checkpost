@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { page } from '$app/state'
-  import { replaceState } from '$app/navigation'
+  import { goto } from '$app/navigation'
   import { deletePolicy as apiDeletePolicy, fetchPolicies, type Policy } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
   import { severityRank, severityVariant } from '$lib/severity'
@@ -42,13 +42,16 @@
   $effect(() => {
     if (!initialized || searchTerm === previousSearch) return
     previousSearch = searchTerm
-    if (currentPage !== 1) {
-      const url = new URL(page.url)
-      url.searchParams.delete('page')
-      replaceState(url, {})
-    }
     clearTimeout(searchTimer)
-    searchTimer = setTimeout(() => void loadPolicies(), 250)
+    searchTimer = setTimeout(() => {
+      if (currentPage !== 1) {
+        const url = new URL(page.url)
+        url.searchParams.delete('page')
+        void goto(url, { replaceState: true, keepFocus: true, noScroll: true })
+      } else {
+        void loadPolicies()
+      }
+    }, 250)
   })
 
   const startResult = $derived(loadedPolicies.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)

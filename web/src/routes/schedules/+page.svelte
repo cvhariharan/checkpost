@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { page } from '$app/state'
-  import { goto, replaceState } from '$app/navigation'
+  import { goto } from '$app/navigation'
   import {
     deleteSchedule as apiDeleteSchedule,
     fetchSchedules,
@@ -39,13 +39,16 @@
   $effect(() => {
     if (!initialized || searchTerm === previousSearch) return
     previousSearch = searchTerm
-    if (currentPage !== 1) {
-      const url = new URL(page.url)
-      url.searchParams.delete('page')
-      replaceState(url, {})
-    }
     clearTimeout(searchTimer)
-    searchTimer = setTimeout(() => void loadSchedules(), 250)
+    searchTimer = setTimeout(() => {
+      if (currentPage !== 1) {
+        const url = new URL(page.url)
+        url.searchParams.delete('page')
+        void goto(url, { replaceState: true, keepFocus: true, noScroll: true })
+      } else {
+        void loadSchedules()
+      }
+    }, 250)
   })
 
   const startResult = $derived(loadedSchedules.length === 0 ? 0 : (currentPage - 1) * countPerPage + 1)
