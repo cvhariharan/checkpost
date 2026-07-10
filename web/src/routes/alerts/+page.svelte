@@ -1,10 +1,11 @@
 <script lang="ts">
     import { onMount, untrack } from "svelte";
     import { page } from "$app/state";
-    import { pushState } from "$app/navigation";
+    import { goto, pushState } from "$app/navigation";
     import {
         deleteAlertRule,
         deleteAlertTarget,
+        fetchAlertRule,
         fetchAlertRules,
         fetchAlertTargets,
         testAlertTarget,
@@ -168,6 +169,33 @@
         if (!canUpdateRule) return;
         editingRule = rule;
         ruleFormOpen = true;
+    }
+
+    const deepLinkRuleUuid = $derived(page.url.searchParams.get("rule"));
+    let handledDeepLink = "";
+
+    $effect(() => {
+        if (!deepLinkRuleUuid || deepLinkRuleUuid === handledDeepLink) return;
+        handledDeepLink = deepLinkRuleUuid;
+        untrack(() => void openRuleByUuid(deepLinkRuleUuid));
+    });
+
+    async function openRuleByUuid(uuid: string) {
+        setTab(0);
+        try {
+            openEditRule(await fetchAlertRule(uuid));
+        } catch (err) {
+            error = (err as Error).message || "Failed to load alert rule";
+            clearDeepLink();
+        }
+    }
+
+    function clearDeepLink() {
+        handledDeepLink = "";
+        if (!page.url.searchParams.has("rule")) return;
+        const url = new URL(page.url);
+        url.searchParams.delete("rule");
+        void goto(url, { replaceState: true, keepFocus: true, noScroll: true });
     }
 
     async function handleRuleSaved() {
@@ -592,7 +620,10 @@
 <AlertRuleFormDialog
     open={ruleFormOpen}
     rule={editingRule}
-    onClose={() => (ruleFormOpen = false)}
+    onClose={() => {
+        ruleFormOpen = false;
+        clearDeepLink();
+    }}
     onSaved={handleRuleSaved}
 />
 

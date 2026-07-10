@@ -2,7 +2,7 @@
   import { untrack } from 'svelte'
   import { page } from '$app/state'
   import { goto } from '$app/navigation'
-  import { deletePolicy as apiDeletePolicy, fetchPolicies, type Policy } from '$lib/api'
+  import { deletePolicy as apiDeletePolicy, fetchPolicies, fetchPolicy, type Policy } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
   import { severityRank, severityVariant } from '$lib/severity'
   import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
@@ -157,6 +157,32 @@
     machinesPolicy = policy
     machinesOpen = true
   }
+
+  const deepLinkUuid = $derived(page.url.searchParams.get('policy'))
+  let handledDeepLink = ''
+
+  $effect(() => {
+    if (!deepLinkUuid || deepLinkUuid === handledDeepLink) return
+    handledDeepLink = deepLinkUuid
+    untrack(() => void openPolicyByUuid(deepLinkUuid))
+  })
+
+  async function openPolicyByUuid(uuid: string) {
+    try {
+      openMachinesModal(await fetchPolicy(uuid))
+    } catch (err) {
+      error = (err as Error).message || 'Failed to load policy'
+      clearDeepLink()
+    }
+  }
+
+  function clearDeepLink() {
+    handledDeepLink = ''
+    if (!page.url.searchParams.has('policy')) return
+    const url = new URL(page.url)
+    url.searchParams.delete('policy')
+    void goto(url, { replaceState: true, keepFocus: true, noScroll: true })
+  }
 </script>
 
 <section class="vstack gap-4">
@@ -271,7 +297,10 @@
 <PolicyMachinesDialog
   bind:open={machinesOpen}
   policy={machinesPolicy}
-  onClose={() => (machinesPolicy = null)}
+  onClose={() => {
+    machinesPolicy = null
+    clearDeepLink()
+  }}
 />
 
 <ConfirmDialog

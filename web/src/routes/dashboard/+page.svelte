@@ -181,7 +181,7 @@
             <div class="vstack gap-2">
               {#each data.compliance.top_failing_policies as p}
                 <div class="ranked">
-                  <a href="/policies" class="ranked-label" title={p.name}>{p.name}</a>
+                  <a href="/policies?policy={p.uuid}" class="ranked-label" title={p.name}>{p.name}</a>
                   <div class="bar"><span class="seg danger" style="width:{pct(p.failing_count, maxFailing)}%"></span></div>
                   <span class="ranked-count">{p.failing_count}</span>
                 </div>
@@ -303,7 +303,7 @@
                   {#each data.security.firing_alert_list as a}
                     <tr>
                       <td><span class="badge" data-variant={severityVariant[a.severity]}>{a.severity}</span></td>
-                      <td><a href="/alerts">{a.name}</a></td>
+                      <td><a href="/alerts?rule={a.uuid}#rules">{a.name}</a></td>
                       <td class="align-right">{a.count}</td>
                       <td class="align-right text-light">{formatTimestamp(a.last_seen_at)}</td>
                     </tr>

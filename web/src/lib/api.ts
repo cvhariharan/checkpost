@@ -1109,6 +1109,12 @@ export function fetchAlertRules(opts: PageOpts = {}) {
   )
 }
 
+export function fetchAlertRule(uuid: string) {
+  return fetch(apiUrl(`/alert-rules/${encodeURIComponent(uuid)}`)).then((r) =>
+    handleResponse<AlertRule>(r)
+  )
+}
+
 export function createAlertRule(payload: Record<string, unknown>) {
   return jsonRequest<AlertRule>('/alert-rules', 'POST', payload)
 }
