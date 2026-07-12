@@ -101,6 +101,7 @@ snapshot:
 release:
   # Tags like v0.1.0-beta.0 / -alpha / -rc are marked as GitHub pre-releases.
   prerelease: auto
+  replace_existing_artifacts: true
 
 changelog:
   use: github
