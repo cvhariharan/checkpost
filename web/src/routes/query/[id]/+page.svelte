@@ -7,10 +7,13 @@
     queryRunExportUrl,
     queryRunHostExportUrl,
     type QueryRun,
+    type QueryRunHost,
     type AdHocQueryResults
   } from '$lib/api'
   import { formatTimestamp } from '$lib/util'
   import { canFrom, me } from '$lib/auth'
+  import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
+  import SortableHeader from '$lib/components/SortableHeader.svelte'
   import QueryResultTable from '$lib/components/QueryResultTable.svelte'
   import DownloadResultsButton from '$lib/components/DownloadResultsButton.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
@@ -32,6 +35,19 @@
   let pollTimer: ReturnType<typeof setTimeout> | null = null
   let pollAttempts = 0
   let pollEpoch = 0
+
+  type HostSortCol = 'host' | 'user' | 'platform' | 'status' | 'rows' | 'completed'
+  const hostAccessors: SortAccessors<QueryRunHost, HostSortCol> = {
+    host: (h) => h.hostname || h.node_uuid,
+    user: (h) => h.owner_name || h.owner_email,
+    platform: (h) => h.platform,
+    status: (h) => h.status,
+    rows: (h) => h.row_count ?? null,
+    completed: (h) => h.timestamp
+  }
+  let hostSort = $state<SortState<HostSortCol>>(null)
+  // Client-side sort of the loaded hosts; re-applies on each poll since it's derived.
+  const sortedHosts = $derived(sortRows(run?.hosts ?? [], hostSort, hostAccessors, (h) => h.hostname || h.node_uuid))
 
   const runId = $derived(page.params.id as string)
   // Resolve the open host from the live run so polling updates flow into the modal.
@@ -199,15 +215,16 @@
       <table class="hosts-table">
         <thead>
           <tr>
-            <th>Host</th>
-            <th>Platform</th>
-            <th>Status</th>
-            <th>Rows</th>
-            <th>Completed</th>
+            <SortableHeader bind:state={hostSort} col="host" label="Host" />
+            <SortableHeader bind:state={hostSort} col="user" label="User" />
+            <SortableHeader bind:state={hostSort} col="platform" label="Platform" />
+            <SortableHeader bind:state={hostSort} col="status" label="Status" />
+            <SortableHeader bind:state={hostSort} col="rows" label="Rows" align="right" />
+            <SortableHeader bind:state={hostSort} col="completed" label="Completed" />
           </tr>
         </thead>
         <tbody>
-          {#each run.hosts || [] as host}
+          {#each sortedHosts as host}
             <tr
               class="host-row"
               tabindex="0"
@@ -221,13 +238,23 @@
               }}
             >
               <td><strong>{host.hostname || host.node_uuid}</strong></td>
+              <td>
+                {#if host.owner_name || host.owner_email}
+                  <strong>{host.owner_name || host.owner_email}</strong>
+                  {#if host.owner_name && host.owner_email}
+                    <p class="text-light">{host.owner_email}</p>
+                  {/if}
+                {:else}
+                  <span class="text-light">Unassigned</span>
+                {/if}
+              </td>
               <td class="text-light">{host.platform || '—'}</td>
               <td><span class="badge" data-variant={statusVariant(host.status)}>{host.status}</span></td>
-              <td>{host.status === 'complete' ? host.row_count ?? 0 : '—'}</td>
+              <td class="align-right">{host.status === 'complete' ? host.row_count ?? 0 : '—'}</td>
               <td class="text-light">{host.timestamp ? formatTimestamp(host.timestamp) : '—'}</td>
             </tr>
           {:else}
-            <tr><td colspan="5" class="align-center text-light">This run has no hosts</td></tr>
+            <tr><td colspan="6" class="align-center text-light">This run has no hosts</td></tr>
           {/each}
         </tbody>
       </table>
@@ -245,6 +272,9 @@
       <p class="hstack gap-2">
         <span class="badge" data-variant={statusVariant(selectedHost.status)}>{selectedHost.status}</span>
         <span class="text-light">{selectedHost.platform || '—'}</span>
+        {#if selectedHost.owner_name || selectedHost.owner_email}
+          <span class="text-light">· {selectedHost.owner_name || selectedHost.owner_email}</span>
+        {/if}
         {#if selectedHost.status === 'complete'}
           <span class="text-light">· {selectedHost.row_count ?? 0} row{selectedHost.row_count === 1 ? '' : 's'}</span>
           {#if hostDownloadHref}

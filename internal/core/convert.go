@@ -657,14 +657,16 @@ func toModelQueryRunHost(row repo.ListMachineQueryResultsByRunUUIDRow) models.Qu
 		timestamp = row.CompletedAt.Time
 	}
 	return models.QueryRunHost{
-		QueryID:   row.Uuid.String(),
-		NodeUUID:  row.NodeUuid.String(),
-		Hostname:  row.Hostname,
-		Platform:  row.Platform,
-		Status:    row.Status,
-		RowCount:  int(row.RowCount),
-		Error:     row.Error,
-		Timestamp: timestamp,
+		QueryID:    row.Uuid.String(),
+		NodeUUID:   row.NodeUuid.String(),
+		Hostname:   row.Hostname,
+		Platform:   row.Platform,
+		Status:     row.Status,
+		RowCount:   int(row.RowCount),
+		Error:      row.Error,
+		Timestamp:  timestamp,
+		OwnerName:  row.OwnerDisplayName.String,
+		OwnerEmail: row.OwnerEmail.String,
 	}
 }
 

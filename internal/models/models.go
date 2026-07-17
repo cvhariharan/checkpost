@@ -522,14 +522,16 @@ type QueryRunRequest struct {
 
 // QueryRunHost is a single host's execution within a query run.
 type QueryRunHost struct {
-	QueryID   string    `json:"query_id"`
-	NodeUUID  string    `json:"node_uuid"`
-	Hostname  string    `json:"hostname"`
-	Platform  string    `json:"platform"`
-	Status    string    `json:"status"`
-	RowCount  int       `json:"row_count"`
-	Error     string    `json:"error,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	QueryID    string    `json:"query_id"`
+	NodeUUID   string    `json:"node_uuid"`
+	Hostname   string    `json:"hostname"`
+	Platform   string    `json:"platform"`
+	Status     string    `json:"status"`
+	RowCount   int       `json:"row_count"`
+	Error      string    `json:"error,omitempty"`
+	Timestamp  time.Time `json:"timestamp"`
+	OwnerName  string    `json:"owner_name,omitempty"`
+	OwnerEmail string    `json:"owner_email,omitempty"`
 }
 
 // QueryRun groups one SQL submission fanned out to many hosts. Hosts is

@@ -107,6 +107,8 @@ export type QueryRunHost = {
   row_count?: number
   error?: string
   timestamp?: string
+  owner_name?: string
+  owner_email?: string
 }
 
 export type AdHocQueryResults = {

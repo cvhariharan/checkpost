@@ -40,10 +40,14 @@ SELECT
     machine_query_results.updated_at, machine_query_results.run_id,
     nodes.uuid AS node_uuid,
     COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) AS hostname,
-    nodes.platform AS platform
+    nodes.platform AS platform,
+    device_owners.display_name AS owner_display_name,
+    device_owners.email AS owner_email
 FROM machine_query_results
 JOIN query_runs ON query_runs.id = machine_query_results.run_id
 JOIN nodes ON nodes.id = machine_query_results.node_id
+LEFT JOIN node_inventory ON node_inventory.node_id = machine_query_results.node_id
+LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
 WHERE query_runs.uuid = @run_uuid
 ORDER BY COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) ASC, nodes.uuid ASC;
 

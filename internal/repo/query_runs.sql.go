@@ -94,30 +94,36 @@ SELECT
     machine_query_results.updated_at, machine_query_results.run_id,
     nodes.uuid AS node_uuid,
     COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) AS hostname,
-    nodes.platform AS platform
+    nodes.platform AS platform,
+    device_owners.display_name AS owner_display_name,
+    device_owners.email AS owner_email
 FROM machine_query_results
 JOIN query_runs ON query_runs.id = machine_query_results.run_id
 JOIN nodes ON nodes.id = machine_query_results.node_id
+LEFT JOIN node_inventory ON node_inventory.node_id = machine_query_results.node_id
+LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
 WHERE query_runs.uuid = $1
 ORDER BY COALESCE(NULLIF(nodes.display_name, ''), nodes.hostname) ASC, nodes.uuid ASC
 `
 
 type ListMachineQueryResultsByRunUUIDRow struct {
-	ID           int64         `db:"id" json:"id"`
-	Uuid         uuid.UUID     `db:"uuid" json:"uuid"`
-	NodeID       int64         `db:"node_id" json:"node_id"`
-	Query        string        `db:"query" json:"query"`
-	Status       string        `db:"status" json:"status"`
-	Error        string        `db:"error" json:"error"`
-	RowCount     int32         `db:"row_count" json:"row_count"`
-	DispatchedAt sql.NullTime  `db:"dispatched_at" json:"dispatched_at"`
-	CompletedAt  sql.NullTime  `db:"completed_at" json:"completed_at"`
-	CreatedAt    time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
-	RunID        sql.NullInt64 `db:"run_id" json:"run_id"`
-	NodeUuid     uuid.UUID     `db:"node_uuid" json:"node_uuid"`
-	Hostname     string        `db:"hostname" json:"hostname"`
-	Platform     string        `db:"platform" json:"platform"`
+	ID               int64          `db:"id" json:"id"`
+	Uuid             uuid.UUID      `db:"uuid" json:"uuid"`
+	NodeID           int64          `db:"node_id" json:"node_id"`
+	Query            string         `db:"query" json:"query"`
+	Status           string         `db:"status" json:"status"`
+	Error            string         `db:"error" json:"error"`
+	RowCount         int32          `db:"row_count" json:"row_count"`
+	DispatchedAt     sql.NullTime   `db:"dispatched_at" json:"dispatched_at"`
+	CompletedAt      sql.NullTime   `db:"completed_at" json:"completed_at"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	RunID            sql.NullInt64  `db:"run_id" json:"run_id"`
+	NodeUuid         uuid.UUID      `db:"node_uuid" json:"node_uuid"`
+	Hostname         string         `db:"hostname" json:"hostname"`
+	Platform         string         `db:"platform" json:"platform"`
+	OwnerDisplayName sql.NullString `db:"owner_display_name" json:"owner_display_name"`
+	OwnerEmail       sql.NullString `db:"owner_email" json:"owner_email"`
 }
 
 func (q *Queries) ListMachineQueryResultsByRunUUID(ctx context.Context, runUuid uuid.UUID) ([]ListMachineQueryResultsByRunUUIDRow, error) {
@@ -145,6 +151,8 @@ func (q *Queries) ListMachineQueryResultsByRunUUID(ctx context.Context, runUuid 
 			&i.NodeUuid,
 			&i.Hostname,
 			&i.Platform,
+			&i.OwnerDisplayName,
+			&i.OwnerEmail,
 		); err != nil {
 			return nil, err
 		}
