@@ -427,6 +427,72 @@ func (q *Queries) ListAlertStateByRule(ctx context.Context, ruleID int64) ([]Ale
 	return items, nil
 }
 
+const listAlertStateByRulePaginated = `-- name: ListAlertStateByRulePaginated :many
+SELECT rule_id, alert_key, status, labels, annotations, first_seen_at, last_seen_at, last_notified_at, count(*) OVER () AS total_count
+FROM alert_state
+WHERE rule_id = $1
+  AND ($2::text = '' OR status = $2::text)
+ORDER BY first_seen_at DESC
+LIMIT $4 OFFSET $3
+`
+
+type ListAlertStateByRulePaginatedParams struct {
+	RuleID     int64  `db:"rule_id" json:"rule_id"`
+	Status     string `db:"status" json:"status"`
+	PageOffset int32  `db:"page_offset" json:"page_offset"`
+	PageCount  int32  `db:"page_count" json:"page_count"`
+}
+
+type ListAlertStateByRulePaginatedRow struct {
+	RuleID         int64           `db:"rule_id" json:"rule_id"`
+	AlertKey       string          `db:"alert_key" json:"alert_key"`
+	Status         string          `db:"status" json:"status"`
+	Labels         json.RawMessage `db:"labels" json:"labels"`
+	Annotations    json.RawMessage `db:"annotations" json:"annotations"`
+	FirstSeenAt    time.Time       `db:"first_seen_at" json:"first_seen_at"`
+	LastSeenAt     time.Time       `db:"last_seen_at" json:"last_seen_at"`
+	LastNotifiedAt sql.NullTime    `db:"last_notified_at" json:"last_notified_at"`
+	TotalCount     int64           `db:"total_count" json:"total_count"`
+}
+
+func (q *Queries) ListAlertStateByRulePaginated(ctx context.Context, arg ListAlertStateByRulePaginatedParams) ([]ListAlertStateByRulePaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAlertStateByRulePaginated,
+		arg.RuleID,
+		arg.Status,
+		arg.PageOffset,
+		arg.PageCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAlertStateByRulePaginatedRow
+	for rows.Next() {
+		var i ListAlertStateByRulePaginatedRow
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.AlertKey,
+			&i.Status,
+			&i.Labels,
+			&i.Annotations,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.LastNotifiedAt,
+			&i.TotalCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAlertTargets = `-- name: ListAlertTargets :many
 SELECT id, uuid, name, type, config, enabled, created_at, updated_at, count(*) OVER () AS total_count
 FROM alert_targets

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -145,6 +147,34 @@ func (h *Handler) HandleGetAlertRule(c echo.Context) error {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting alert rule %s", req.ID), err, nil)
 	}
 	return c.JSON(http.StatusOK, rule)
+}
+
+func (h *Handler) HandleAlertRuleInstances(c echo.Context) error {
+	var req AlertInstancesRequest
+	if err := h.bindAndValidate(c, &req, nil); err != nil {
+		return err
+	}
+	if req.Page > 0 {
+		req.Page -= 1
+	}
+	if req.Count == 0 {
+		req.Count = CountPerPage
+	}
+	page, err := h.c.PaginateAlertInstances(c.Request().Context(), models.AlertInstancesRequest{
+		RuleUUID: req.ID,
+		Status:   req.Status,
+		Page:     req.Page,
+		Count:    req.Count,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return wrapError(http.StatusNotFound, fmt.Sprintf("alert rule %s not found", req.ID), err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting alert instances %s", req.ID), err, nil)
+	}
+	return c.JSON(http.StatusOK, AlertInstancesResponse{
+		Instances: page.Items, TotalCount: page.TotalCount, PageCount: page.PageCount,
+	})
 }
 
 func (h *Handler) HandleUpdateAlertRule(c echo.Context) error {

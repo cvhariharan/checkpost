@@ -117,6 +117,7 @@ type Querier interface {
 	ListAPITokensByUser(ctx context.Context, userUuid uuid.UUID) ([]ApiToken, error)
 	ListAlertRules(ctx context.Context, arg ListAlertRulesParams) ([]ListAlertRulesRow, error)
 	ListAlertStateByRule(ctx context.Context, ruleID int64) ([]AlertState, error)
+	ListAlertStateByRulePaginated(ctx context.Context, arg ListAlertStateByRulePaginatedParams) ([]ListAlertStateByRulePaginatedRow, error)
 	ListAlertTargets(ctx context.Context, arg ListAlertTargetsParams) ([]ListAlertTargetsRow, error)
 	ListAllNodeIDs(ctx context.Context) ([]int64, error)
 	ListAllQuerySchemas(ctx context.Context) ([]ListAllQuerySchemasRow, error)

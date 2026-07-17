@@ -82,6 +82,14 @@ WHERE rt.rule_id = $1;
 -- name: ListAlertStateByRule :many
 SELECT * FROM alert_state WHERE rule_id = $1;
 
+-- name: ListAlertStateByRulePaginated :many
+SELECT *, count(*) OVER () AS total_count
+FROM alert_state
+WHERE rule_id = @rule_id
+  AND (@status::text = '' OR status = @status::text)
+ORDER BY first_seen_at DESC
+LIMIT @page_count OFFSET @page_offset;
+
 -- name: UpsertAlertState :exec
 INSERT INTO alert_state (rule_id, alert_key, status, labels, annotations, first_seen_at, last_seen_at, last_notified_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)

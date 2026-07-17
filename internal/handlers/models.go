@@ -55,6 +55,19 @@ type AlertSourcesResponse struct {
 	Sources []models.AlertSourceInfo `json:"sources"`
 }
 
+type AlertInstancesRequest struct {
+	ID     string `param:"id" validate:"required,uuid"`
+	Status string `query:"status" validate:"omitempty,oneof=firing pending"`
+	Page   int    `query:"page" validate:"gte=0"`
+	Count  int    `query:"count_per_page" validate:"gte=0"`
+}
+
+type AlertInstancesResponse struct {
+	Instances  []models.AlertInstance `json:"instances"`
+	TotalCount int                    `json:"total_count"`
+	PageCount  int                    `json:"page_count"`
+}
+
 type OsqueryStatus string
 
 func (s *OsqueryStatus) UnmarshalJSON(data []byte) error {

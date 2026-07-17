@@ -25,21 +25,22 @@ const (
 )
 
 const (
-	ResourceMachine      = "machine"
-	ResourceMachineGroup = "machine_group"
-	ResourcePolicy       = "policy"
-	ResourceSchedule     = "schedule"
-	ResourceQueryResult  = "query_result"
-	ResourceYaraSource   = "yara_source"
-	ResourceYaraScan     = "yara_scan"
-	ResourceInventory    = "inventory"
-	ResourceUser         = "user"
-	ResourceUserGroup    = "user_group"
-	ResourceRoleBinding  = "role_binding"
-	ResourceSetting      = "setting"
-	ResourceAlertRule    = "alert_rule"
-	ResourceAlertTarget  = "alert_target"
-	ResourceDashboard    = "dashboard"
+	ResourceMachine       = "machine"
+	ResourceMachineGroup  = "machine_group"
+	ResourcePolicy        = "policy"
+	ResourceSchedule      = "schedule"
+	ResourceQueryResult   = "query_result"
+	ResourceYaraSource    = "yara_source"
+	ResourceYaraScan      = "yara_scan"
+	ResourceInventory     = "inventory"
+	ResourceUser          = "user"
+	ResourceUserGroup     = "user_group"
+	ResourceRoleBinding   = "role_binding"
+	ResourceSetting       = "setting"
+	ResourceAlertRule     = "alert_rule"
+	ResourceAlertTarget   = "alert_target"
+	ResourceAlertInstance = "alert_instance"
+	ResourceDashboard     = "dashboard"
 )
 
 const (
@@ -75,6 +76,7 @@ var permissionCatalog = []models.PermissionCatalogEntry{
 	{Resource: ResourceSetting, Actions: []string{ActionView, ActionUpdate}, Scopable: false},
 	{Resource: ResourceAlertRule, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete}, Scopable: false},
 	{Resource: ResourceAlertTarget, Actions: []string{ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute}, Scopable: false},
+	{Resource: ResourceAlertInstance, Actions: []string{ActionView}, Scopable: false},
 	{Resource: ResourceDashboard, Actions: []string{ActionView}, Scopable: false},
 }
 
@@ -82,47 +84,50 @@ var permissionCatalog = []models.PermissionCatalogEntry{
 // role -> resource -> actions. Seeded into Casbin.
 var roleMatrix = map[string]map[string][]string{
 	RoleAdmin: {
-		ResourceMachine:      {ActionView, ActionUpdate, ActionExecute, ActionDelete},
-		ResourceMachineGroup: {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourcePolicy:       {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceSchedule:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceQueryResult:  {ActionView, ActionDelete},
-		ResourceYaraSource:   {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceYaraScan:     {ActionView, ActionCreate},
-		ResourceInventory:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceUser:         {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceUserGroup:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceRoleBinding:  {ActionView, ActionCreate, ActionDelete},
-		ResourceSetting:      {ActionView, ActionUpdate},
-		ResourceAlertRule:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceAlertTarget:  {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
-		ResourceDashboard:    {ActionView},
+		ResourceMachine:       {ActionView, ActionUpdate, ActionExecute, ActionDelete},
+		ResourceMachineGroup:  {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourcePolicy:        {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceSchedule:      {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceQueryResult:   {ActionView, ActionDelete},
+		ResourceYaraSource:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceYaraScan:      {ActionView, ActionCreate},
+		ResourceInventory:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceUser:          {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceUserGroup:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceRoleBinding:   {ActionView, ActionCreate, ActionDelete},
+		ResourceSetting:       {ActionView, ActionUpdate},
+		ResourceAlertRule:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceAlertTarget:   {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
+		ResourceAlertInstance: {ActionView},
+		ResourceDashboard:     {ActionView},
 	},
 	RoleOperator: {
-		ResourceMachine:      {ActionView, ActionUpdate, ActionExecute, ActionDelete},
-		ResourceMachineGroup: {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourcePolicy:       {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceSchedule:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceQueryResult:  {ActionView, ActionDelete},
-		ResourceYaraSource:   {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceYaraScan:     {ActionView, ActionCreate},
-		ResourceInventory:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceSetting:      {ActionView},
-		ResourceAlertRule:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
-		ResourceAlertTarget:  {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
-		ResourceDashboard:    {ActionView},
+		ResourceMachine:       {ActionView, ActionUpdate, ActionExecute, ActionDelete},
+		ResourceMachineGroup:  {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourcePolicy:        {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceSchedule:      {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceQueryResult:   {ActionView, ActionDelete},
+		ResourceYaraSource:    {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceYaraScan:      {ActionView, ActionCreate},
+		ResourceInventory:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceSetting:       {ActionView},
+		ResourceAlertRule:     {ActionView, ActionCreate, ActionUpdate, ActionDelete},
+		ResourceAlertTarget:   {ActionView, ActionCreate, ActionUpdate, ActionDelete, ActionExecute},
+		ResourceAlertInstance: {ActionView},
+		ResourceDashboard:     {ActionView},
 	},
 	RoleAnalyst: {
-		ResourceMachine:      {ActionView, ActionExecute},
-		ResourceMachineGroup: {ActionView},
-		ResourcePolicy:       {ActionView},
-		ResourceSchedule:     {ActionView},
-		ResourceQueryResult:  {ActionView},
-		ResourceYaraSource:   {ActionView},
-		ResourceYaraScan:     {ActionView, ActionCreate},
-		ResourceInventory:    {ActionView},
-		ResourceAlertRule:    {ActionView},
-		ResourceAlertTarget:  {ActionView},
+		ResourceMachine:       {ActionView, ActionExecute},
+		ResourceMachineGroup:  {ActionView},
+		ResourcePolicy:        {ActionView},
+		ResourceSchedule:      {ActionView},
+		ResourceQueryResult:   {ActionView},
+		ResourceYaraSource:    {ActionView},
+		ResourceYaraScan:      {ActionView, ActionCreate},
+		ResourceInventory:     {ActionView},
+		ResourceAlertRule:     {ActionView},
+		ResourceAlertTarget:   {ActionView},
+		ResourceAlertInstance: {ActionView},
 	},
 	RoleViewer: {
 		ResourceMachine:      {ActionView},

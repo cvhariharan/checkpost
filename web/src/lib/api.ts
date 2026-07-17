@@ -1077,6 +1077,16 @@ export type AlertSource = {
   schema: Record<string, unknown>
 }
 
+export type AlertInstance = {
+  alert_key: string
+  status: string
+  labels?: Record<string, string>
+  annotations?: Record<string, string>
+  first_seen_at: string
+  last_seen_at: string
+  last_notified_at?: string
+}
+
 export function fetchAlertTargets(opts: PageOpts = {}) {
   const { page = 1, countPerPage = 10 } = opts
   return fetch(apiUrl('/alert-targets', { page, count_per_page: countPerPage })).then((r) =>
@@ -1113,6 +1123,20 @@ export function fetchAlertRule(uuid: string) {
   return fetch(apiUrl(`/alert-rules/${encodeURIComponent(uuid)}`)).then((r) =>
     handleResponse<AlertRule>(r)
   )
+}
+
+export function fetchAlertRuleInstances(
+  uuid: string,
+  opts: { status?: string; page?: number; countPerPage?: number } = {}
+) {
+  const { status = '', page = 1, countPerPage = 10 } = opts
+  return fetch(
+    apiUrl(`/alert-rules/${encodeURIComponent(uuid)}/instances`, {
+      status,
+      page,
+      count_per_page: countPerPage
+    })
+  ).then((r) => handleResponse<Paginated<AlertInstance, 'instances'>>(r))
 }
 
 export function createAlertRule(payload: Record<string, unknown>) {

@@ -268,6 +268,7 @@ func runServer(flags *rootFlags) error {
 	api.GET("/alert-rules", h.HandleAlertRulesPagination, h.Authorize(core.ResourceAlertRule, core.ActionView))
 	api.GET("/alert-rules/by-name/:name", h.HandleGetAlertRuleByName, h.Authorize(core.ResourceAlertRule, core.ActionView))
 	api.GET("/alert-rules/:id", h.HandleGetAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionView))
+	api.GET("/alert-rules/:id/instances", h.HandleAlertRuleInstances, h.Authorize(core.ResourceAlertInstance, core.ActionView))
 	api.PUT("/alert-rules/:id", h.HandleUpdateAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionUpdate))
 	api.DELETE("/alert-rules/:id", h.HandleDeleteAlertRule, h.Authorize(core.ResourceAlertRule, core.ActionDelete))
 	api.GET("/alert-sources", h.HandleAlertSources, h.Authorize(core.ResourceAlertRule, core.ActionView))

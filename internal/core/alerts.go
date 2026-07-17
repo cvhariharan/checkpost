@@ -253,6 +253,57 @@ func (c *Core) PaginateAlertRules(ctx context.Context, req models.PageRequest) (
 	return models.Page[models.AlertRule]{Items: out, TotalCount: total, PageCount: pageCountFor(total, count)}, nil
 }
 
+// PaginateAlertInstances returns the live alert_state instances (firing/pending)
+// for a rule, optionally filtered by status.
+func (c *Core) PaginateAlertInstances(ctx context.Context, req models.AlertInstancesRequest) (models.Page[models.AlertInstance], error) {
+	ruleID, err := uuid.Parse(req.RuleUUID)
+	if err != nil {
+		return models.Page[models.AlertInstance]{}, fmt.Errorf("parse rule uuid: %w", err)
+	}
+	rule, err := c.store.GetAlertRuleByUUID(ctx, ruleID)
+	if err != nil {
+		return models.Page[models.AlertInstance]{}, fmt.Errorf("get alert rule: %w", err)
+	}
+
+	count, page := pageBounds(models.PageRequest{Page: req.Page, Count: req.Count})
+	status := strings.ToLower(strings.TrimSpace(req.Status))
+	switch status {
+	case "", "firing", "pending":
+	default:
+		return models.Page[models.AlertInstance]{}, fmt.Errorf("invalid alert status %q", req.Status)
+	}
+
+	rows, err := c.store.ListAlertStateByRulePaginated(ctx, repo.ListAlertStateByRulePaginatedParams{
+		RuleID:     rule.ID,
+		Status:     status,
+		PageCount:  int32(count),
+		PageOffset: int32(page * count),
+	})
+	if err != nil {
+		return models.Page[models.AlertInstance]{}, fmt.Errorf("list alert instances: %w", err)
+	}
+
+	out := make([]models.AlertInstance, 0, len(rows))
+	total := 0
+	for _, r := range rows {
+		inst := models.AlertInstance{
+			AlertKey:    r.AlertKey,
+			Status:      r.Status,
+			Labels:      r.Labels,
+			Annotations: r.Annotations,
+			FirstSeenAt: r.FirstSeenAt,
+			LastSeenAt:  r.LastSeenAt,
+		}
+		if r.LastNotifiedAt.Valid {
+			t := r.LastNotifiedAt.Time
+			inst.LastNotifiedAt = &t
+		}
+		out = append(out, inst)
+		total = int(r.TotalCount)
+	}
+	return models.Page[models.AlertInstance]{Items: out, TotalCount: total, PageCount: pageCountFor(total, count)}, nil
+}
+
 func (c *Core) DeleteAlertRule(ctx context.Context, req models.ResourceID) error {
 	id, err := uuid.Parse(req.UUID)
 	if err != nil {

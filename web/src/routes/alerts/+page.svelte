@@ -21,6 +21,7 @@
     import ActionsMenu from "$lib/components/ActionsMenu.svelte";
     import AlertRuleFormDialog from "$lib/components/AlertRuleFormDialog.svelte";
     import AlertTargetFormDialog from "$lib/components/AlertTargetFormDialog.svelte";
+    import AlertInstancesDialog from "$lib/components/AlertInstancesDialog.svelte";
     import { canFrom, me } from "$lib/auth";
     import Plus from "@lucide/svelte/icons/plus";
 
@@ -50,6 +51,8 @@
     let ruleDeleteOpen = $state(false);
     let selectedRule = $state<AlertRule | null>(null);
     let deletingRule = $state(false);
+    let instancesRule = $state<AlertRule | null>(null);
+    let instancesOpen = $state(false);
 
     // Targets
     let targets = $state<AlertTarget[]>([]);
@@ -69,6 +72,7 @@
     const canCreateRule = $derived(canFrom($me, "alert_rule", "create"));
     const canUpdateRule = $derived(canFrom($me, "alert_rule", "update"));
     const canDeleteRule = $derived(canFrom($me, "alert_rule", "delete"));
+    const canViewInstances = $derived(canFrom($me, "alert_instance", "view"));
 
     const canViewTarget = $derived(canFrom($me, "alert_target", "view"));
     const canCreateTarget = $derived(canFrom($me, "alert_target", "create"));
@@ -171,6 +175,12 @@
         ruleFormOpen = true;
     }
 
+    function openInstancesModal(rule: AlertRule) {
+        if (!canViewInstances) return;
+        instancesRule = rule;
+        instancesOpen = true;
+    }
+
     const deepLinkRuleUuid = $derived(page.url.searchParams.get("rule"));
     let handledDeepLink = "";
 
@@ -183,7 +193,12 @@
     async function openRuleByUuid(uuid: string) {
         setTab(0);
         try {
-            openEditRule(await fetchAlertRule(uuid));
+            const rule = await fetchAlertRule(uuid);
+            if (canViewInstances) {
+                openInstancesModal(rule);
+            } else {
+                openEditRule(rule);
+            }
         } catch (err) {
             error = (err as Error).message || "Failed to load alert rule";
             clearDeepLink();
@@ -359,14 +374,23 @@
                                 {#each rules as rule}
                                     <tr>
                                         <td>
-                                            <button
-                                                type="button"
-                                                class="cell-link"
-                                                onclick={() =>
-                                                    openEditRule(rule)}
-                                            >
-                                                {rule.name || "Untitled"}
-                                            </button>
+                                            {#if canViewInstances}
+                                                <button
+                                                    type="button"
+                                                    class="cell-link"
+                                                    onclick={() =>
+                                                        openInstancesModal(
+                                                            rule,
+                                                        )}
+                                                >
+                                                    {rule.name || "Untitled"}
+                                                </button>
+                                            {:else}
+                                                <span
+                                                    >{rule.name ||
+                                                        "Untitled"}</span
+                                                >
+                                            {/if}
                                             {#if rule.description}<p
                                                     class="text-light"
                                                 >
@@ -625,6 +649,15 @@
         clearDeepLink();
     }}
     onSaved={handleRuleSaved}
+/>
+
+<AlertInstancesDialog
+    bind:open={instancesOpen}
+    rule={instancesRule}
+    onClose={() => {
+        instancesRule = null;
+        clearDeepLink();
+    }}
 />
 
 <AlertTargetFormDialog

@@ -35,6 +35,25 @@ type AlertRule struct {
 	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
+// AlertInstance is a single live alert tracked in alert_state for a rule.
+type AlertInstance struct {
+	AlertKey       string          `json:"alert_key"`
+	Status         string          `json:"status"`
+	Labels         json.RawMessage `json:"labels"`
+	Annotations    json.RawMessage `json:"annotations"`
+	FirstSeenAt    time.Time       `json:"first_seen_at"`
+	LastSeenAt     time.Time       `json:"last_seen_at"`
+	LastNotifiedAt *time.Time      `json:"last_notified_at,omitempty"`
+}
+
+// AlertInstancesRequest is the paginated lookup of a rule's live instances.
+type AlertInstancesRequest struct {
+	RuleUUID string
+	Status   string
+	Page     int
+	Count    int
+}
+
 // AlertSourceInfo describes a registered source type and its params JSON Schema.
 type AlertSourceInfo struct {
 	Type   string `json:"type"`
