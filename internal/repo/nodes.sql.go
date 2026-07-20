@@ -194,136 +194,160 @@ WITH filtered AS (
         nodes.last_seen_at,
         nodes.last_policy_check_at,
         nodes.created_at,
-        nodes.updated_at
+        nodes.updated_at,
+        device_owners.display_name AS owner_display_name,
+        device_owners.email AS owner_email
     FROM nodes
     LEFT JOIN node_inventory ON node_inventory.node_id = nodes.id
     LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
     WHERE (
-        $2::text = ''
-        OR nodes.hostname ILIKE '%' || $2::text || '%'
-        OR nodes.display_name ILIKE '%' || $2::text || '%'
-        OR nodes.host_identifier ILIKE '%' || $2::text || '%'
-        OR node_inventory.internal_tracking_id ILIKE '%' || $2::text || '%'
-        OR device_owners.display_name ILIKE '%' || $2::text || '%'
-        OR device_owners.email ILIKE '%' || $2::text || '%'
-    )
-      AND (
-        $3::text = ''
-        OR nodes.platform = $3::text
-    )
-      AND (
-        $4::text = ''
-        OR device_owners.uuid::text = $4::text
-    )
-      AND (
-        $5::text = ''
-        OR ($5::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
-        OR ($5::text = 'unassigned' AND node_inventory.owner_id IS NULL)
-    )
-      AND (
         $6::text = ''
-        OR lower(trim(device_owners.email)) = lower(trim($6::text))
+        OR nodes.hostname ILIKE '%' || $6::text || '%'
+        OR nodes.display_name ILIKE '%' || $6::text || '%'
+        OR nodes.host_identifier ILIKE '%' || $6::text || '%'
+        OR node_inventory.internal_tracking_id ILIKE '%' || $6::text || '%'
+        OR device_owners.display_name ILIKE '%' || $6::text || '%'
+        OR device_owners.email ILIKE '%' || $6::text || '%'
+    )
+      AND (
+        $7::text = ''
+        OR nodes.platform = $7::text
+    )
+      AND (
+        $8::text = ''
+        OR device_owners.uuid::text = $8::text
+    )
+      AND (
+        $9::text = ''
+        OR ($9::text = 'assigned' AND node_inventory.owner_id IS NOT NULL)
+        OR ($9::text = 'unassigned' AND node_inventory.owner_id IS NULL)
+    )
+      AND (
+        $10::text = ''
+        OR lower(trim(device_owners.email)) = lower(trim($10::text))
     )
 ),
-total AS (
-    SELECT count(*) AS total_count FROM filtered
-),
-page AS (
-    SELECT filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.display_name, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at
+scored AS (
+    SELECT
+        filtered.id, filtered.uuid, filtered.node_key, filtered.host_identifier, filtered.hostname, filtered.display_name, filtered.platform, filtered.os_name, filtered.os_version, filtered.osquery_version, filtered.hardware_serial, filtered.enrolled_at, filtered.last_seen_at, filtered.last_policy_check_at, filtered.created_at, filtered.updated_at, filtered.owner_display_name, filtered.owner_email,
+        coalesce(score.weighted_passing, 0)::bigint AS weighted_passing,
+        coalesce(score.weighted_total, 0)::bigint AS weighted_total
     FROM filtered
-    ORDER BY filtered.created_at DESC
-    LIMIT $8 OFFSET $7
+    LEFT JOIN LATERAL (
+        SELECT
+            coalesce(sum(
+                CASE policies.severity
+                    WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+                END
+            ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $11::timestamptz), 0)::bigint AS weighted_passing,
+            coalesce(sum(
+                CASE policies.severity
+                    WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+                END
+            ), 0)::bigint AS weighted_total
+        FROM policies
+        LEFT JOIN policy_membership
+            ON policy_membership.policy_id = policies.id
+           AND policy_membership.node_id = filtered.id
+        WHERE policies.enabled = true
+            AND (
+                policies.platform IN ('all', 'any')
+                OR policies.platform = filtered.platform
+                OR (policies.platform = 'linux' AND filtered.platform NOT IN ('', 'darwin', 'windows'))
+                OR (policies.platform = 'posix' AND filtered.platform NOT IN ('', 'windows'))
+            )
+            AND (
+                NOT EXISTS (
+                    SELECT 1
+                    FROM policy_groups
+                    WHERE policy_groups.policy_id = policies.id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM policy_groups
+                    JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+                    WHERE policy_groups.policy_id = policies.id
+                      AND group_membership.node_id = filtered.id
+                )
+            )
+    ) score ON true
 )
 SELECT
-    page.id, page.uuid, page.node_key, page.host_identifier, page.hostname, page.display_name, page.platform, page.os_name, page.os_version, page.osquery_version, page.hardware_serial, page.enrolled_at, page.last_seen_at, page.last_policy_check_at, page.created_at, page.updated_at,
-    total.total_count,
-    coalesce(score.weighted_passing, 0)::bigint AS weighted_passing,
-    coalesce(score.weighted_total, 0)::bigint AS weighted_total
-FROM page, total
-LEFT JOIN LATERAL (
-    SELECT
-        coalesce(sum(
-            CASE policies.severity
-                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
-            END
-        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= $1::timestamptz), 0)::bigint AS weighted_passing,
-        coalesce(sum(
-            CASE policies.severity
-                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
-            END
-        ), 0)::bigint AS weighted_total
-    FROM policies
-    LEFT JOIN policy_membership
-        ON policy_membership.policy_id = policies.id
-       AND policy_membership.node_id = page.id
-    WHERE policies.enabled = true
-        AND (
-            policies.platform IN ('all', 'any')
-            OR policies.platform = page.platform
-            OR (policies.platform = 'linux' AND page.platform NOT IN ('', 'darwin', 'windows'))
-            OR (policies.platform = 'posix' AND page.platform NOT IN ('', 'windows'))
-        )
-        AND (
-            NOT EXISTS (
-                SELECT 1
-                FROM policy_groups
-                WHERE policy_groups.policy_id = policies.id
-            )
-            OR EXISTS (
-                SELECT 1
-                FROM policy_groups
-                JOIN group_membership ON group_membership.group_id = policy_groups.group_id
-                WHERE policy_groups.policy_id = policies.id
-                  AND group_membership.node_id = page.id
-            )
-        )
-) score ON true
-ORDER BY page.created_at DESC
+    scored.id, scored.uuid, scored.node_key, scored.host_identifier, scored.hostname, scored.display_name, scored.platform, scored.os_name, scored.os_version, scored.osquery_version, scored.hardware_serial, scored.enrolled_at, scored.last_seen_at, scored.last_policy_check_at, scored.created_at, scored.updated_at, scored.owner_display_name, scored.owner_email, scored.weighted_passing, scored.weighted_total,
+    count(*) OVER () AS total_count
+FROM scored
+ORDER BY
+    CASE WHEN $1::text = 'name' AND $2::text = 'asc'
+        THEN lower(COALESCE(NULLIF(scored.display_name, ''), scored.hostname)) END ASC NULLS LAST,
+    CASE WHEN $1::text = 'name' AND $2::text = 'desc'
+        THEN lower(COALESCE(NULLIF(scored.display_name, ''), scored.hostname)) END DESC NULLS LAST,
+    CASE WHEN $1::text = 'owner' AND $2::text = 'asc'
+        THEN lower(COALESCE(NULLIF(scored.owner_display_name, ''), scored.owner_email)) END ASC NULLS LAST,
+    CASE WHEN $1::text = 'owner' AND $2::text = 'desc'
+        THEN lower(COALESCE(NULLIF(scored.owner_display_name, ''), scored.owner_email)) END DESC NULLS LAST,
+    CASE WHEN $1::text = 'score' AND $2::text = 'asc'
+        THEN (CASE WHEN scored.weighted_total > 0 THEN scored.weighted_passing::float / scored.weighted_total ELSE NULL END) END ASC NULLS LAST,
+    CASE WHEN $1::text = 'score' AND $2::text = 'desc'
+        THEN (CASE WHEN scored.weighted_total > 0 THEN scored.weighted_passing::float / scored.weighted_total ELSE NULL END) END DESC NULLS LAST,
+    CASE WHEN $1::text = 'status' AND $2::text = 'asc'
+        THEN (CASE WHEN scored.last_seen_at IS NULL AND scored.enrolled_at IS NULL THEN 2 WHEN COALESCE(scored.last_seen_at, scored.enrolled_at) >= $3::timestamptz THEN 0 ELSE 1 END) END ASC NULLS LAST,
+    CASE WHEN $1::text = 'status' AND $2::text = 'desc'
+        THEN (CASE WHEN scored.last_seen_at IS NULL AND scored.enrolled_at IS NULL THEN 2 WHEN COALESCE(scored.last_seen_at, scored.enrolled_at) >= $3::timestamptz THEN 0 ELSE 1 END) END DESC NULLS LAST,
+    scored.created_at DESC, scored.uuid
+LIMIT $5 OFFSET $4
 `
 
 type ListNodesParams struct {
-	StaleCutoff time.Time `db:"stale_cutoff" json:"stale_cutoff"`
-	Query       string    `db:"query" json:"query"`
-	Platform    string    `db:"platform" json:"platform"`
-	OwnerUuid   string    `db:"owner_uuid" json:"owner_uuid"`
-	Assigned    string    `db:"assigned" json:"assigned"`
-	OwnerEmail  string    `db:"owner_email" json:"owner_email"`
-	OffsetCount int32     `db:"offset_count" json:"offset_count"`
-	LimitCount  int32     `db:"limit_count" json:"limit_count"`
+	SortBy       string    `db:"sort_by" json:"sort_by"`
+	SortDir      string    `db:"sort_dir" json:"sort_dir"`
+	OnlineCutoff time.Time `db:"online_cutoff" json:"online_cutoff"`
+	OffsetCount  int32     `db:"offset_count" json:"offset_count"`
+	LimitCount   int32     `db:"limit_count" json:"limit_count"`
+	Query        string    `db:"query" json:"query"`
+	Platform     string    `db:"platform" json:"platform"`
+	OwnerUuid    string    `db:"owner_uuid" json:"owner_uuid"`
+	Assigned     string    `db:"assigned" json:"assigned"`
+	OwnerEmail   string    `db:"owner_email" json:"owner_email"`
+	StaleCutoff  time.Time `db:"stale_cutoff" json:"stale_cutoff"`
 }
 
 type ListNodesRow struct {
-	ID                int64        `db:"id" json:"id"`
-	Uuid              uuid.UUID    `db:"uuid" json:"uuid"`
-	NodeKey           uuid.UUID    `db:"node_key" json:"node_key"`
-	HostIdentifier    string       `db:"host_identifier" json:"host_identifier"`
-	Hostname          string       `db:"hostname" json:"hostname"`
-	DisplayName       string       `db:"display_name" json:"display_name"`
-	Platform          string       `db:"platform" json:"platform"`
-	OsName            string       `db:"os_name" json:"os_name"`
-	OsVersion         string       `db:"os_version" json:"os_version"`
-	OsqueryVersion    string       `db:"osquery_version" json:"osquery_version"`
-	HardwareSerial    string       `db:"hardware_serial" json:"hardware_serial"`
-	EnrolledAt        time.Time    `db:"enrolled_at" json:"enrolled_at"`
-	LastSeenAt        sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
-	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
-	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
-	TotalCount        int64        `db:"total_count" json:"total_count"`
-	WeightedPassing   int64        `db:"weighted_passing" json:"weighted_passing"`
-	WeightedTotal     int64        `db:"weighted_total" json:"weighted_total"`
+	ID                int64          `db:"id" json:"id"`
+	Uuid              uuid.UUID      `db:"uuid" json:"uuid"`
+	NodeKey           uuid.UUID      `db:"node_key" json:"node_key"`
+	HostIdentifier    string         `db:"host_identifier" json:"host_identifier"`
+	Hostname          string         `db:"hostname" json:"hostname"`
+	DisplayName       string         `db:"display_name" json:"display_name"`
+	Platform          string         `db:"platform" json:"platform"`
+	OsName            string         `db:"os_name" json:"os_name"`
+	OsVersion         string         `db:"os_version" json:"os_version"`
+	OsqueryVersion    string         `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial    string         `db:"hardware_serial" json:"hardware_serial"`
+	EnrolledAt        time.Time      `db:"enrolled_at" json:"enrolled_at"`
+	LastSeenAt        sql.NullTime   `db:"last_seen_at" json:"last_seen_at"`
+	LastPolicyCheckAt sql.NullTime   `db:"last_policy_check_at" json:"last_policy_check_at"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	OwnerDisplayName  sql.NullString `db:"owner_display_name" json:"owner_display_name"`
+	OwnerEmail        sql.NullString `db:"owner_email" json:"owner_email"`
+	WeightedPassing   int64          `db:"weighted_passing" json:"weighted_passing"`
+	WeightedTotal     int64          `db:"weighted_total" json:"weighted_total"`
+	TotalCount        int64          `db:"total_count" json:"total_count"`
 }
 
 func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNodes,
-		arg.StaleCutoff,
+		arg.SortBy,
+		arg.SortDir,
+		arg.OnlineCutoff,
+		arg.OffsetCount,
+		arg.LimitCount,
 		arg.Query,
 		arg.Platform,
 		arg.OwnerUuid,
 		arg.Assigned,
 		arg.OwnerEmail,
-		arg.OffsetCount,
-		arg.LimitCount,
+		arg.StaleCutoff,
 	)
 	if err != nil {
 		return nil, err
@@ -349,9 +373,11 @@ func (q *Queries) ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNod
 			&i.LastPolicyCheckAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.TotalCount,
+			&i.OwnerDisplayName,
+			&i.OwnerEmail,
 			&i.WeightedPassing,
 			&i.WeightedTotal,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

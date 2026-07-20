@@ -16,8 +16,6 @@
     type Me
   } from '$lib/api'
   import { formatTimestamp, isOnline, machineHostname } from '$lib/util'
-  import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
-  import SortableHeader from '$lib/components/SortableHeader.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import SearchInput from '$lib/components/SearchInput.svelte'
   import SelectFilter from '$lib/components/SelectFilter.svelte'
@@ -29,6 +27,8 @@
   import OsqueryBootstrapDialog from '$lib/components/OsqueryBootstrapDialog.svelte'
   import { canFrom, me, ownerOnlyFrom } from '$lib/auth'
   import Plus from '@lucide/svelte/icons/plus'
+  import ArrowUpNarrowWide from '@lucide/svelte/icons/arrow-up-narrow-wide'
+  import ArrowDownWideNarrow from '@lucide/svelte/icons/arrow-down-wide-narrow'
 
   type OatTabsElement = HTMLElement & { activeIndex: number }
   type FilterOption = { value: string; label: string }
@@ -113,22 +113,19 @@
   const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
   const canDeleteMachine = $derived(canFrom($me, 'machine', 'delete'))
 
-  type MachineSortCol = 'status' | 'name' | 'owner' | 'tracking' | 'serial' | 'platform' | 'compliance' | 'lastSeen'
-  const machineAccessors: SortAccessors<Machine, MachineSortCol> = {
-    status: (m) => statusLabel(m),
-    name: (m) => machineHostname(m),
-    owner: (m) => m.inventory?.owner?.display_name || m.inventory?.owner?.email,
-    tracking: (m) => m.inventory?.internal_tracking_id,
-    serial: (m) => m.hardware_serial,
-    platform: (m) => m.platform,
-    compliance: (m) => m.compliance_score ?? undefined,
-    lastSeen: (m) => m.last_seen_at || m.enrolled_at
+  // API-level global sort for the devices table. Empty column = default (newest first);
+  // the backend orders across all pages, so this is not limited to the current page.
+  let sortColumn = $state('')
+  let sortDir = $state('asc')
+  const sortOptions = [
+    { value: 'name', label: 'Name' },
+    { value: 'status', label: 'Status' },
+    { value: 'owner', label: 'Owner' },
+    { value: 'score', label: 'Score' }
+  ]
+  function toggleSortDir() {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc'
   }
-  // Sorts only the current page of results (server-side pagination is unchanged).
-  let machineSort = $state<SortState<MachineSortCol>>(null)
-  const sortedMachines = $derived(
-    sortRows(machines, machineSort, machineAccessors, (m) => machineHostname(m))
-  )
 
   onMount(() => {
     void initialize()
@@ -178,7 +175,13 @@
 
   $effect(() => {
     if (!initialized) return
-    const nextFilterKey = JSON.stringify([selectedPlatform, selectedOwner, assignmentFilter])
+    const nextFilterKey = JSON.stringify([
+      selectedPlatform,
+      selectedOwner,
+      assignmentFilter,
+      sortColumn,
+      sortDir
+    ])
     if (nextFilterKey !== previousMachineFilterKey) {
       previousMachineFilterKey = nextFilterKey
       if (!resetPageParam('devices')) void loadMachines()
@@ -266,7 +269,9 @@
         query: searchTerm,
         platform: selectedPlatform,
         ownerID: selectedOwner,
-        assigned: assignmentFilter
+        assigned: assignmentFilter,
+        sort: sortColumn,
+        dir: sortColumn ? sortDir : ''
       })
       machines = data.machines || []
       machinePageCount = Math.max(1, data.page_count || 1)
@@ -509,11 +514,11 @@
       <div role="tabpanel">
         <div class="vstack gap-3">
           <div class="row filter-row">
-            <div class="col-5">
+            <div class="col-3">
               <SearchInput bind:value={searchTerm} placeholder="Search inventory..." />
             </div>
             {#if !ownerOnlyMode}
-              <div class="col-3">
+              <div class="col-2">
                 <SelectFilter
                   options={ownerFilterOptions}
                   bind:value={selectedOwner}
@@ -541,6 +546,35 @@
                 allLabel="All platforms"
               />
             </div>
+            <div class="col-2">
+              <SelectFilter
+                options={sortOptions}
+                bind:value={sortColumn}
+                label="Sort by"
+                allLabel="Default"
+              />
+            </div>
+            <div class="col-1">
+              <button
+                type="button"
+                class="sort-dir-toggle"
+                onclick={toggleSortDir}
+                disabled={!sortColumn}
+                aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+                data-tooltip={sortColumn
+                  ? sortDir === 'asc'
+                    ? 'Ascending'
+                    : 'Descending'
+                  : 'Choose a column to sort'}
+                data-tooltip-placement="bottom"
+              >
+                {#if sortDir === 'asc'}
+                  <ArrowUpNarrowWide size={18} aria-hidden="true" />
+                {:else}
+                  <ArrowDownWideNarrow size={18} aria-hidden="true" />
+                {/if}
+              </button>
+            </div>
           </div>
 
           {#if loadingMachines}
@@ -550,21 +584,21 @@
               <table>
                 <thead>
                   <tr>
-                    <SortableHeader bind:state={machineSort} col="status" label="Status" />
-                    <SortableHeader bind:state={machineSort} col="name" label="Name" />
-                    <SortableHeader bind:state={machineSort} col="owner" label="Owner" />
-                    <SortableHeader bind:state={machineSort} col="tracking" label="Tracking ID" />
-                    <SortableHeader bind:state={machineSort} col="serial" label="Serial" />
-                    <SortableHeader bind:state={machineSort} col="platform" label="Platform" />
-                    <SortableHeader bind:state={machineSort} col="compliance" label="Compliance" align="right" />
-                    <SortableHeader bind:state={machineSort} col="lastSeen" label="Last Seen" />
+                    <th>Status</th>
+                    <th>Name</th>
+                    <th>Owner</th>
+                    <th>Tracking ID</th>
+                    <th>Serial</th>
+                    <th>Platform</th>
+                    <th class="align-right">Compliance</th>
+                    <th>Last Seen</th>
                     {#if !ownerOnlyMode}
                       <th class="align-right"><span class="sr-only">Actions</span></th>
                     {/if}
                   </tr>
                 </thead>
                 <tbody>
-                  {#each sortedMachines as machine}
+                  {#each machines as machine}
                     <tr>
                       <td>
                         <span class="badge" data-variant={statusVariant(machine)}>{statusLabel(machine)}</span>
@@ -864,5 +898,26 @@
   .filter-row :global(input),
   .filter-row :global(.selectdropdown-trigger) {
     min-height: 2.5rem;
+  }
+
+  .sort-dir-toggle {
+    min-height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--foreground);
+    cursor: pointer;
+  }
+
+  .sort-dir-toggle:hover:not(:disabled) {
+    color: var(--primary);
+  }
+
+  .sort-dir-toggle:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 </style>

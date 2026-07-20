@@ -221,15 +221,24 @@ func (c *Core) paginateNodes(ctx context.Context, req models.NodeListRequest, ow
 		page = 0
 	}
 
+	sortBy := strings.TrimSpace(req.SortBy)
+	sortDir := strings.TrimSpace(req.SortDir)
+	if sortBy != "" && sortDir == "" {
+		sortDir = "asc"
+	}
+
 	rows, err := c.store.ListNodes(ctx, repo.ListNodesParams{
-		Query:       strings.TrimSpace(req.Query),
-		Platform:    strings.TrimSpace(req.Platform),
-		OwnerUuid:   strings.TrimSpace(req.OwnerID),
-		Assigned:    strings.TrimSpace(req.Assigned),
-		OwnerEmail:  strings.TrimSpace(ownerEmail),
-		StaleCutoff: time.Now().UTC().Add(-c.policyStaleAfter),
-		LimitCount:  int32(countPerPage),
-		OffsetCount: int32(page * countPerPage),
+		Query:        strings.TrimSpace(req.Query),
+		Platform:     strings.TrimSpace(req.Platform),
+		OwnerUuid:    strings.TrimSpace(req.OwnerID),
+		Assigned:     strings.TrimSpace(req.Assigned),
+		OwnerEmail:   strings.TrimSpace(ownerEmail),
+		StaleCutoff:  time.Now().UTC().Add(-c.policyStaleAfter),
+		SortBy:       sortBy,
+		SortDir:      sortDir,
+		OnlineCutoff: time.Now().UTC().Add(-5 * time.Minute),
+		LimitCount:   int32(countPerPage),
+		OffsetCount:  int32(page * countPerPage),
 	})
 	if err != nil {
 		return models.Page[models.Node]{}, fmt.Errorf("list nodes: %w", err)

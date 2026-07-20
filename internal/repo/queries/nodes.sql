@@ -85,7 +85,9 @@ WITH filtered AS (
         nodes.last_seen_at,
         nodes.last_policy_check_at,
         nodes.created_at,
-        nodes.updated_at
+        nodes.updated_at,
+        device_owners.display_name AS owner_display_name,
+        device_owners.email AS owner_email
     FROM nodes
     LEFT JOIN node_inventory ON node_inventory.node_id = nodes.id
     LEFT JOIN device_owners ON device_owners.id = node_inventory.owner_id
@@ -116,57 +118,71 @@ WITH filtered AS (
         OR lower(trim(device_owners.email)) = lower(trim(@owner_email::text))
     )
 ),
-total AS (
-    SELECT count(*) AS total_count FROM filtered
-),
-page AS (
-    SELECT filtered.*
+scored AS (
+    SELECT
+        filtered.*,
+        coalesce(score.weighted_passing, 0)::bigint AS weighted_passing,
+        coalesce(score.weighted_total, 0)::bigint AS weighted_total
     FROM filtered
-    ORDER BY filtered.created_at DESC
-    LIMIT @limit_count OFFSET @offset_count
+    LEFT JOIN LATERAL (
+        SELECT
+            coalesce(sum(
+                CASE policies.severity
+                    WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+                END
+            ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
+            coalesce(sum(
+                CASE policies.severity
+                    WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+                END
+            ), 0)::bigint AS weighted_total
+        FROM policies
+        LEFT JOIN policy_membership
+            ON policy_membership.policy_id = policies.id
+           AND policy_membership.node_id = filtered.id
+        WHERE policies.enabled = true
+            AND (
+                policies.platform IN ('all', 'any')
+                OR policies.platform = filtered.platform
+                OR (policies.platform = 'linux' AND filtered.platform NOT IN ('', 'darwin', 'windows'))
+                OR (policies.platform = 'posix' AND filtered.platform NOT IN ('', 'windows'))
+            )
+            AND (
+                NOT EXISTS (
+                    SELECT 1
+                    FROM policy_groups
+                    WHERE policy_groups.policy_id = policies.id
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM policy_groups
+                    JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+                    WHERE policy_groups.policy_id = policies.id
+                      AND group_membership.node_id = filtered.id
+                )
+            )
+    ) score ON true
 )
 SELECT
-    page.*,
-    total.total_count,
-    coalesce(score.weighted_passing, 0)::bigint AS weighted_passing,
-    coalesce(score.weighted_total, 0)::bigint AS weighted_total
-FROM page, total
-LEFT JOIN LATERAL (
-    SELECT
-        coalesce(sum(
-            CASE policies.severity
-                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
-            END
-        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
-        coalesce(sum(
-            CASE policies.severity
-                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
-            END
-        ), 0)::bigint AS weighted_total
-    FROM policies
-    LEFT JOIN policy_membership
-        ON policy_membership.policy_id = policies.id
-       AND policy_membership.node_id = page.id
-    WHERE policies.enabled = true
-        AND (
-            policies.platform IN ('all', 'any')
-            OR policies.platform = page.platform
-            OR (policies.platform = 'linux' AND page.platform NOT IN ('', 'darwin', 'windows'))
-            OR (policies.platform = 'posix' AND page.platform NOT IN ('', 'windows'))
-        )
-        AND (
-            NOT EXISTS (
-                SELECT 1
-                FROM policy_groups
-                WHERE policy_groups.policy_id = policies.id
-            )
-            OR EXISTS (
-                SELECT 1
-                FROM policy_groups
-                JOIN group_membership ON group_membership.group_id = policy_groups.group_id
-                WHERE policy_groups.policy_id = policies.id
-                  AND group_membership.node_id = page.id
-            )
-        )
-) score ON true
-ORDER BY page.created_at DESC;
+    scored.*,
+    count(*) OVER () AS total_count
+FROM scored
+ORDER BY
+    CASE WHEN @sort_by::text = 'name' AND @sort_dir::text = 'asc'
+        THEN lower(COALESCE(NULLIF(scored.display_name, ''), scored.hostname)) END ASC NULLS LAST,
+    CASE WHEN @sort_by::text = 'name' AND @sort_dir::text = 'desc'
+        THEN lower(COALESCE(NULLIF(scored.display_name, ''), scored.hostname)) END DESC NULLS LAST,
+    CASE WHEN @sort_by::text = 'owner' AND @sort_dir::text = 'asc'
+        THEN lower(COALESCE(NULLIF(scored.owner_display_name, ''), scored.owner_email)) END ASC NULLS LAST,
+    CASE WHEN @sort_by::text = 'owner' AND @sort_dir::text = 'desc'
+        THEN lower(COALESCE(NULLIF(scored.owner_display_name, ''), scored.owner_email)) END DESC NULLS LAST,
+    CASE WHEN @sort_by::text = 'score' AND @sort_dir::text = 'asc'
+        THEN (CASE WHEN scored.weighted_total > 0 THEN scored.weighted_passing::float / scored.weighted_total ELSE NULL END) END ASC NULLS LAST,
+    CASE WHEN @sort_by::text = 'score' AND @sort_dir::text = 'desc'
+        THEN (CASE WHEN scored.weighted_total > 0 THEN scored.weighted_passing::float / scored.weighted_total ELSE NULL END) END DESC NULLS LAST,
+    CASE WHEN @sort_by::text = 'status' AND @sort_dir::text = 'asc'
+        THEN (CASE WHEN scored.last_seen_at IS NULL AND scored.enrolled_at IS NULL THEN 2 WHEN COALESCE(scored.last_seen_at, scored.enrolled_at) >= @online_cutoff::timestamptz THEN 0 ELSE 1 END) END ASC NULLS LAST,
+    CASE WHEN @sort_by::text = 'status' AND @sort_dir::text = 'desc'
+        THEN (CASE WHEN scored.last_seen_at IS NULL AND scored.enrolled_at IS NULL THEN 2 WHEN COALESCE(scored.last_seen_at, scored.enrolled_at) >= @online_cutoff::timestamptz THEN 0 ELSE 1 END) END DESC NULLS LAST,
+    scored.created_at DESC, scored.uuid
+LIMIT @limit_count OFFSET @offset_count;

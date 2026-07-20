@@ -291,6 +291,8 @@ type MachinePageOpts = PageOpts & {
   platform?: string
   ownerID?: string
   assigned?: string
+  sort?: string
+  dir?: string
 }
 
 const BASE_URL = '/api/v1'
@@ -645,7 +647,16 @@ export function deleteMachineInventory(id: string) {
 
 // Machines
 export function fetchMachines(opts: MachinePageOpts = {}) {
-  const { page = 1, countPerPage = 100, query = '', platform = '', ownerID = '', assigned = '' } = opts
+  const {
+    page = 1,
+    countPerPage = 100,
+    query = '',
+    platform = '',
+    ownerID = '',
+    assigned = '',
+    sort = '',
+    dir = ''
+  } = opts
   return fetch(
     apiUrl('/machines', {
       page,
@@ -653,7 +664,9 @@ export function fetchMachines(opts: MachinePageOpts = {}) {
       q: query,
       platform,
       owner_id: ownerID,
-      assigned
+      assigned,
+      sort,
+      dir
     })
   ).then((r) =>
     handleResponse<Paginated<Machine, 'machines'>>(r)

@@ -163,6 +163,8 @@ type MachineListRequest struct {
 	Platform string `query:"platform" validate:"lte=255"`
 	OwnerID  string `query:"owner_id" validate:"omitempty,uuid"`
 	Assigned string `query:"assigned" validate:"omitempty,oneof=assigned unassigned"`
+	SortBy   string `query:"sort" validate:"omitempty,oneof=status name owner score"`
+	SortDir  string `query:"dir" validate:"omitempty,oneof=asc desc"`
 }
 
 type PaginateMachinesResponse struct {

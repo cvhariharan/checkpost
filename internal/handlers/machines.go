@@ -32,6 +32,8 @@ func (h *Handler) HandleMachinesPagination(c echo.Context) error {
 		Platform: req.Platform,
 		OwnerID:  req.OwnerID,
 		Assigned: req.Assigned,
+		SortBy:   req.SortBy,
+		SortDir:  req.SortDir,
 	}
 	var page models.Page[models.Node]
 	var err error

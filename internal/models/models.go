@@ -411,6 +411,8 @@ type NodeListRequest struct {
 	Platform string
 	OwnerID  string
 	Assigned string
+	SortBy   string
+	SortDir  string
 }
 
 type OwnerMachinesRequest struct {
