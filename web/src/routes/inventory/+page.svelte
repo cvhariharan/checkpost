@@ -113,7 +113,7 @@
   const canUpdateMachine = $derived(canFrom($me, 'machine', 'update'))
   const canDeleteMachine = $derived(canFrom($me, 'machine', 'delete'))
 
-  type MachineSortCol = 'status' | 'name' | 'owner' | 'tracking' | 'serial' | 'platform' | 'lastSeen'
+  type MachineSortCol = 'status' | 'name' | 'owner' | 'tracking' | 'serial' | 'platform' | 'compliance' | 'lastSeen'
   const machineAccessors: SortAccessors<Machine, MachineSortCol> = {
     status: (m) => statusLabel(m),
     name: (m) => machineHostname(m),
@@ -121,6 +121,7 @@
     tracking: (m) => m.inventory?.internal_tracking_id,
     serial: (m) => m.hardware_serial,
     platform: (m) => m.platform,
+    compliance: (m) => m.compliance_score ?? undefined,
     lastSeen: (m) => m.last_seen_at || m.enrolled_at
   }
   // Sorts only the current page of results (server-side pagination is unchanged).
@@ -555,6 +556,7 @@
                     <SortableHeader bind:state={machineSort} col="tracking" label="Tracking ID" />
                     <SortableHeader bind:state={machineSort} col="serial" label="Serial" />
                     <SortableHeader bind:state={machineSort} col="platform" label="Platform" />
+                    <SortableHeader bind:state={machineSort} col="compliance" label="Compliance" align="right" />
                     <SortableHeader bind:state={machineSort} col="lastSeen" label="Last Seen" />
                     {#if !ownerOnlyMode}
                       <th class="align-right"><span class="sr-only">Actions</span></th>
@@ -581,6 +583,9 @@
                       <td>{machine.inventory?.internal_tracking_id || ''}</td>
                       <td>{machine.hardware_serial || ''}</td>
                       <td>{machine.platform || ''}</td>
+                      <td class="align-right">
+                        {machine.compliance_score ?? '—'}{#if machine.compliance_score != null}<small>/100</small>{/if}
+                      </td>
                       <td>{formatTimestamp(machine.last_seen_at || machine.enrolled_at)}</td>
                     {#if !ownerOnlyMode}
                       <td class="align-right">
@@ -599,7 +604,7 @@
                     </tr>
                   {:else}
                     <tr>
-                      <td colspan={ownerOnlyMode ? 7 : 8} class="align-center text-light">No devices found</td>
+                      <td colspan={ownerOnlyMode ? 8 : 9} class="align-center text-light">No devices found</td>
                     </tr>
                   {/each}
                 </tbody>

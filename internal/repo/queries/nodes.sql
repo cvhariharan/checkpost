@@ -118,8 +118,55 @@ WITH filtered AS (
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
+),
+page AS (
+    SELECT filtered.*
+    FROM filtered
+    ORDER BY filtered.created_at DESC
+    LIMIT @limit_count OFFSET @offset_count
 )
-SELECT filtered.*, total.total_count
-FROM filtered, total
-ORDER BY filtered.created_at DESC
-LIMIT @limit_count OFFSET @offset_count;
+SELECT
+    page.*,
+    total.total_count,
+    coalesce(score.weighted_passing, 0)::bigint AS weighted_passing,
+    coalesce(score.weighted_total, 0)::bigint AS weighted_total
+FROM page, total
+LEFT JOIN LATERAL (
+    SELECT
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ) FILTER (WHERE policy_membership.passes = true AND policy_membership.checked_at >= @stale_cutoff::timestamptz), 0)::bigint AS weighted_passing,
+        coalesce(sum(
+            CASE policies.severity
+                WHEN 'critical' THEN 8 WHEN 'high' THEN 5 WHEN 'medium' THEN 3 WHEN 'low' THEN 2 WHEN 'info' THEN 1 ELSE 3
+            END
+        ), 0)::bigint AS weighted_total
+    FROM policies
+    LEFT JOIN policy_membership
+        ON policy_membership.policy_id = policies.id
+       AND policy_membership.node_id = page.id
+    WHERE policies.enabled = true
+        AND (
+            policies.platform IN ('all', 'any')
+            OR policies.platform = page.platform
+            OR (policies.platform = 'linux' AND page.platform NOT IN ('', 'darwin', 'windows'))
+            OR (policies.platform = 'posix' AND page.platform NOT IN ('', 'windows'))
+        )
+        AND (
+            NOT EXISTS (
+                SELECT 1
+                FROM policy_groups
+                WHERE policy_groups.policy_id = policies.id
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM policy_groups
+                JOIN group_membership ON group_membership.group_id = policy_groups.group_id
+                WHERE policy_groups.policy_id = policies.id
+                  AND group_membership.node_id = page.id
+            )
+        )
+) score ON true
+ORDER BY page.created_at DESC;

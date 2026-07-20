@@ -70,6 +70,7 @@ func toModelNodeRow(node repo.ListNodesRow) models.Node {
 		LastPolicyCheckAt: lastPolicyCheckAt,
 		CreatedAt:         node.CreatedAt,
 		UpdatedAt:         node.UpdatedAt,
+		ComplianceScore:   weightedComplianceScore(node.WeightedPassing, node.WeightedTotal),
 	}
 }
 

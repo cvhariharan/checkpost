@@ -227,6 +227,7 @@ func (c *Core) paginateNodes(ctx context.Context, req models.NodeListRequest, ow
 		OwnerUuid:   strings.TrimSpace(req.OwnerID),
 		Assigned:    strings.TrimSpace(req.Assigned),
 		OwnerEmail:  strings.TrimSpace(ownerEmail),
+		StaleCutoff: time.Now().UTC().Add(-c.policyStaleAfter),
 		LimitCount:  int32(countPerPage),
 		OffsetCount: int32(page * countPerPage),
 	})
