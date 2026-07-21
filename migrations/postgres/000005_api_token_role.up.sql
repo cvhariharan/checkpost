@@ -1,0 +1,2 @@
+ALTER TABLE api_tokens
+ADD COLUMN role TEXT;

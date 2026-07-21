@@ -58,16 +58,17 @@ type AlertTarget struct {
 }
 
 type ApiToken struct {
-	ID         int64        `db:"id" json:"id"`
-	Uuid       uuid.UUID    `db:"uuid" json:"uuid"`
-	UserID     int64        `db:"user_id" json:"user_id"`
-	Name       string       `db:"name" json:"name"`
-	TokenHash  string       `db:"token_hash" json:"token_hash"`
-	Source     string       `db:"source" json:"source"`
-	ExpiresAt  sql.NullTime `db:"expires_at" json:"expires_at"`
-	LastUsedAt sql.NullTime `db:"last_used_at" json:"last_used_at"`
-	RevokedAt  sql.NullTime `db:"revoked_at" json:"revoked_at"`
-	CreatedAt  time.Time    `db:"created_at" json:"created_at"`
+	ID         int64          `db:"id" json:"id"`
+	Uuid       uuid.UUID      `db:"uuid" json:"uuid"`
+	UserID     int64          `db:"user_id" json:"user_id"`
+	Name       string         `db:"name" json:"name"`
+	TokenHash  string         `db:"token_hash" json:"token_hash"`
+	Source     string         `db:"source" json:"source"`
+	ExpiresAt  sql.NullTime   `db:"expires_at" json:"expires_at"`
+	LastUsedAt sql.NullTime   `db:"last_used_at" json:"last_used_at"`
+	RevokedAt  sql.NullTime   `db:"revoked_at" json:"revoked_at"`
+	CreatedAt  time.Time      `db:"created_at" json:"created_at"`
+	Role       sql.NullString `db:"role" json:"role"`
 }
 
 type CasbinRule struct {

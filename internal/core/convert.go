@@ -712,6 +712,7 @@ func toModelAPIToken(row repo.ApiToken) models.APIToken {
 		UUID:       row.Uuid.String(),
 		Name:       row.Name,
 		Source:     row.Source,
+		Role:       row.Role.String,
 		ExpiresAt:  timePtrFromNull(row.ExpiresAt),
 		LastUsedAt: timePtrFromNull(row.LastUsedAt),
 		RevokedAt:  timePtrFromNull(row.RevokedAt),

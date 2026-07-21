@@ -579,6 +579,8 @@ type ProvidersResponse struct {
 type IssueTokenRequest struct {
 	Name          string `json:"name"`
 	ExpiresInDays int    `json:"expires_in_days" validate:"gte=0"`
+	// Role scopes the token to a built-in role (admin-only); empty acts as the owner.
+	Role string `json:"role" validate:"omitempty,oneof=admin operator analyst viewer"`
 }
 
 type MeResponse struct {

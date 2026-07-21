@@ -607,6 +607,8 @@ type SessionUser struct {
 	Name      string `json:"name"`
 	Email     string `json:"email"`
 	LoginType string `json:"login_type"`
+	// TokenRole scopes a bearer-token request to one built-in role; empty acts as the owner.
+	TokenRole string `json:"-"`
 }
 
 // APIToken is the API-facing view of a token row (no secret, no hash).
@@ -614,6 +616,7 @@ type APIToken struct {
 	UUID       string     `json:"uuid"`
 	Name       string     `json:"name"`
 	Source     string     `json:"source"`
+	Role       string     `json:"role,omitempty"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`

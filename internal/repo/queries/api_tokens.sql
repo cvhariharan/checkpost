@@ -4,9 +4,10 @@ INSERT INTO api_tokens (
     name,
     token_hash,
     source,
-    expires_at
+    expires_at,
+    role
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 )
 RETURNING *;
 

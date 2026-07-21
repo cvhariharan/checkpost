@@ -93,7 +93,7 @@ func TestIssueAPIToken(t *testing.T) {
 	store := newFakeTokenStore()
 	c := testCore(store)
 
-	issued, err := c.IssueAPIToken(context.Background(), 7, "cli@host", TokenSourceSelf, 3*24*time.Hour)
+	issued, err := c.IssueAPIToken(context.Background(), 7, "cli@host", TokenSourceSelf, "", 3*24*time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAPIToken() error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestIssueAPITokenDefaultTTL(t *testing.T) {
 	store := newFakeTokenStore()
 	c := testCore(store)
 
-	if _, err := c.IssueAPIToken(context.Background(), 1, "", "", 0); err != nil {
+	if _, err := c.IssueAPIToken(context.Background(), 1, "", "", "", 0); err != nil {
 		t.Fatalf("IssueAPIToken() error = %v", err)
 	}
 	got := store.created[0]

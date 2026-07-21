@@ -7,10 +7,12 @@
     type APIToken,
     type IssuedAPIToken
   } from '$lib/api'
+  import { isAdmin } from '$lib/auth'
   import { formatTimestamp, toast } from '$lib/util'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
+  import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import Plus from '@lucide/svelte/icons/plus'
   import Copy from '@lucide/svelte/icons/copy'
@@ -23,8 +25,11 @@
   let createDialog = $state<HTMLDialogElement>()
   let name = $state('')
   let expiresInDays = $state(7)
+  let role = $state('')
   let saving = $state(false)
   let formError = $state('')
+
+  const ROLE_OPTIONS = ['admin', 'operator', 'analyst', 'viewer']
 
   // One-time secret reveal.
   let secretDialog = $state<HTMLDialogElement>()
@@ -64,6 +69,7 @@
   function openCreate() {
     name = ''
     expiresInDays = 7
+    role = ''
     saving = false
     formError = ''
     createDialog?.showModal()
@@ -74,7 +80,11 @@
     saving = true
     formError = ''
     try {
-      const token = await createAPIToken({ name, expires_in_days: expiresInDays })
+      const token = await createAPIToken({
+        name,
+        expires_in_days: expiresInDays,
+        role: $isAdmin && role ? role : undefined
+      })
       createDialog?.close()
       issued = token
       secretDialog?.showModal()
@@ -127,7 +137,8 @@
     <div>
       <h1 class="mb-2">API Tokens</h1>
       <p class="text-light">
-        Bearer tokens for the CLI and scripts. A token acts as you, with your permissions.
+        Bearer tokens for the CLI and scripts. A token acts as you, with your permissions.{#if $isAdmin}
+          Admins can scope a token to a specific role.{/if}
       </p>
     </div>
     <button type="button" class="gap-1" onclick={openCreate}>
@@ -146,6 +157,7 @@
         <thead>
           <tr>
             <th>Name</th>
+            <th>Role</th>
             <th>Status</th>
             <th>Last used</th>
             <th>Expires</th>
@@ -158,6 +170,7 @@
             {@const status = statusOf(token)}
             <tr>
               <td><strong>{token.name || 'Unnamed token'}</strong></td>
+              <td>{token.role || 'Acts as you'}</td>
               <td><span class="badge" data-variant={status.variant}>{status.label}</span></td>
               <td>{token.last_used_at ? formatTimestamp(token.last_used_at) : 'Never'}</td>
               <td>{token.expires_at ? formatTimestamp(token.expires_at) : 'Never'}</td>
@@ -175,7 +188,7 @@
               </td>
             </tr>
           {:else}
-            <tr><td colspan={6} class="align-center text-light">No API tokens yet</td></tr>
+            <tr><td colspan={7} class="align-center text-light">No API tokens yet</td></tr>
           {/each}
         </tbody>
       </table>
@@ -197,6 +210,16 @@
         Expires in (days) <span class="req" aria-hidden="true">*</span>
         <input type="number" min="1" bind:value={expiresInDays} required />
       </label>
+      {#if $isAdmin}
+        <SelectDropdown
+          label="Role"
+          options={[
+            { value: '', label: 'Acts as you' },
+            ...ROLE_OPTIONS.map((r) => ({ value: r, label: r }))
+          ]}
+          bind:value={role}
+        />
+      {/if}
     </div>
     <footer>
       <button type="button" class="outline" onclick={() => createDialog?.close()}>Cancel</button>

@@ -912,6 +912,7 @@ export type APIToken = {
   uuid: string
   name?: string
   source?: string
+  role?: string
   expires_at?: string
   last_used_at?: string
   revoked_at?: string
@@ -947,7 +948,11 @@ export function fetchAPITokens() {
   return fetch(`${BASE_URL}/auth/tokens`).then((r) => handleResponse<APIToken[]>(r))
 }
 
-export function createAPIToken(payload: { name: string; expires_in_days: number }) {
+export function createAPIToken(payload: {
+  name: string
+  expires_in_days: number
+  role?: string
+}) {
   return jsonRequest<IssuedAPIToken>('/auth/tokens', 'POST', payload)
 }
 

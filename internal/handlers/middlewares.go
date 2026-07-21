@@ -146,7 +146,7 @@ func (h *Handler) Authorize(resource, action string) echo.MiddlewareFunc {
 			if err != nil {
 				return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
 			}
-			allowed, err := h.c.Can(c.Request().Context(), user.UUID, resource, action)
+			allowed, err := h.c.CanUser(c.Request().Context(), user, resource, action)
 			if err != nil {
 				return wrapError(http.StatusInternalServerError, "could not check permissions", err, nil)
 			}
@@ -213,7 +213,7 @@ func (h *Handler) machineViewAccess(c echo.Context) (models.SessionUser, bool, e
 	if err != nil {
 		return models.SessionUser{}, false, wrapError(http.StatusUnauthorized, "authentication required", err, nil)
 	}
-	allowed, err := h.c.Can(c.Request().Context(), user.UUID, core.ResourceMachine, core.ActionView)
+	allowed, err := h.c.CanUser(c.Request().Context(), user, core.ResourceMachine, core.ActionView)
 	if err != nil {
 		return models.SessionUser{}, false, wrapError(http.StatusInternalServerError, "could not check permissions", err, nil)
 	}

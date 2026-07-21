@@ -21,13 +21,23 @@ func (h *Handler) HandleIssueToken(c echo.Context) error {
 		return err
 	}
 
+	if req.Role != "" {
+		allowed, err := h.c.Can(c.Request().Context(), user.UUID, core.ResourceRoleBinding, core.ActionCreate)
+		if err != nil {
+			return wrapError(http.StatusInternalServerError, "could not check permissions", err, nil)
+		}
+		if !allowed {
+			return wrapError(http.StatusForbidden, "only admins can assign a role to a token", nil, nil)
+		}
+	}
+
 	dbUser, err := h.c.GetUserByUUIDRepo(c.Request().Context(), user.UUID)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not load user", err, nil)
 	}
 
 	ttl := time.Duration(req.ExpiresInDays) * 24 * time.Hour
-	issued, err := h.c.IssueAPIToken(c.Request().Context(), dbUser.ID, req.Name, core.TokenSourceSelf, ttl)
+	issued, err := h.c.IssueAPIToken(c.Request().Context(), dbUser.ID, req.Name, core.TokenSourceSelf, req.Role, ttl)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not issue token", err, nil)
 	}

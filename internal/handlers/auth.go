@@ -209,6 +209,15 @@ func (h *Handler) HandleMe(c echo.Context) error {
 		return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
 	}
 
+	if user.TokenRole != "" {
+		perms := h.c.PermissionsForRole(user, user.TokenRole)
+		return c.JSON(http.StatusOK, MeResponse{
+			User:        perms.User,
+			Roles:       perms.Roles,
+			Permissions: perms.Permissions,
+		})
+	}
+
 	perms, err := h.c.EffectivePermissions(c.Request().Context(), user.UUID)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not get permissions", err, nil)

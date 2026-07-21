@@ -291,6 +291,25 @@ func (c *Core) Can(ctx context.Context, userUUID, resource, action string, group
 	return false, nil
 }
 
+// roleGrants reports whether a built-in role grants action on resource.
+func roleGrants(role, resource, action string) bool {
+	for _, a := range roleMatrix[role][resource] {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
+
+// CanUser checks permission for a request: a role-scoped token uses that role's
+// static grants, everything else falls back to the user's Casbin bindings.
+func (c *Core) CanUser(ctx context.Context, user models.SessionUser, resource, action string, groupUUIDs ...string) (bool, error) {
+	if user.TokenRole != "" {
+		return roleGrants(user.TokenRole, resource, action), nil
+	}
+	return c.Can(ctx, user.UUID, resource, action, groupUUIDs...)
+}
+
 func (c *Core) IsNoRoleOwner(ctx context.Context, userUUID string) (bool, error) {
 	uid, err := uuid.Parse(userUUID)
 	if err != nil {
@@ -689,4 +708,31 @@ func (c *Core) EffectivePermissions(ctx context.Context, userUUID string) (model
 		Roles:       roles,
 		Permissions: perms,
 	}, nil
+}
+
+// PermissionsForRole returns a single role's grants in EffectivePermissions shape.
+func (c *Core) PermissionsForRole(user models.SessionUser, role string) models.EffectivePermissions {
+	perms := make(map[string][]string, len(roleMatrix[role]))
+	for _, entry := range permissionCatalog {
+		granted := roleMatrix[role][entry.Resource]
+		if len(granted) == 0 {
+			continue
+		}
+		set := map[string]struct{}{}
+		for _, a := range granted {
+			set[a] = struct{}{}
+		}
+		var ordered []string
+		for _, a := range entry.Actions {
+			if _, ok := set[a]; ok {
+				ordered = append(ordered, a)
+			}
+		}
+		perms[entry.Resource] = ordered
+	}
+	return models.EffectivePermissions{
+		User:        user,
+		Roles:       []string{role},
+		Permissions: perms,
+	}
 }

@@ -51,14 +51,18 @@ func hashTokenSecret(secret string) string {
 }
 
 // IssueAPIToken mints a token and returns the plaintext secret once; ttl <= 0
-// falls back to defaultTokenTTL.
-func (c *Core) IssueAPIToken(ctx context.Context, userID int64, name, source string, ttl time.Duration) (models.IssuedAPIToken, error) {
+// falls back to defaultTokenTTL. A non-empty role scopes the token to that role.
+func (c *Core) IssueAPIToken(ctx context.Context, userID int64, name, source, role string, ttl time.Duration) (models.IssuedAPIToken, error) {
 	secret, hash, err := generateTokenSecret()
 	if err != nil {
 		return models.IssuedAPIToken{}, fmt.Errorf("generate token secret: %w", err)
 	}
 	if strings.TrimSpace(source) == "" {
 		source = TokenSourceSelf
+	}
+	role = strings.TrimSpace(role)
+	if role != "" && !IsBuiltinRole(role) {
+		return models.IssuedAPIToken{}, ErrInvalidRole
 	}
 	if ttl <= 0 {
 		ttl = defaultTokenTTL
@@ -70,6 +74,7 @@ func (c *Core) IssueAPIToken(ctx context.Context, userID int64, name, source str
 		TokenHash: hash,
 		Source:    source,
 		ExpiresAt: sql.NullTime{Time: time.Now().Add(ttl), Valid: true},
+		Role:      sql.NullString{String: role, Valid: role != ""},
 	})
 	if err != nil {
 		return models.IssuedAPIToken{}, fmt.Errorf("create api token: %w", err)
@@ -115,7 +120,9 @@ func (c *Core) AuthenticateToken(ctx context.Context, secret string) (models.Ses
 	}
 
 	c.touchTokenLastUsed(ctx, row)
-	return SessionUserFor(toModelUser(user)), nil
+	su := SessionUserFor(toModelUser(user))
+	su.TokenRole = row.Role.String
+	return su, nil
 }
 
 // touchTokenLastUsed bumps last_used_at at most once per throttle window.

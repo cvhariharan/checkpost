@@ -18,19 +18,21 @@ INSERT INTO api_tokens (
     name,
     token_hash,
     source,
-    expires_at
+    expires_at,
+    role
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 )
-RETURNING id, uuid, user_id, name, token_hash, source, expires_at, last_used_at, revoked_at, created_at
+RETURNING id, uuid, user_id, name, token_hash, source, expires_at, last_used_at, revoked_at, created_at, role
 `
 
 type CreateAPITokenParams struct {
-	UserID    int64        `db:"user_id" json:"user_id"`
-	Name      string       `db:"name" json:"name"`
-	TokenHash string       `db:"token_hash" json:"token_hash"`
-	Source    string       `db:"source" json:"source"`
-	ExpiresAt sql.NullTime `db:"expires_at" json:"expires_at"`
+	UserID    int64          `db:"user_id" json:"user_id"`
+	Name      string         `db:"name" json:"name"`
+	TokenHash string         `db:"token_hash" json:"token_hash"`
+	Source    string         `db:"source" json:"source"`
+	ExpiresAt sql.NullTime   `db:"expires_at" json:"expires_at"`
+	Role      sql.NullString `db:"role" json:"role"`
 }
 
 func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error) {
@@ -40,6 +42,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) 
 		arg.TokenHash,
 		arg.Source,
 		arg.ExpiresAt,
+		arg.Role,
 	)
 	var i ApiToken
 	err := row.Scan(
@@ -53,6 +56,7 @@ func (q *Queries) CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) 
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+		&i.Role,
 	)
 	return i, err
 }
@@ -71,7 +75,7 @@ func (q *Queries) DeleteExpiredAPITokens(ctx context.Context) (int64, error) {
 }
 
 const getAPITokenByHash = `-- name: GetAPITokenByHash :one
-SELECT id, uuid, user_id, name, token_hash, source, expires_at, last_used_at, revoked_at, created_at FROM api_tokens WHERE token_hash = $1
+SELECT id, uuid, user_id, name, token_hash, source, expires_at, last_used_at, revoked_at, created_at, role FROM api_tokens WHERE token_hash = $1
 `
 
 func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error) {
@@ -88,12 +92,13 @@ func (q *Queries) GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiT
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const getAPITokenByUUID = `-- name: GetAPITokenByUUID :one
-SELECT id, uuid, user_id, name, token_hash, source, expires_at, last_used_at, revoked_at, created_at FROM api_tokens WHERE uuid = $1
+SELECT id, uuid, user_id, name, token_hash, source, expires_at, last_used_at, revoked_at, created_at, role FROM api_tokens WHERE uuid = $1
 `
 
 func (q *Queries) GetAPITokenByUUID(ctx context.Context, argUuid uuid.UUID) (ApiToken, error) {
@@ -110,12 +115,13 @@ func (q *Queries) GetAPITokenByUUID(ctx context.Context, argUuid uuid.UUID) (Api
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+		&i.Role,
 	)
 	return i, err
 }
 
 const listAPITokensByUser = `-- name: ListAPITokensByUser :many
-SELECT api_tokens.id, api_tokens.uuid, api_tokens.user_id, api_tokens.name, api_tokens.token_hash, api_tokens.source, api_tokens.expires_at, api_tokens.last_used_at, api_tokens.revoked_at, api_tokens.created_at
+SELECT api_tokens.id, api_tokens.uuid, api_tokens.user_id, api_tokens.name, api_tokens.token_hash, api_tokens.source, api_tokens.expires_at, api_tokens.last_used_at, api_tokens.revoked_at, api_tokens.created_at, api_tokens.role
 FROM api_tokens
 JOIN users ON users.id = api_tokens.user_id
 WHERE users.uuid = $1
@@ -142,6 +148,7 @@ func (q *Queries) ListAPITokensByUser(ctx context.Context, userUuid uuid.UUID) (
 			&i.LastUsedAt,
 			&i.RevokedAt,
 			&i.CreatedAt,
+			&i.Role,
 		); err != nil {
 			return nil, err
 		}

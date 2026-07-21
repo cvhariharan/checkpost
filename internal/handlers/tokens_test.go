@@ -102,7 +102,7 @@ func TestAuthenticateBearerBranch(t *testing.T) {
 	store.users[7] = repo.User{ID: 7, Uuid: userUUID, Username: "a@b.com"}
 	h := newTokenTestHandler(t, store)
 
-	issued, err := h.c.IssueAPIToken(context.Background(), 7, "cli", core.TokenSourceSelf, time.Hour)
+	issued, err := h.c.IssueAPIToken(context.Background(), 7, "cli", core.TokenSourceSelf, "", time.Hour)
 	if err != nil {
 		t.Fatalf("IssueAPIToken() error = %v", err)
 	}
