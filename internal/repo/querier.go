@@ -18,6 +18,7 @@ type Querier interface {
 	ClaimDueAlertRules(ctx context.Context) ([]AlertRule, error)
 	CompleteMachineQueryResult(ctx context.Context, arg CompleteMachineQueryResultParams) (MachineQueryResult, error)
 	CompleteYaraScanTarget(ctx context.Context, arg CompleteYaraScanTargetParams) error
+	CountSavedQueries(ctx context.Context, arg CountSavedQueriesParams) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	CreateAlertRule(ctx context.Context, arg CreateAlertRuleParams) (AlertRule, error)
 	CreateAlertRuleTarget(ctx context.Context, arg CreateAlertRuleTargetParams) error
@@ -31,6 +32,7 @@ type Querier interface {
 	CreatePolicyGroup(ctx context.Context, arg CreatePolicyGroupParams) error
 	CreateQueryRun(ctx context.Context, arg CreateQueryRunParams) (QueryRun, error)
 	CreateRoleBinding(ctx context.Context, arg CreateRoleBindingParams) (RoleBinding, error)
+	CreateSavedQuery(ctx context.Context, arg CreateSavedQueryParams) (SavedQuery, error)
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
 	CreateScheduleGroup(ctx context.Context, arg CreateScheduleGroupParams) error
 	CreateStatusLog(ctx context.Context, arg CreateStatusLogParams) (OsqueryStatusLog, error)
@@ -69,6 +71,7 @@ type Querier interface {
 	DeleteQuerySchema(ctx context.Context, arg DeleteQuerySchemaParams) error
 	DeleteQuerySchemasForSource(ctx context.Context, sourceUuid uuid.UUID) error
 	DeleteRoleBindingByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
+	DeleteSavedQueryByUUID(ctx context.Context, savedQueryUuid uuid.UUID) (int64, error)
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
 	DeleteStaleOIDCMembers(ctx context.Context, arg DeleteStaleOIDCMembersParams) error
@@ -102,6 +105,7 @@ type Querier interface {
 	GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (QueryRun, error)
 	GetQuerySchema(ctx context.Context, arg GetQuerySchemaParams) (GetQuerySchemaRow, error)
 	GetRoleBindingByUUID(ctx context.Context, argUuid uuid.UUID) (RoleBinding, error)
+	GetSavedQueryByUUID(ctx context.Context, argUuid uuid.UUID) (GetSavedQueryByUUIDRow, error)
 	GetScheduleByName(ctx context.Context, name string) (Schedule, error)
 	GetScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (Schedule, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
@@ -160,6 +164,7 @@ type Querier interface {
 	ListQuerySchemasForSource(ctx context.Context, sourceUuid uuid.UUID) ([]ListQuerySchemasForSourceRow, error)
 	ListRoleBindingsForUser(ctx context.Context, userID sql.NullInt64) ([]ListRoleBindingsForUserRow, error)
 	ListRoleBindingsForUserGroup(ctx context.Context, userGroupID sql.NullInt64) ([]ListRoleBindingsForUserGroupRow, error)
+	ListSavedQueries(ctx context.Context, arg ListSavedQueriesParams) ([]ListSavedQueriesRow, error)
 	ListScheduleRetentions(ctx context.Context) ([]ListScheduleRetentionsRow, error)
 	ListSchedules(ctx context.Context, arg ListSchedulesParams) ([]ListSchedulesRow, error)
 	ListSchedulesByNames(ctx context.Context, names []string) ([]Schedule, error)
@@ -197,6 +202,7 @@ type Querier interface {
 	UpdateNodeSystemInfo(ctx context.Context, arg UpdateNodeSystemInfoParams) error
 	UpdatePolicyByUUID(ctx context.Context, arg UpdatePolicyByUUIDParams) (Policy, error)
 	UpdateQuerySchemaRowCount(ctx context.Context, arg UpdateQuerySchemaRowCountParams) error
+	UpdateSavedQueryByUUID(ctx context.Context, arg UpdateSavedQueryByUUIDParams) (SavedQuery, error)
 	UpdateScheduleByUUID(ctx context.Context, arg UpdateScheduleByUUIDParams) (Schedule, error)
 	UpdateSystemScheduleInterval(ctx context.Context, arg UpdateSystemScheduleIntervalParams) (Schedule, error)
 	UpdateUserByUUID(ctx context.Context, arg UpdateUserByUUIDParams) (User, error)

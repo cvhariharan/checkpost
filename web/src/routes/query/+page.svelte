@@ -4,18 +4,23 @@
   import {
     createQueryRun,
     deleteQueryRun as apiDeleteQueryRun,
+    deleteSavedQuery as apiDeleteSavedQuery,
     fetchGroups,
     fetchMachines,
     fetchQueryRuns,
+    fetchSavedQuery,
     previewQueryTargets,
     type Group,
     type Machine,
-    type QueryRun
+    type QueryRun,
+    type SavedQuery
   } from '$lib/api'
   import { formatTimestamp, machineHostname } from '$lib/util'
   import { canFrom, me } from '$lib/auth'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
   import MultiSelectDropdown from '$lib/components/MultiSelectDropdown.svelte'
+  import ResourceSelect from '$lib/components/ResourceSelect.svelte'
+  import SavedQueryDialog from '$lib/components/SavedQueryDialog.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
   import ActionsMenu from '$lib/components/ActionsMenu.svelte'
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
@@ -23,6 +28,7 @@
   import Spinner from '$lib/components/Spinner.svelte'
   import Truncate from '$lib/components/Truncate.svelte'
   import Play from '@lucide/svelte/icons/play'
+  import Save from '@lucide/svelte/icons/save'
 
   const platformOptions = [
     { value: 'linux', label: 'Linux' },
@@ -55,6 +61,13 @@
   let deleteOpen = $state(false)
   let runToDelete = $state<QueryRun | null>(null)
   let isDeleting = $state(false)
+
+  let savedQueryId = $state('')
+  let loadedSavedQuery = $state<SavedQuery | null>(null)
+  let isPublic = $state(false)
+  let saveDialogOpen = $state(false)
+  let deleteSavedOpen = $state(false)
+  let isDeletingSaved = $state(false)
 
   const canExecute = $derived(canFrom($me, 'machine', 'execute'))
   const canViewRuns = $derived(canFrom($me, 'query_result', 'view'))
@@ -155,6 +168,59 @@
     }
   }
 
+  $effect(() => {
+    const id = savedQueryId
+    if (!id || id === loadedSavedQuery?.id) return
+    void applySavedQuery(id)
+  })
+
+  async function applySavedQuery(id: string) {
+    error = ''
+    try {
+      const saved = await fetchSavedQuery(id)
+      loadedSavedQuery = saved
+      isPublic = saved.visibility === 'public'
+      queryText = saved.query
+      selectedHostIds = saved.targets?.host_ids ?? []
+      selectedGroupIds = saved.targets?.group_ids ?? []
+      selectedPlatforms = saved.targets?.platforms ?? []
+    } catch (err) {
+      error = (err as Error).message || 'Failed to load saved query'
+    }
+  }
+
+  function newSavedQuery() {
+    savedQueryId = ''
+    loadedSavedQuery = null
+    isPublic = false
+    queryText = ''
+    selectedHostIds = []
+    selectedGroupIds = []
+    selectedPlatforms = []
+  }
+
+  function onSavedQuerySaved(saved: SavedQuery) {
+    loadedSavedQuery = saved
+    savedQueryId = saved.id
+    saveDialogOpen = false
+  }
+
+  async function deleteSavedQuery() {
+    if (!loadedSavedQuery) return
+    isDeletingSaved = true
+    error = ''
+    try {
+      await apiDeleteSavedQuery(loadedSavedQuery.id)
+      deleteSavedOpen = false
+      savedQueryId = ''
+      loadedSavedQuery = null
+    } catch (err) {
+      error = (err as Error).message || 'Failed to delete saved query'
+    } finally {
+      isDeletingSaved = false
+    }
+  }
+
   function confirmDelete(run: QueryRun) {
     if (!canDeleteRuns) return
     runToDelete = run
@@ -192,6 +258,42 @@
 
     {#if canExecute}
       <article class="card vstack gap-4">
+        <div class="hstack justify-between gap-2 saved-bar">
+          <div class="saved-select">
+            <ResourceSelect
+              resource="saved-queries"
+              bind:value={savedQueryId}
+              placeholder="Load a saved query…"
+              searchPlaceholder="Search saved queries…"
+              emptyLabel="No saved queries"
+            />
+          </div>
+          {#if loadedSavedQuery}
+            <div class="hstack gap-2">
+              <button type="button" class="outline" onclick={newSavedQuery}>New query</button>
+              {#if loadedSavedQuery.owned}
+                <button type="button" class="outline" data-variant="danger" onclick={() => (deleteSavedOpen = true)}>
+                  Delete
+                </button>
+              {/if}
+            </div>
+          {/if}
+        </div>
+
+        {#if loadedSavedQuery}
+          <div class="vstack gap-1">
+            <p class="text-light saved-meta">
+              <span class="badge" data-variant={loadedSavedQuery.visibility === 'public' ? 'success' : undefined}>
+                {loadedSavedQuery.visibility === 'public' ? 'Public' : 'Private'}
+              </span>
+              Created by {loadedSavedQuery.owned ? 'you' : loadedSavedQuery.created_by || 'unknown'}
+            </p>
+            {#if loadedSavedQuery.description}
+              <p class="text-light saved-description">{loadedSavedQuery.description}</p>
+            {/if}
+          </div>
+        {/if}
+
         <form onsubmit={(e) => { e.preventDefault(); runQuery() }} class="vstack gap-4">
           <label data-field>
             SQL Query
@@ -250,16 +352,31 @@
                 <strong>{previewCount}</strong> host{previewCount === 1 ? '' : 's'} targeted
               {/if}
             </p>
-            <button
-              type="submit"
-              class="gap-1"
-              disabled={executing || !queryText.trim() || !hasTargets}
-              aria-busy={executing ? 'true' : undefined}
-              data-spinner="small"
-            >
-              <Play size={16} aria-hidden="true" />
-              {executing ? 'Running…' : 'Run Query'}
-            </button>
+            <div class="hstack gap-2">
+              <label class="hstack gap-1 public-toggle" data-tooltip="Visible to everyone">
+                <input type="checkbox" bind:checked={isPublic} />
+                Public
+              </label>
+              <button
+                type="button"
+                class="outline gap-1"
+                onclick={() => (saveDialogOpen = true)}
+                disabled={!queryText.trim() || !hasTargets}
+              >
+                <Save size={16} aria-hidden="true" />
+                {loadedSavedQuery?.owned ? 'Save changes' : 'Save'}
+              </button>
+              <button
+                type="submit"
+                class="gap-1"
+                disabled={executing || !queryText.trim() || !hasTargets}
+                aria-busy={executing ? 'true' : undefined}
+                data-spinner="small"
+              >
+                <Play size={16} aria-hidden="true" />
+                {executing ? 'Running…' : 'Run Query'}
+              </button>
+            </div>
           </footer>
         </form>
       </article>
@@ -327,7 +444,54 @@
   onCancel={() => (runToDelete = null)}
 />
 
+<SavedQueryDialog
+  bind:open={saveDialogOpen}
+  existing={loadedSavedQuery?.owned ? loadedSavedQuery : null}
+  query={queryText}
+  {isPublic}
+  hostIds={selectedHostIds}
+  groupIds={selectedGroupIds}
+  platforms={selectedPlatforms}
+  onClose={() => (saveDialogOpen = false)}
+  onSaved={onSavedQuerySaved}
+/>
+
+<ConfirmDialog
+  bind:open={deleteSavedOpen}
+  title="Delete Saved Query"
+  message="Are you sure you want to delete this saved query? This action cannot be undone."
+  confirming={isDeletingSaved}
+  confirmingLabel="Deleting..."
+  onConfirm={deleteSavedQuery}
+/>
+
 <style>
+  .saved-bar {
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .saved-select {
+    flex: 1;
+    max-width: 24rem;
+    min-width: 12rem;
+  }
+  .saved-meta {
+    align-items: center;
+    display: flex;
+    gap: var(--space-2);
+    margin: 0;
+  }
+  .saved-description {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .public-toggle {
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .public-toggle input {
+    margin: 0;
+  }
   .runs-table {
     table-layout: fixed;
     width: 100%;

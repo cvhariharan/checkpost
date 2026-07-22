@@ -790,6 +790,59 @@ export function previewQueryTargets(payload: Omit<QueryRunPayload, 'query'>) {
   return jsonRequest<{ host_count: number }>('/query-runs/preview', 'POST', payload)
 }
 
+// Saved queries
+export type SavedQueryVisibility = 'private' | 'public'
+
+export type SavedQuery = {
+  id: string
+  name: string
+  description?: string
+  query: string
+  targets?: QueryTargets
+  visibility?: SavedQueryVisibility
+  owned?: boolean
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type SavedQueryPayload = {
+  name: string
+  description?: string
+  query: string
+  visibility?: SavedQueryVisibility
+  host_ids?: string[]
+  group_ids?: string[]
+  platforms?: string[]
+}
+
+export function fetchSavedQueries(opts: PageOpts & { query?: string } = {}) {
+  const { page = 1, countPerPage = 10, query = '' } = opts
+  return fetch(apiUrl('/saved-queries', { page, count_per_page: countPerPage, q: query })).then((r) =>
+    handleResponse<Paginated<SavedQuery, 'saved_queries'>>(r)
+  )
+}
+
+export function fetchSavedQuery(id: string) {
+  return fetch(`${BASE_URL}/saved-queries/${encodeURIComponent(id)}`).then((r) =>
+    handleResponse<SavedQuery>(r)
+  )
+}
+
+export function createSavedQuery(payload: SavedQueryPayload) {
+  return jsonRequest<SavedQuery>('/saved-queries', 'POST', payload)
+}
+
+export function updateSavedQuery(id: string, payload: SavedQueryPayload) {
+  return jsonRequest<SavedQuery>(`/saved-queries/${encodeURIComponent(id)}`, 'PUT', payload)
+}
+
+export function deleteSavedQuery(id: string) {
+  return fetch(`${BASE_URL}/saved-queries/${encodeURIComponent(id)}`, { method: 'DELETE' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
 export function fetchMachineMetrics(id: string) {
   return fetch(`${BASE_URL}/machines/${encodeURIComponent(id)}/metrics`).then((r) =>
     handleResponse<{ metrics: NodeMetrics }>(r)

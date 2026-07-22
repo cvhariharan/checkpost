@@ -522,6 +522,30 @@ type QueryRunRequest struct {
 	CreatedByUUID string
 }
 
+// SavedQuery is a reusable, named query plus its target selection. Visibility is
+// "private" (owner-only) or "public" (visible to everyone).
+type SavedQuery struct {
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Query       string       `json:"query"`
+	Targets     QueryTargets `json:"targets"`
+	Visibility  string       `json:"visibility"`
+	Owned       bool         `json:"owned"`
+	CreatedBy   string       `json:"created_by"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
+// SavedQueryRequest is the input for creating or updating a saved query.
+type SavedQueryRequest struct {
+	Name        string
+	Description string
+	Query       string
+	Targets     QueryTargets
+	Visibility  string
+}
+
 // QueryRunHost is a single host's execution within a query run.
 type QueryRunHost struct {
 	QueryID    string    `json:"query_id"`

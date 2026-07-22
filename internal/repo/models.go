@@ -237,6 +237,19 @@ type RoleBinding struct {
 	CreatedAt    time.Time     `db:"created_at" json:"created_at"`
 }
 
+type SavedQuery struct {
+	ID          int64           `db:"id" json:"id"`
+	Uuid        uuid.UUID       `db:"uuid" json:"uuid"`
+	Name        string          `db:"name" json:"name"`
+	Description string          `db:"description" json:"description"`
+	Query       string          `db:"query" json:"query"`
+	Targets     json.RawMessage `db:"targets" json:"targets"`
+	Visibility  string          `db:"visibility" json:"visibility"`
+	CreatedBy   sql.NullInt64   `db:"created_by" json:"created_by"`
+	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time       `db:"updated_at" json:"updated_at"`
+}
+
 type Schedule struct {
 	ID              int64     `db:"id" json:"id"`
 	Uuid            uuid.UUID `db:"uuid" json:"uuid"`

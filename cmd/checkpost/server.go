@@ -246,6 +246,12 @@ func runServer(flags *rootFlags) error {
 	api.GET("/query-runs/:id/hosts/:query_id/results", h.HandleAdHocQueryResults, h.Authorize(core.ResourceQueryResult, core.ActionView))
 	api.DELETE("/query-runs/:id", h.HandleDeleteQueryRun, h.Authorize(core.ResourceQueryResult, core.ActionDelete))
 
+	api.POST("/saved-queries", h.HandleCreateSavedQuery, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.GET("/saved-queries", h.HandleSavedQueries, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.GET("/saved-queries/:id", h.HandleGetSavedQuery, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.PUT("/saved-queries/:id", h.HandleUpdateSavedQuery, h.Authorize(core.ResourceMachine, core.ActionExecute))
+	api.DELETE("/saved-queries/:id", h.HandleDeleteSavedQuery, h.Authorize(core.ResourceMachine, core.ActionExecute))
+
 	api.GET("/yara/signature-sources", h.HandleYaraSignatureSources, h.Authorize(core.ResourceYaraSource, core.ActionView))
 	api.POST("/yara/signature-sources", h.HandleCreateYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionCreate))
 	api.PUT("/yara/signature-sources/:id", h.HandleUpdateYaraSignatureSource, h.Authorize(core.ResourceYaraSource, core.ActionUpdate))

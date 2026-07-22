@@ -239,6 +239,33 @@ type PreviewQueryTargetsResponse struct {
 	HostCount int `json:"host_count"`
 }
 
+type SavedQueryRequest struct {
+	Name        string   `json:"name" validate:"required"`
+	Description string   `json:"description"`
+	Query       string   `json:"query" validate:"required"`
+	Visibility  string   `json:"visibility" validate:"omitempty,oneof=private public"`
+	HostIDs     []string `json:"host_ids" validate:"omitempty,dive,uuid"`
+	GroupIDs    []string `json:"group_ids" validate:"omitempty,dive,uuid"`
+	Platforms   []string `json:"platforms" validate:"omitempty,dive,oneof=darwin linux posix windows any all"`
+}
+
+type UpdateSavedQueryRequest struct {
+	ID string `param:"id" validate:"required,uuid"`
+	SavedQueryRequest
+}
+
+type SavedQueriesListRequest struct {
+	Query string `query:"q" validate:"lte=4096"`
+	Page  int    `query:"page" validate:"gte=0"`
+	Count int    `query:"count_per_page" validate:"gte=0"`
+}
+
+type SavedQueriesResponse struct {
+	SavedQueries []models.SavedQuery `json:"saved_queries"`
+	TotalCount   int                 `json:"total_count"`
+	PageCount    int                 `json:"page_count"`
+}
+
 type CreateScheduleRequest struct {
 	Query       string   `json:"query" validate:"required"`
 	Description string   `json:"description"`

@@ -1,9 +1,16 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import { fetchGroup, fetchGroups, fetchPolicies, fetchPolicy } from '$lib/api'
+  import {
+    fetchGroup,
+    fetchGroups,
+    fetchPolicies,
+    fetchPolicy,
+    fetchSavedQueries,
+    fetchSavedQuery
+  } from '$lib/api'
 
   type Option = { value: string; label: string }
-  type Resource = 'policies' | 'groups'
+  type Resource = 'policies' | 'groups' | 'saved-queries'
 
   let {
     resource,
@@ -58,6 +65,9 @@
       if (resource === 'policies') {
         const data = await fetchPolicies({ page: 1, countPerPage: 20, query: term })
         opts = (data.policies || []).map((p) => ({ value: p.uuid, label: p.title || p.name || p.uuid }))
+      } else if (resource === 'saved-queries') {
+        const data = await fetchSavedQueries({ page: 1, countPerPage: 20, query: term })
+        opts = (data.saved_queries || []).map((q) => ({ value: q.id, label: q.name || q.id }))
       } else {
         const data = await fetchGroups({ page: 1, countPerPage: 20, query: term })
         opts = (data.groups || []).map((g) => ({ value: g.uuid, label: g.name || g.uuid }))
@@ -94,6 +104,9 @@
           if (resource === 'policies') {
             const p = await fetchPolicy(id)
             resolved[id] = p.title || p.name || id
+          } else if (resource === 'saved-queries') {
+            const q = await fetchSavedQuery(id)
+            resolved[id] = q.name || id
           } else {
             const g = await fetchGroup(id)
             resolved[id] = g.name || id

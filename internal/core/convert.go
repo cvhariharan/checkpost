@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cvhariharan/checkpost/internal/models"
@@ -637,6 +638,51 @@ func decodeQueryTargets(raw json.RawMessage) models.QueryTargets {
 		_ = json.Unmarshal(raw, &targets)
 	}
 	return targets
+}
+
+func toModelSavedQuery(row repo.GetSavedQueryByUUIDRow, viewerID sql.NullInt64) models.SavedQuery {
+	return models.SavedQuery{
+		ID:          row.Uuid.String(),
+		Name:        row.Name,
+		Description: row.Description,
+		Query:       row.Query,
+		Targets:     decodeQueryTargets(row.Targets),
+		Visibility:  row.Visibility,
+		Owned:       ownsSavedQuery(row.CreatedBy, viewerID),
+		CreatedBy:   savedQueryCreator(row.CreatorName),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+}
+
+func toModelSavedQueryListRow(row repo.ListSavedQueriesRow, viewerID sql.NullInt64) models.SavedQuery {
+	return models.SavedQuery{
+		ID:          row.Uuid.String(),
+		Name:        row.Name,
+		Description: row.Description,
+		Query:       row.Query,
+		Targets:     decodeQueryTargets(row.Targets),
+		Visibility:  row.Visibility,
+		Owned:       ownsSavedQuery(row.CreatedBy, viewerID),
+		CreatedBy:   savedQueryCreator(row.CreatorName),
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+}
+
+func ownsSavedQuery(createdBy, viewerID sql.NullInt64) bool {
+	return viewerID.Valid && createdBy.Valid && createdBy.Int64 == viewerID.Int64
+}
+
+// savedQueryCreator returns the display name of the query's owner. It never
+// exposes the owner's email. When the owner has no name or has been deleted
+// (LEFT JOIN yields a NULL name), it falls back to "ghost" so public queries
+// still show attribution without leaking PII.
+func savedQueryCreator(name sql.NullString) string {
+	if name.Valid && strings.TrimSpace(name.String) != "" {
+		return name.String
+	}
+	return "ghost"
 }
 
 func toModelQueryRunListRow(row repo.ListQueryRunsRow) models.QueryRun {
