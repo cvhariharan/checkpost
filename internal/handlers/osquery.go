@@ -55,11 +55,11 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 
 	s, err := h.c.ListEnabledSchedulesForNode(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, ScheduleMax)
 	if err != nil {
-		return wrapError(http.StatusBadRequest, "error getting schedules for node", err, EnrollmentResponse{NodeInvalid: true})
+		return wrapError(http.StatusServiceUnavailable, "error getting schedules for node", err, nil)
 	}
 	yaraURLs, err := h.c.YaraSignatureURLAllowlist(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey})
 	if err != nil {
-		return wrapError(http.StatusBadRequest, "error getting YARA allowlist for node", err, EnrollmentResponse{NodeInvalid: true})
+		return wrapError(http.StatusServiceUnavailable, "error getting YARA allowlist for node", err, nil)
 	}
 
 	h.logger.Debug("config", "response", s)
