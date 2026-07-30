@@ -292,6 +292,7 @@
               <input
                 value={String(paramValues[field.name] ?? '')}
                 oninput={(e) => (paramValues[field.name] = e.currentTarget.value)}
+                placeholder={field.placeholder}
               />
             {/if}
             {#if field.description}<small class="text-light">{field.description}</small>{/if}

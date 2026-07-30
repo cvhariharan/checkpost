@@ -146,7 +146,7 @@ func (s policyFailureSource) Evaluate(ctx context.Context, raw json.RawMessage) 
 }
 
 type machineOfflineParams struct {
-	Threshold string      `json:"threshold,omitempty" jsonschema:"title=Threshold,description=Default 24h"`
+	Threshold string      `json:"threshold,omitempty" jsonschema:"title=Threshold,description=Duration with unit, e.g. 168h. Default 24h" jsonschema_extras:"x-placeholder=e.g. 168h"`
 	Groups    []uuid.UUID `json:"groups,omitempty" jsonschema:"title=Machine groups,description=Empty = all groups" jsonschema_extras:"x-widget=resource-select,x-resource=groups"`
 }
 
