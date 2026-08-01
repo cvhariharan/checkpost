@@ -9,6 +9,8 @@ Set `alerts.enabled = true` in `config.toml` to run the alert engine.
 
 ![Alerts](../assets/images/screenshots/alerts.png){ loading=lazy }
 
+Select a rule to inspect its active alerts. Filter them by firing or pending status, then expand an alert to see its labels, annotations, and timing.
+
 ## Rules and targets
 
 The **Rules** tab defines what to watch. Checkpost currently supports two sources:

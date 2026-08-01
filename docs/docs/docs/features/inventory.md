@@ -9,6 +9,8 @@ Inventory lists enrolled machines and their last-seen state. Search by hostname,
 
 ![Inventory list](../assets/images/screenshots/inventory.png){ loading=lazy }
 
+Sort the full inventory by name, status, owner, or score. The compliance score is the severity-weighted percentage of applicable enabled policies that currently pass. Stale or missing results do not count as passing.
+
 The **Owners** tab keeps contact and organizational details separate from machine records. Assign an owner, internal tracking ID, and notes from the machine inventory editor.
 
 Use **Install osquery** to open the enrollment instructions generated from the server configuration. See [setup](../setup.md#enroll-hosts) for the required HTTPS and package settings.

@@ -34,4 +34,4 @@ User groups grant the same role to several users. Add members manually or set an
 
 ## API tokens
 
-API tokens authenticate `checkpost apply` and direct API requests. Tokens have the same permissions as the issuing user.
+API tokens authenticate `checkpost apply` and direct API requests. By default, a token has the same permissions as the issuing user. Administrators can create scoped tokens with different roles.
