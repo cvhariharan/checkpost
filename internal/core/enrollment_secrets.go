@@ -77,6 +77,16 @@ func (c *Core) ParseEnrollmentSecret(token string) (uuid.UUID, bool) {
 	return fields.owner, true
 }
 
+// DecodeEnrollmentSecretOwner returns the owner UUID from an authentic secret,
+// ignoring expiry, for diagnostics on a rejected secret.
+func (c *Core) DecodeEnrollmentSecretOwner(token string) (uuid.UUID, bool) {
+	fields, ok := c.decodeEnrollmentSecret(token)
+	if !ok || fields.owner == uuid.Nil {
+		return uuid.Nil, false
+	}
+	return fields.owner, true
+}
+
 // decodeEnrollmentSecret strips the prefix, decodes the payload, verifies the
 // HMAC, and extracts the fields in a single pass. It accepts both the legacy v1
 // and the owner-aware v2 layouts.

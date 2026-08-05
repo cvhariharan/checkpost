@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/cvhariharan/checkpost/internal/models"
@@ -30,6 +31,15 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 
 	owner, ok := h.c.ParseEnrollmentSecret(req.EnrollSecret)
 	if !ok {
+		if h.logger.Enabled(c.Request().Context(), slog.LevelDebug) {
+			email := "unknown"
+			if ownerUUID, decoded := h.c.DecodeEnrollmentSecretOwner(req.EnrollSecret); decoded {
+				if user, err := h.c.GetUserByUUIDRepo(c.Request().Context(), ownerUUID.String()); err == nil {
+					email = user.Email
+				}
+			}
+			h.logger.Debug("rejected enrollment secret", "owner_email", email, "remote_ip", c.RealIP())
+		}
 		return wrapError(http.StatusUnauthorized, "invalid or expired enrollment secret", fmt.Errorf("enrollment secret invalid or expired"), EnrollmentResponse{NodeInvalid: true})
 	}
 
