@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -10,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/cvhariharan/checkpost/internal/config"
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -51,7 +54,7 @@ func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
 		owner = user
 	}
 
-	profile, err := h.osqueryBootstrapProfile(owner)
+	profile, err := h.osqueryBootstrapProfile(c.Request().Context(), owner)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "error rendering osquery bootstrap profile", err, nil)
 	}
@@ -61,9 +64,14 @@ func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
 
 func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 	platform := strings.TrimSpace(c.Param("platform"))
-	// Each download mints a fresh, short-lived enrollment secret embedded in the
-	// rendered script. The secret is stateless and self-expiring.
-	script, contentType, err := h.osqueryBootstrapScript(platform, h.c.MintEnrollmentSecret())
+	secret, err := h.c.AnonymousEnrollmentSecret(c.Request().Context())
+	if err != nil {
+		if errors.Is(err, core.ErrEnrollmentSecretNotFound) {
+			return wrapError(http.StatusServiceUnavailable, "no active enrollment secret; an administrator must generate one from the console", err, nil)
+		}
+		return wrapError(http.StatusInternalServerError, "could not resolve enrollment secret", err, nil)
+	}
+	script, contentType, err := h.osqueryBootstrapScript(platform, secret)
 	if err != nil {
 		return wrapError(http.StatusNotFound, fmt.Sprintf("osquery bootstrap script %s not found", platform), err, nil)
 	}
@@ -71,21 +79,29 @@ func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 	return c.Blob(http.StatusOK, contentType, []byte(script))
 }
 
-func (h *Handler) osqueryBootstrapProfile(owner models.SessionUser) (OsqueryBootstrapResponse, error) {
+func (h *Handler) osqueryBootstrapProfile(ctx context.Context, owner models.SessionUser) (OsqueryBootstrapResponse, error) {
 	checkpostURL, tlsHostname, warnings := bootstrapURLState(h.cfg.RootURL)
 	packages := h.bootstrapPackages()
 	warnings = append(warnings, packageWarnings(h.cfg.OsqueryBootstrap, packages)...)
 
-	// An owner-bound profile mints a secret carrying the user; otherwise a plain anonymous one
-	secret := h.c.MintEnrollmentSecret()
-	var ownerInfo *OsqueryBootstrapOwner
-	if ownerUUID, err := uuid.Parse(strings.TrimSpace(owner.UUID)); err == nil && ownerUUID != uuid.Nil {
-		secret = h.c.MintOwnedEnrollmentSecret(ownerUUID)
-		ownerInfo = &OsqueryBootstrapOwner{Name: owner.Name, Email: owner.Email}
+	ownerUUID, err := uuid.Parse(strings.TrimSpace(owner.UUID))
+	if err != nil || ownerUUID == uuid.Nil {
+		return OsqueryBootstrapResponse{}, fmt.Errorf("bootstrap profile requires an authenticated user")
 	}
-	commandSecret := ""
-	if ownerInfo != nil {
-		commandSecret = secret
+	secret, err := h.c.MintOwnedEnrollmentSecret(ctx, ownerUUID)
+	if err != nil {
+		return OsqueryBootstrapResponse{}, err
+	}
+	ownerInfo := &OsqueryBootstrapOwner{Name: owner.Name, Email: owner.Email}
+	commandSecret := secret
+
+	anonymousAvailable := true
+	if _, err := h.c.AnonymousEnrollmentSecret(ctx); err != nil {
+		if errors.Is(err, core.ErrEnrollmentSecretNotFound) {
+			anonymousAvailable = false
+		} else {
+			return OsqueryBootstrapResponse{}, err
+		}
 	}
 
 	scripts := make(map[string]string, 3)
@@ -158,12 +174,13 @@ func (h *Handler) osqueryBootstrapProfile(owner models.SessionUser) (OsqueryBoot
 	}
 
 	return OsqueryBootstrapResponse{
-		Ready:        h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
-		CheckpostURL: checkpostURL,
-		TLSHostname:  tlsHostname,
-		Warnings:     warnings,
-		Owner:        ownerInfo,
-		Platforms:    platforms,
+		Ready:              h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
+		CheckpostURL:       checkpostURL,
+		TLSHostname:        tlsHostname,
+		Warnings:           warnings,
+		Owner:              ownerInfo,
+		Platforms:          platforms,
+		AnonymousAvailable: anonymousAvailable,
 	}, nil
 }
 

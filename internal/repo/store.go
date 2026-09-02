@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,6 +26,7 @@ type Store interface {
 	CreateAlertRuleTx(ctx context.Context, params CreateAlertRuleTxParams) (AlertRule, error)
 	UpdateAlertRuleTx(ctx context.Context, params UpdateAlertRuleTxParams) (AlertRule, error)
 	CreateQueryRunTx(ctx context.Context, params CreateQueryRunTxParams) (QueryRun, error)
+	DeleteNodeTx(ctx context.Context, params DeleteNodeTxParams) (int64, error)
 }
 
 type PostgresStore struct {
@@ -107,6 +109,54 @@ func escapeLikePattern(s string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+type DeleteNodeTxParams struct {
+	NodeUUID  uuid.UUID
+	RevokedBy sql.NullInt64
+}
+
+// DeleteNodeTx deletes a node and, atomically, revokes the enrollment secret it
+// enrolled with so it cannot re-enroll. Returns the number of node rows deleted
+// (0 when the node is missing).
+func (s *PostgresStore) DeleteNodeTx(ctx context.Context, params DeleteNodeTxParams) (int64, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin delete node transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	q := s.Queries.WithTx(tx)
+
+	node, err := q.GetNodeByUUID(ctx, params.NodeUUID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("get node: %w", err)
+	}
+
+	rows, err := q.DeleteNodeByUUID(ctx, params.NodeUUID)
+	if err != nil {
+		return 0, fmt.Errorf("delete node: %w", err)
+	}
+	if rows == 0 {
+		return 0, nil
+	}
+
+	if node.EnrollmentSecretID.Valid {
+		if _, err := q.RevokeEnrollmentSecretByID(ctx, RevokeEnrollmentSecretByIDParams{
+			ID:        node.EnrollmentSecretID.Int64,
+			RevokedBy: params.RevokedBy,
+		}); err != nil {
+			return 0, fmt.Errorf("revoke enrollment secret: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit delete node transaction: %w", err)
+	}
+	return rows, nil
 }
 
 func (s *PostgresStore) InsertStatusLogsTx(ctx context.Context, params InsertStatusLogsTxParams) error {

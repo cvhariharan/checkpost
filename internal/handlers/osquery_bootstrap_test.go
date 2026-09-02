@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"log/slog"
@@ -8,13 +9,35 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/cvhariharan/checkpost/assets"
 	"github.com/cvhariharan/checkpost/internal/config"
 	"github.com/cvhariharan/checkpost/internal/core"
+	"github.com/cvhariharan/checkpost/internal/models"
+	"github.com/cvhariharan/checkpost/internal/repo"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
+
+const testOwnerUUID = "11111111-1111-1111-1111-111111111111"
+
+// fakeEnrollStore satisfies repo.Store, serving the active anonymous and owned
+// enrollment secrets the bootstrap handlers read; all other methods are unused.
+type fakeEnrollStore struct {
+	repo.Store
+}
+
+func (fakeEnrollStore) GetActiveAnonymousEnrollmentSecret(context.Context) (repo.EnrollmentSecret, error) {
+	return repo.EnrollmentSecret{ID: 1, SecretID: make([]byte, 16), Type: "anonymous"}, nil
+}
+
+func (fakeEnrollStore) GetUserByUUID(context.Context, uuid.UUID) (repo.User, error) {
+	return repo.User{ID: 1}, nil
+}
+
+func (fakeEnrollStore) GetActiveOwnedEnrollmentSecret(context.Context, uuid.NullUUID) (repo.EnrollmentSecret, error) {
+	return repo.EnrollmentSecret{ID: 2, SecretID: make([]byte, 16), Type: "owned"}, nil
+}
 
 func testBootstrapTemplates(t *testing.T) fs.FS {
 	t.Helper()
@@ -25,11 +48,11 @@ func testBootstrapTemplates(t *testing.T) fs.FS {
 	return fsys
 }
 
-// testBootstrapCore builds a minimal Core that can mint enrollment secrets; the
-// bootstrap handlers only need MintEnrollmentSecret, so store/sink/etc. are nil.
+// testBootstrapCore builds a minimal Core that can resolve enrollment secrets via
+// fakeEnrollStore; sink/reader/enforcer are unused so they stay nil.
 func testBootstrapCore(t *testing.T, cfg config.AppConfig) *core.Core {
 	t.Helper()
-	c, err := core.NewCore(slog.Default(), nil, nil, nil, nil, cfg)
+	c, err := core.NewCore(slog.Default(), fakeEnrollStore{}, nil, nil, nil, cfg)
 	if err != nil {
 		t.Fatalf("new core: %v", err)
 	}
@@ -42,8 +65,10 @@ func TestOsqueryBootstrapProfileReady(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.Set(contextUserKey, models.SessionUser{UUID: testOwnerUUID, Name: "Test", Email: "test@example.com"})
 
-	if err := h.HandleOsqueryBootstrap(e.NewContext(req, rec)); err != nil {
+	if err := h.HandleOsqueryBootstrap(ctx); err != nil {
 		t.Fatalf("HandleOsqueryBootstrap() error = %v", err)
 	}
 	if got := rec.Header().Get(echo.HeaderCacheControl); got != "no-store" {
@@ -75,8 +100,10 @@ func TestOsqueryBootstrapProfileWarnings(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
 	rec := httptest.NewRecorder()
+	ctx := e.NewContext(req, rec)
+	ctx.Set(contextUserKey, models.SessionUser{UUID: testOwnerUUID, Name: "Test", Email: "test@example.com"})
 
-	if err := h.HandleOsqueryBootstrap(e.NewContext(req, rec)); err != nil {
+	if err := h.HandleOsqueryBootstrap(ctx); err != nil {
 		t.Fatalf("HandleOsqueryBootstrap() error = %v", err)
 	}
 
@@ -138,7 +165,6 @@ func testBootstrapConfig(rootURL string) config.AppConfig {
 	return config.AppConfig{
 		RootURL:              rootURL,
 		EnrollmentSigningKey: "test-signing-key",
-		EnrollmentSecretTTL:  time.Hour,
 		OsqueryBootstrap: config.OsqueryBootstrapConfig{
 			Enabled: true,
 			Linux: config.BootstrapPackagesByArch{

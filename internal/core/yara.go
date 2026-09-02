@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -368,6 +369,10 @@ func (c *Core) completeYaraResult(ctx context.Context, node models.Node, queryID
 	}
 	scan, err := c.store.GetYaraScanByUUID(ctx, scanUUID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.logger.Debug("ignoring result for deleted yara scan", "scan_uuid", scanUUID)
+			return true, nil
+		}
 		return true, fmt.Errorf("get yara scan: %w", err)
 	}
 

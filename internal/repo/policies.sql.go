@@ -380,7 +380,7 @@ func (q *Queries) ListNodesByPolicyResponse(ctx context.Context, arg ListNodesBy
 
 const listPoliciesForNode = `-- name: ListPoliciesForNode :many
 WITH target_node AS (
-    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name
+    SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name, enrollment_secret_id
     FROM nodes
     WHERE nodes.uuid = $2
 )

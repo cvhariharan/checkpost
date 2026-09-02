@@ -96,6 +96,18 @@ type DeviceOwner struct {
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type EnrollmentSecret struct {
+	ID            int64         `db:"id" json:"id"`
+	Uuid          uuid.UUID     `db:"uuid" json:"uuid"`
+	SecretID      []byte        `db:"secret_id" json:"secret_id"`
+	Type          string        `db:"type" json:"type"`
+	OwnerUserUuid uuid.NullUUID `db:"owner_user_uuid" json:"owner_user_uuid"`
+	CreatedBy     sql.NullInt64 `db:"created_by" json:"created_by"`
+	RevokedAt     sql.NullTime  `db:"revoked_at" json:"revoked_at"`
+	RevokedBy     sql.NullInt64 `db:"revoked_by" json:"revoked_by"`
+	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
+}
+
 type Group struct {
 	ID          int64     `db:"id" json:"id"`
 	Uuid        uuid.UUID `db:"uuid" json:"uuid"`
@@ -128,22 +140,23 @@ type MachineQueryResult struct {
 }
 
 type Node struct {
-	ID                int64        `db:"id" json:"id"`
-	Uuid              uuid.UUID    `db:"uuid" json:"uuid"`
-	NodeKey           uuid.UUID    `db:"node_key" json:"node_key"`
-	HostIdentifier    string       `db:"host_identifier" json:"host_identifier"`
-	Hostname          string       `db:"hostname" json:"hostname"`
-	Platform          string       `db:"platform" json:"platform"`
-	OsName            string       `db:"os_name" json:"os_name"`
-	OsVersion         string       `db:"os_version" json:"os_version"`
-	OsqueryVersion    string       `db:"osquery_version" json:"osquery_version"`
-	HardwareSerial    string       `db:"hardware_serial" json:"hardware_serial"`
-	EnrolledAt        time.Time    `db:"enrolled_at" json:"enrolled_at"`
-	LastSeenAt        sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
-	LastPolicyCheckAt sql.NullTime `db:"last_policy_check_at" json:"last_policy_check_at"`
-	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time    `db:"updated_at" json:"updated_at"`
-	DisplayName       string       `db:"display_name" json:"display_name"`
+	ID                 int64         `db:"id" json:"id"`
+	Uuid               uuid.UUID     `db:"uuid" json:"uuid"`
+	NodeKey            uuid.UUID     `db:"node_key" json:"node_key"`
+	HostIdentifier     string        `db:"host_identifier" json:"host_identifier"`
+	Hostname           string        `db:"hostname" json:"hostname"`
+	Platform           string        `db:"platform" json:"platform"`
+	OsName             string        `db:"os_name" json:"os_name"`
+	OsVersion          string        `db:"os_version" json:"os_version"`
+	OsqueryVersion     string        `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial     string        `db:"hardware_serial" json:"hardware_serial"`
+	EnrolledAt         time.Time     `db:"enrolled_at" json:"enrolled_at"`
+	LastSeenAt         sql.NullTime  `db:"last_seen_at" json:"last_seen_at"`
+	LastPolicyCheckAt  sql.NullTime  `db:"last_policy_check_at" json:"last_policy_check_at"`
+	CreatedAt          time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time     `db:"updated_at" json:"updated_at"`
+	DisplayName        string        `db:"display_name" json:"display_name"`
+	EnrollmentSecretID sql.NullInt64 `db:"enrollment_secret_id" json:"enrollment_secret_id"`
 }
 
 type NodeInventory struct {

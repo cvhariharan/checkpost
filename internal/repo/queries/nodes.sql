@@ -6,9 +6,10 @@ INSERT INTO nodes (
     os_name,
     os_version,
     osquery_version,
-    hardware_serial
+    hardware_serial,
+    enrollment_secret_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7, $8
 )
 ON CONFLICT (host_identifier) DO UPDATE SET
     hostname = EXCLUDED.hostname,
@@ -17,6 +18,7 @@ ON CONFLICT (host_identifier) DO UPDATE SET
     os_version = EXCLUDED.os_version,
     osquery_version = EXCLUDED.osquery_version,
     hardware_serial = EXCLUDED.hardware_serial,
+    enrollment_secret_id = EXCLUDED.enrollment_secret_id,
     last_seen_at = now(),
     updated_at = now()
 RETURNING *;

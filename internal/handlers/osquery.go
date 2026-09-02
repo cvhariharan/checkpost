@@ -6,10 +6,15 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/cvhariharan/checkpost/internal/results"
 	"github.com/labstack/echo/v4"
 )
+
+func nodeInvalidResponse(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]bool{"node_invalid": true})
+}
 
 const (
 	// CountPerPage used for pagination requests
@@ -29,7 +34,10 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 		return err
 	}
 
-	owner, ok := h.c.ParseEnrollmentSecret(req.EnrollSecret)
+	owner, secretRowID, ok, err := h.c.AuthorizeEnrollmentSecret(c.Request().Context(), req.EnrollSecret)
+	if err != nil {
+		return wrapError(http.StatusServiceUnavailable, "could not verify enrollment secret", err, nil)
+	}
 	if !ok {
 		if h.logger.Enabled(c.Request().Context(), slog.LevelDebug) {
 			email := "unknown"
@@ -40,13 +48,13 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 			}
 			h.logger.Debug("rejected enrollment secret", "owner_email", email, "remote_ip", c.RealIP())
 		}
-		return wrapError(http.StatusUnauthorized, "invalid or expired enrollment secret", fmt.Errorf("enrollment secret invalid or expired"), EnrollmentResponse{NodeInvalid: true})
+		return wrapError(http.StatusUnauthorized, "invalid or revoked enrollment secret", fmt.Errorf("enrollment secret invalid or revoked"), EnrollmentResponse{NodeInvalid: true})
 	}
 
 	node := req.ToNodeModel()
 	node.OwnerUserUUID = owner
 
-	creds, err := h.c.EnrollNode(c.Request().Context(), node)
+	creds, err := h.c.EnrollNode(c.Request().Context(), node, secretRowID)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, "could not enroll node", err, EnrollmentResponse{NodeInvalid: true})
 	}
@@ -65,10 +73,16 @@ func (h *Handler) HandleOSQueryConfig(c echo.Context) error {
 
 	s, err := h.c.ListEnabledSchedulesForNode(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, ScheduleMax)
 	if err != nil {
+		if errors.Is(err, core.ErrNodeNotFound) {
+			return nodeInvalidResponse(c)
+		}
 		return wrapError(http.StatusServiceUnavailable, "error getting schedules for node", err, nil)
 	}
 	yaraURLs, err := h.c.YaraSignatureURLAllowlist(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey})
 	if err != nil {
+		if errors.Is(err, core.ErrNodeNotFound) {
+			return nodeInvalidResponse(c)
+		}
 		return wrapError(http.StatusServiceUnavailable, "error getting YARA allowlist for node", err, nil)
 	}
 
@@ -108,6 +122,9 @@ func (h *Handler) HandleLog(c echo.Context) error {
 		if errors.Is(err, results.ErrBackpressure) {
 			return wrapError(http.StatusServiceUnavailable, "results buffer full, retry later", err, nil)
 		}
+		if errors.Is(err, core.ErrNodeNotFound) {
+			return nodeInvalidResponse(c)
+		}
 		return wrapError(http.StatusInternalServerError, "error writing logs", err, nil)
 	}
 
@@ -122,6 +139,9 @@ func (h *Handler) HandleDistributedRead(c echo.Context) error {
 
 	queries, err := h.c.ReadDistributedQueries(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey})
 	if err != nil {
+		if errors.Is(err, core.ErrNodeNotFound) {
+			return nodeInvalidResponse(c)
+		}
 		return wrapError(http.StatusInternalServerError, "error reading distributed queries", err, nil)
 	}
 
@@ -140,6 +160,9 @@ func (h *Handler) HandleDistributedWrite(c echo.Context) error {
 	}
 
 	if err := h.c.WriteDistributedQueryResults(c.Request().Context(), models.NodeKeyRequest{NodeKey: req.NodeKey}, req.Queries, statuses, req.Messages); err != nil {
+		if errors.Is(err, core.ErrNodeNotFound) {
+			return nodeInvalidResponse(c)
+		}
 		return wrapError(http.StatusInternalServerError, "error writing distributed query results", err, nil)
 	}
 

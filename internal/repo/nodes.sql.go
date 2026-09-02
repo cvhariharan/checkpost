@@ -22,9 +22,10 @@ INSERT INTO nodes (
     os_name,
     os_version,
     osquery_version,
-    hardware_serial
+    hardware_serial,
+    enrollment_secret_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7, $8
 )
 ON CONFLICT (host_identifier) DO UPDATE SET
     hostname = EXCLUDED.hostname,
@@ -33,19 +34,21 @@ ON CONFLICT (host_identifier) DO UPDATE SET
     os_version = EXCLUDED.os_version,
     osquery_version = EXCLUDED.osquery_version,
     hardware_serial = EXCLUDED.hardware_serial,
+    enrollment_secret_id = EXCLUDED.enrollment_secret_id,
     last_seen_at = now(),
     updated_at = now()
-RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name
+RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name, enrollment_secret_id
 `
 
 type CreateNodeParams struct {
-	HostIdentifier string `db:"host_identifier" json:"host_identifier"`
-	Hostname       string `db:"hostname" json:"hostname"`
-	Platform       string `db:"platform" json:"platform"`
-	OsName         string `db:"os_name" json:"os_name"`
-	OsVersion      string `db:"os_version" json:"os_version"`
-	OsqueryVersion string `db:"osquery_version" json:"osquery_version"`
-	HardwareSerial string `db:"hardware_serial" json:"hardware_serial"`
+	HostIdentifier     string        `db:"host_identifier" json:"host_identifier"`
+	Hostname           string        `db:"hostname" json:"hostname"`
+	Platform           string        `db:"platform" json:"platform"`
+	OsName             string        `db:"os_name" json:"os_name"`
+	OsVersion          string        `db:"os_version" json:"os_version"`
+	OsqueryVersion     string        `db:"osquery_version" json:"osquery_version"`
+	HardwareSerial     string        `db:"hardware_serial" json:"hardware_serial"`
+	EnrollmentSecretID sql.NullInt64 `db:"enrollment_secret_id" json:"enrollment_secret_id"`
 }
 
 func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, error) {
@@ -57,6 +60,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		arg.OsVersion,
 		arg.OsqueryVersion,
 		arg.HardwareSerial,
+		arg.EnrollmentSecretID,
 	)
 	var i Node
 	err := row.Scan(
@@ -76,6 +80,7 @@ func (q *Queries) CreateNode(ctx context.Context, arg CreateNodeParams) (Node, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisplayName,
+		&i.EnrollmentSecretID,
 	)
 	return i, err
 }
@@ -93,7 +98,7 @@ func (q *Queries) DeleteNodeByUUID(ctx context.Context, argUuid uuid.UUID) (int6
 }
 
 const getNodeByID = `-- name: GetNodeByID :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE id = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name, enrollment_secret_id FROM nodes WHERE id = $1
 `
 
 func (q *Queries) GetNodeByID(ctx context.Context, id int64) (Node, error) {
@@ -116,12 +121,13 @@ func (q *Queries) GetNodeByID(ctx context.Context, id int64) (Node, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisplayName,
+		&i.EnrollmentSecretID,
 	)
 	return i, err
 }
 
 const getNodeByKey = `-- name: GetNodeByKey :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE node_key = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name, enrollment_secret_id FROM nodes WHERE node_key = $1
 `
 
 func (q *Queries) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, error) {
@@ -144,12 +150,13 @@ func (q *Queries) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (Node, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisplayName,
+		&i.EnrollmentSecretID,
 	)
 	return i, err
 }
 
 const getNodeByUUID = `-- name: GetNodeByUUID :one
-SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name FROM nodes WHERE uuid = $1
+SELECT id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name, enrollment_secret_id FROM nodes WHERE uuid = $1
 `
 
 func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, error) {
@@ -172,6 +179,7 @@ func (q *Queries) GetNodeByUUID(ctx context.Context, argUuid uuid.UUID) (Node, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisplayName,
+		&i.EnrollmentSecretID,
 	)
 	return i, err
 }
@@ -485,7 +493,7 @@ UPDATE nodes SET
     display_name = $1,
     updated_at = now()
 WHERE uuid = $2
-RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name
+RETURNING id, uuid, node_key, host_identifier, hostname, platform, os_name, os_version, osquery_version, hardware_serial, enrolled_at, last_seen_at, last_policy_check_at, created_at, updated_at, display_name, enrollment_secret_id
 `
 
 type UpdateNodeDisplayNameByUUIDParams struct {
@@ -513,6 +521,7 @@ func (q *Queries) UpdateNodeDisplayNameByUUID(ctx context.Context, arg UpdateNod
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DisplayName,
+		&i.EnrollmentSecretID,
 	)
 	return i, err
 }

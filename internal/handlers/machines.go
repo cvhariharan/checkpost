@@ -100,7 +100,12 @@ func (h *Handler) HandleDeleteMachine(c echo.Context) error {
 		return err
 	}
 
-	if err := h.c.DeleteNode(c.Request().Context(), models.ResourceID{UUID: req.ID}); err != nil {
+	user, err := h.currentUser(c)
+	if err != nil {
+		return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
+	}
+
+	if err := h.c.DeleteNode(c.Request().Context(), models.ResourceID{UUID: req.ID}, user.UUID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return wrapError(http.StatusNotFound, fmt.Sprintf("machine %s not found", req.ID), err, nil)
 		}

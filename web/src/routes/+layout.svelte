@@ -20,6 +20,7 @@
   import User from '@lucide/svelte/icons/user'
   import Users from '@lucide/svelte/icons/users'
   import KeyRound from '@lucide/svelte/icons/key-round'
+  import Fingerprint from '@lucide/svelte/icons/fingerprint'
   import PanelLeft from '@lucide/svelte/icons/panel-left'
   import ChevronsLeft from '@lucide/svelte/icons/chevrons-left'
   import LogOut from '@lucide/svelte/icons/log-out'
@@ -166,6 +167,19 @@
                 <span class="nav-label">API Tokens</span>
               </a>
             </li>
+            {#if canFrom(data?.me ?? null, 'setting', 'view')}
+              <li>
+                <a
+                  href="/settings/enrollment-secrets"
+                  aria-current={section === 'enrollment-secrets' ? 'page' : undefined}
+                  data-tooltip="Enrollment Secrets"
+                  data-tooltip-placement="right"
+                >
+                  <Fingerprint size={18} aria-hidden="true" />
+                  <span class="nav-label">Enrollment Secrets</span>
+                </a>
+              </li>
+            {/if}
           </ul>
         {/if}
       </nav>

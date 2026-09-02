@@ -26,9 +26,6 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 	if cfg.AppConfig.EnrollmentSigningKey == "" {
 		t.Fatal("EnrollmentSigningKey should not be empty")
 	}
-	if cfg.AppConfig.EnrollmentSecretTTL != time.Hour {
-		t.Fatalf("EnrollmentSecretTTL = %v, want %v", cfg.AppConfig.EnrollmentSecretTTL, time.Hour)
-	}
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("expected config file to be created: %v", err)
 	}

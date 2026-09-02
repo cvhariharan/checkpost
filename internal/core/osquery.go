@@ -171,6 +171,9 @@ func (c *Core) IngestOsqueryLogs(ctx context.Context, batch models.OsqueryLogBat
 
 	node, err := c.store.GetNodeByKey(ctx, nodeID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNodeNotFound
+		}
 		return fmt.Errorf("get node for log ingestion: %w", err)
 	}
 

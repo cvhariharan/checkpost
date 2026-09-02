@@ -548,6 +548,9 @@ type OsqueryBootstrapResponse struct {
 	// an anonymous install.
 	Owner     *OsqueryBootstrapOwner     `json:"owner,omitempty"`
 	Platforms []OsqueryBootstrapPlatform `json:"platforms"`
+	// AnonymousAvailable reports whether an active anonymous secret exists, so the
+	// generic (shareable) command can actually enroll.
+	AnonymousAvailable bool `json:"anonymous_available"`
 }
 
 // OsqueryBootstrapOwner identifies the user an owner-bound install registers to.

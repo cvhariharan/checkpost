@@ -96,7 +96,7 @@ type Node struct {
 	ID                int64           `json:"-"`
 	ResourceID        string          `json:"id"`
 	UUID              string          `json:"uuid"`
-	NodeKey           string          `json:"node_key"`
+	NodeKey           string          `json:"-"` // node bearer credential; never exposed over the API
 	HostIdentifier    string          `json:"host_identifier"`
 	Hostname          string          `json:"hostname"`
 	DisplayName       string          `json:"display_name"`
@@ -651,6 +651,18 @@ type APIToken struct {
 type IssuedAPIToken struct {
 	APIToken
 	Secret string `json:"secret"`
+}
+
+// EnrollmentSecret is the API-facing view of a tracked enrollment secret. The
+// Secret ID (hex nonce) is public; the HMAC is what makes the token unforgeable.
+type EnrollmentSecret struct {
+	UUID         string     `json:"uuid"`
+	SecretID     string     `json:"secret_id"` // hex-encoded nonce
+	Type         string     `json:"type"`      // 'anonymous' | 'owned'
+	GeneratedBy  string     `json:"generated_by"`
+	MachineCount int        `json:"machine_count"`
+	RevokedAt    *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
 }
 
 type CreateUser struct {

@@ -24,6 +24,7 @@ type Querier interface {
 	CreateAlertRuleTarget(ctx context.Context, arg CreateAlertRuleTargetParams) error
 	CreateAlertTarget(ctx context.Context, arg CreateAlertTargetParams) (AlertTarget, error)
 	CreateDeviceOwner(ctx context.Context, arg CreateDeviceOwnerParams) (DeviceOwner, error)
+	CreateEnrollmentSecret(ctx context.Context, arg CreateEnrollmentSecretParams) (EnrollmentSecret, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMembership(ctx context.Context, arg CreateGroupMembershipParams) error
 	CreateMachineQueryResult(ctx context.Context, arg CreateMachineQueryResultParams) (MachineQueryResult, error)
@@ -75,6 +76,7 @@ type Querier interface {
 	DeleteScheduleByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteScheduleGroupsForSchedule(ctx context.Context, scheduleUuid uuid.UUID) error
 	DeleteStaleOIDCMembers(ctx context.Context, arg DeleteStaleOIDCMembersParams) error
+	DeleteUnusedOwnedEnrollmentSecrets(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteUserByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteUserGroupByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
 	DeleteYaraSignatureSourceByUUID(ctx context.Context, argUuid uuid.UUID) (int64, error)
@@ -82,12 +84,16 @@ type Querier interface {
 	FindRoleBinding(ctx context.Context, arg FindRoleBindingParams) (RoleBinding, error)
 	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
 	GetAPITokenByUUID(ctx context.Context, argUuid uuid.UUID) (ApiToken, error)
+	GetActiveAnonymousEnrollmentSecret(ctx context.Context) (EnrollmentSecret, error)
+	GetActiveOwnedEnrollmentSecret(ctx context.Context, ownerUserUuid uuid.NullUUID) (EnrollmentSecret, error)
 	GetAlertRuleByName(ctx context.Context, name string) (AlertRule, error)
 	GetAlertRuleByUUID(ctx context.Context, argUuid uuid.UUID) (AlertRule, error)
 	GetAlertTargetByName(ctx context.Context, name string) (AlertTarget, error)
 	GetAlertTargetByUUID(ctx context.Context, argUuid uuid.UUID) (AlertTarget, error)
 	GetDeviceOwnerByUUID(ctx context.Context, argUuid uuid.UUID) (DeviceOwner, error)
 	GetDeviceOwnerWithCountsByUUID(ctx context.Context, ownerUuid uuid.UUID) (GetDeviceOwnerWithCountsByUUIDRow, error)
+	GetEnrollmentSecretBySecretID(ctx context.Context, secretID []byte) (EnrollmentSecret, error)
+	GetEnrollmentSecretByUUID(ctx context.Context, argUuid uuid.UUID) (EnrollmentSecret, error)
 	GetGroupByID(ctx context.Context, id int64) (Group, error)
 	GetGroupByName(ctx context.Context, name string) (Group, error)
 	GetGroupByUUID(ctx context.Context, argUuid uuid.UUID) (Group, error)
@@ -132,6 +138,7 @@ type Querier interface {
 	ListEnabledSchedules(ctx context.Context, limit int32) ([]Schedule, error)
 	ListEnabledSchedulesForNode(ctx context.Context, arg ListEnabledSchedulesForNodeParams) ([]Schedule, error)
 	ListEnabledYaraSignatureSourcesByGroupID(ctx context.Context, groupID sql.NullInt64) ([]YaraSignatureSource, error)
+	ListEnrollmentSecrets(ctx context.Context) ([]ListEnrollmentSecretsRow, error)
 	ListFailingPolicyNodes(ctx context.Context, arg ListFailingPolicyNodesParams) ([]ListFailingPolicyNodesRow, error)
 	ListGlobalRolesForUser(ctx context.Context, userID sql.NullInt64) ([]string, error)
 	ListGlobalRolesForUserGroups(ctx context.Context, userID int64) ([]string, error)
@@ -151,6 +158,7 @@ type Querier interface {
 	ListNodeInventoriesByNodeUUIDs(ctx context.Context, nodeUuids []uuid.UUID) ([]ListNodeInventoriesByNodeUUIDsRow, error)
 	ListNodeMetricsByNodeUUID(ctx context.Context, argUuid uuid.UUID) ([]ListNodeMetricsByNodeUUIDRow, error)
 	ListNodes(ctx context.Context, arg ListNodesParams) ([]ListNodesRow, error)
+	ListNodesByEnrollmentSecretID(ctx context.Context, argUuid uuid.UUID) ([]Node, error)
 	ListNodesByGroup(ctx context.Context, arg ListNodesByGroupParams) ([]ListNodesByGroupRow, error)
 	ListNodesByIDs(ctx context.Context, ids []int64) ([]ListNodesByIDsRow, error)
 	ListNodesByOwner(ctx context.Context, arg ListNodesByOwnerParams) ([]ListNodesByOwnerRow, error)
@@ -188,6 +196,8 @@ type Querier interface {
 	RefreshYaraScanStats(ctx context.Context, scanID int64) error
 	RemoveUserGroupMember(ctx context.Context, arg RemoveUserGroupMemberParams) error
 	RevokeAPITokenForUser(ctx context.Context, arg RevokeAPITokenForUserParams) (int64, error)
+	RevokeEnrollmentSecretByID(ctx context.Context, arg RevokeEnrollmentSecretByIDParams) (int64, error)
+	RevokeEnrollmentSecretByUUID(ctx context.Context, arg RevokeEnrollmentSecretByUUIDParams) (int64, error)
 	SetUserLastLoginByID(ctx context.Context, id int64) error
 	SetUserPasswordHashByID(ctx context.Context, arg SetUserPasswordHashByIDParams) error
 	TimeoutStaleYaraScanTargets(ctx context.Context, timeout string) ([]int64, error)

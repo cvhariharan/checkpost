@@ -283,6 +283,7 @@ export type OsqueryBootstrapProfile = {
   warnings?: string[]
   owner?: OsqueryBootstrapOwner
   platforms?: OsqueryBootstrapPlatform[]
+  anonymous_available?: boolean
 }
 
 type PageOpts = { page?: number; countPerPage?: number }
@@ -1012,6 +1013,41 @@ export function createAPIToken(payload: {
 export function revokeAPIToken(uuid: string) {
   return fetch(`${BASE_URL}/auth/tokens/${encodeURIComponent(uuid)}`, { method: 'DELETE' }).then(
     (r) => handleResponse<unknown>(r)
+  )
+}
+
+// Enrollment secrets (tracked registry).
+export type EnrollmentSecret = {
+  uuid: string
+  secret_id: string
+  type: 'anonymous' | 'owned'
+  generated_by?: string
+  machine_count: number
+  revoked_at?: string
+  created_at: string
+}
+
+export function fetchEnrollmentSecrets() {
+  return fetch(apiUrl('/enrollment-secrets')).then((r) =>
+    handleResponse<{ enrollment_secrets: EnrollmentSecret[] }>(r)
+  )
+}
+
+export function generateAnonymousEnrollmentSecret() {
+  return fetch(apiUrl('/enrollment-secrets'), { method: 'POST' }).then((r) =>
+    handleResponse<unknown>(r)
+  )
+}
+
+export function revokeEnrollmentSecret(uuid: string) {
+  return fetch(apiUrl(`/enrollment-secrets/${encodeURIComponent(uuid)}/revoke`), {
+    method: 'POST'
+  }).then((r) => handleResponse<unknown>(r))
+}
+
+export function fetchEnrollmentSecretMachines(uuid: string) {
+  return fetch(apiUrl(`/enrollment-secrets/${encodeURIComponent(uuid)}/machines`)).then((r) =>
+    handleResponse<{ machines: Machine[] }>(r)
   )
 }
 

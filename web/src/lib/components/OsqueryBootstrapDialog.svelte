@@ -5,6 +5,7 @@
         type OsqueryBootstrapPlatform,
         type OsqueryBootstrapProfile,
     } from "$lib/api";
+    import { me, canFrom } from "$lib/auth";
     import { toast } from "$lib/util";
     import ErrorMessage from "./ErrorMessage.svelte";
     import Spinner from "./Spinner.svelte";
@@ -31,6 +32,7 @@
     let showGeneric = $state(false);
 
     const platforms = $derived(profile?.platforms || []);
+    const canBulk = $derived(canFrom($me, "setting", "update"));
 
     // Generic mode shows the secret-less, shareable command. It is only
     // meaningful when the profile is owner-bound; for anonymous profiles the
@@ -211,7 +213,7 @@
                                         Copy command
                                     </button>
                                 </div>
-                                {#if profile.owner}
+                                {#if canBulk}
                                     <label class="generic-toggle hstack gap-2">
                                         <input
                                             type="checkbox"
@@ -220,6 +222,15 @@
                                         />
                                         Generic command
                                     </label>
+                                    {#if showGeneric && !profile.anonymous_available}
+                                        <div role="alert" data-variant="warning">
+                                            <p>
+                                                No active anonymous enrollment secret. This generic
+                                                command won't enroll machines until you generate one
+                                                in Settings → Enrollment secrets.
+                                            </p>
+                                        </div>
+                                    {/if}
                                 {/if}
                                 <pre data-code={commandLanguage(platform)}><code
                                         >{activeCommand(platform)}</code

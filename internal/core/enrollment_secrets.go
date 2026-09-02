@@ -2,12 +2,9 @@ package core
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -26,24 +23,14 @@ const (
 	enrollmentV2Len = 1 + enrollmentNonceLen + enrollmentExpiryLen + enrollmentOwnerLen
 )
 
-// MintEnrollmentSecret mints an anonymous secret
-func (c *Core) MintEnrollmentSecret() string {
-	return c.mintEnrollmentSecret(uuid.Nil)
-}
-
-// MintOwnedEnrollmentSecret embeds an owner payload
-func (c *Core) MintOwnedEnrollmentSecret(ownerUserUUID uuid.UUID) string {
-	return c.mintEnrollmentSecret(ownerUserUUID)
-}
-
-func (c *Core) mintEnrollmentSecret(owner uuid.UUID) string {
-	expiry := time.Now().Add(c.enrollmentSecretTTL)
-
+// serializeEnrollmentSecret builds a signed token from a stored nonce and owner.
+// The expiry bytes are always zero (kept for wire-format stability); lifecycle is
+// managed by the registry
+func (c *Core) serializeEnrollmentSecret(nonce []byte, owner uuid.UUID) string {
 	payload := make([]byte, enrollmentV2Len)
 	payload[0] = enrollmentVersionV2
-	nonce := payload[1 : 1+enrollmentNonceLen]
-	_, _ = rand.Read(nonce)
-	binary.BigEndian.PutUint64(payload[1+enrollmentNonceLen:], uint64(expiry.Unix()))
+	copy(payload[1:1+enrollmentNonceLen], nonce)
+	// expiry bytes stay zero
 	copy(payload[1+enrollmentNonceLen+enrollmentExpiryLen:], owner[:])
 
 	mac := c.enrollmentMAC(payload)
@@ -56,29 +43,12 @@ func (c *Core) mintEnrollmentSecret(owner uuid.UUID) string {
 // enrollmentFields holds the values extracted from a verified payload. owner is
 // uuid.Nil for the legacy (anonymous) layout.
 type enrollmentFields struct {
-	expiry int64
-	owner  uuid.UUID
-}
-
-// VerifyEnrollmentSecret reports whether token is an authentic, unexpired enrollment secret.
-func (c *Core) VerifyEnrollmentSecret(token string) bool {
-	_, ok := c.ParseEnrollmentSecret(token)
-	return ok
-}
-
-// ParseEnrollmentSecret returns the embedded owner user UUID and whether the
-// token is authentic and unexpired. The owner is uuid.Nil for anonymous/legacy
-// secrets.
-func (c *Core) ParseEnrollmentSecret(token string) (uuid.UUID, bool) {
-	fields, ok := c.decodeEnrollmentSecret(token)
-	if !ok || time.Now().Unix() >= fields.expiry {
-		return uuid.Nil, false
-	}
-	return fields.owner, true
+	nonce []byte
+	owner uuid.UUID
 }
 
 // DecodeEnrollmentSecretOwner returns the owner UUID from an authentic secret,
-// ignoring expiry, for diagnostics on a rejected secret.
+// for diagnostics on a rejected secret.
 func (c *Core) DecodeEnrollmentSecretOwner(token string) (uuid.UUID, bool) {
 	fields, ok := c.decodeEnrollmentSecret(token)
 	if !ok || fields.owner == uuid.Nil {
@@ -88,8 +58,8 @@ func (c *Core) DecodeEnrollmentSecretOwner(token string) (uuid.UUID, bool) {
 }
 
 // decodeEnrollmentSecret strips the prefix, decodes the payload, verifies the
-// HMAC, and extracts the fields in a single pass. It accepts both the legacy v1
-// and the owner-aware v2 layouts.
+// HMAC, and extracts the nonce + owner. It accepts both the legacy v1 and the
+// owner-aware v2 layouts.
 func (c *Core) decodeEnrollmentSecret(token string) (enrollmentFields, bool) {
 	rest, ok := strings.CutPrefix(strings.TrimSpace(token), EnrollmentSecretPrefix)
 	if !ok {
@@ -111,14 +81,13 @@ func (c *Core) decodeEnrollmentSecret(token string) (enrollmentFields, bool) {
 	var fields enrollmentFields
 	switch len(payload) {
 	case enrollmentV1Len:
-		fields.expiry = int64(binary.BigEndian.Uint64(payload[enrollmentNonceLen:]))
+		fields.nonce = payload[:enrollmentNonceLen]
 	case enrollmentV2Len:
 		if payload[0] != enrollmentVersionV2 {
 			return enrollmentFields{}, false
 		}
-		off := 1 + enrollmentNonceLen
-		fields.expiry = int64(binary.BigEndian.Uint64(payload[off : off+enrollmentExpiryLen]))
-		copy(fields.owner[:], payload[off+enrollmentExpiryLen:])
+		fields.nonce = payload[1 : 1+enrollmentNonceLen]
+		copy(fields.owner[:], payload[1+enrollmentNonceLen+enrollmentExpiryLen:])
 	default:
 		return enrollmentFields{}, false
 	}

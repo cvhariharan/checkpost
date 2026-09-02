@@ -8,8 +8,10 @@ root_url = 'http://localhost:1323'
 # It is never sent to agents. Keep it stable across restarts (rotating it
 # invalidates any outstanding, not-yet-used enrollment secrets).
 enrollment_signing_key = 'replace-with-a-random-secret'
-# How long a minted enrollment secret stays valid. Agents must enroll within
-# this window; afterwards the secret is rejected and a new one must be issued.
+
+# How long an unused owned enrollment secret is kept. Owned secrets older than
+# this with no machine enrolled against them are deleted by a background sweep.
+# Anonymous secrets are never swept.
 enrollment_secret_ttl = '1h'
 use_tls = false
 policy_update_interval = '1h'

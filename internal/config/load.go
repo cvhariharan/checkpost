@@ -165,11 +165,11 @@ func (r rawConfig) toConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	sessionTTL, err := parsePositiveDuration("app.session.ttl", r.SessionConfig.TTL, defaultSessionTTL)
+	enrollmentSecretTTL, err := parsePositiveDuration("app.enrollment_secret_ttl", r.AppConfig.EnrollmentSecretTTL, defaultEnrollmentSecretTTL)
 	if err != nil {
 		return Config{}, err
 	}
-	enrollmentSecretTTL, err := parsePositiveDuration("app.enrollment_secret_ttl", r.AppConfig.EnrollmentSecretTTL, defaultEnrollmentSecretTTL)
+	sessionTTL, err := parsePositiveDuration("app.session.ttl", r.SessionConfig.TTL, defaultSessionTTL)
 	if err != nil {
 		return Config{}, err
 	}

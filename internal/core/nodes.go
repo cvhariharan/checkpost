@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,15 +15,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func (c *Core) EnrollNode(ctx context.Context, node models.NodeEnrollment) (models.NodeCredentials, error) {
+func (c *Core) EnrollNode(ctx context.Context, node models.NodeEnrollment, secretRowID int64) (models.NodeCredentials, error) {
 	created, err := c.store.CreateNode(ctx, repo.CreateNodeParams{
-		HostIdentifier: node.HostIdentifier,
-		Hostname:       firstNonEmpty(node.HostDetails.System.Hostname, node.HostDetails.System.ComputerName, node.HostDetails.System.LocalHostname, node.HostIdentifier),
-		Platform:       firstNonEmpty(node.HostDetails.OSVersion.Platform, node.HostDetails.Platform.Vendor),
-		OsName:         node.HostDetails.OSVersion.Name,
-		OsVersion:      node.HostDetails.OSVersion.Version,
-		OsqueryVersion: node.HostDetails.OSQuery.Version,
-		HardwareSerial: node.HostDetails.System.HardwareSerial,
+		HostIdentifier:     node.HostIdentifier,
+		Hostname:           firstNonEmpty(node.HostDetails.System.Hostname, node.HostDetails.System.ComputerName, node.HostDetails.System.LocalHostname, node.HostIdentifier),
+		Platform:           firstNonEmpty(node.HostDetails.OSVersion.Platform, node.HostDetails.Platform.Vendor),
+		OsName:             node.HostDetails.OSVersion.Name,
+		OsVersion:          node.HostDetails.OSVersion.Version,
+		OsqueryVersion:     node.HostDetails.OSQuery.Version,
+		HardwareSerial:     node.HostDetails.System.HardwareSerial,
+		EnrollmentSecretID: sql.NullInt64{Int64: secretRowID, Valid: secretRowID != 0},
 	})
 	if err != nil {
 		return models.NodeCredentials{}, fmt.Errorf("create node: %w", err)
@@ -84,6 +86,9 @@ func (c *Core) GetNode(ctx context.Context, req models.NodeKeyRequest) (models.N
 
 	node, err := c.store.GetNodeByKey(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Node{}, ErrNodeNotFound
+		}
 		return models.Node{}, fmt.Errorf("get node: %w", err)
 	}
 
@@ -178,13 +183,26 @@ func (c *Core) UpdateNode(ctx context.Context, req models.UpdateNode) (models.No
 	return out, nil
 }
 
-func (c *Core) DeleteNode(ctx context.Context, req models.ResourceID) error {
+// DeleteNode deletes a node and revokes the enrollment secret it used, so it
+// cannot re-enroll. Revoking a shared secret also blocks other hosts that
+// enrolled with it, including the anonymous secret.
+func (c *Core) DeleteNode(ctx context.Context, req models.ResourceID, revokedByUserUUID string) error {
 	id, err := uuid.Parse(req.UUID)
 	if err != nil {
 		return fmt.Errorf("parse node uuid: %w", err)
 	}
 
-	rows, err := c.store.DeleteNodeByUUID(ctx, id)
+	var revokedBy sql.NullInt64
+	if uid, err := uuid.Parse(revokedByUserUUID); err == nil {
+		if user, err := c.store.GetUserByUUID(ctx, uid); err == nil {
+			revokedBy = sql.NullInt64{Int64: user.ID, Valid: true}
+		}
+	}
+
+	rows, err := c.store.DeleteNodeTx(ctx, repo.DeleteNodeTxParams{
+		NodeUUID:  id,
+		RevokedBy: revokedBy,
+	})
 	if err != nil {
 		return fmt.Errorf("delete node: %w", err)
 	}

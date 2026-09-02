@@ -2,6 +2,7 @@ package core
 
 import (
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -750,6 +751,18 @@ func toModelAlertTarget(t repo.AlertTarget) models.AlertTarget {
 		Enabled:   t.Enabled,
 		CreatedAt: t.CreatedAt,
 		UpdatedAt: t.UpdatedAt,
+	}
+}
+
+func toModelEnrollmentSecret(row repo.ListEnrollmentSecretsRow) models.EnrollmentSecret {
+	return models.EnrollmentSecret{
+		UUID:         row.Uuid.String(),
+		SecretID:     hex.EncodeToString(row.SecretID),
+		Type:         row.Type,
+		GeneratedBy:  row.GeneratedBy,
+		MachineCount: int(row.MachineCount),
+		RevokedAt:    timePtrFromNull(row.RevokedAt),
+		CreatedAt:    row.CreatedAt,
 	}
 }
 
