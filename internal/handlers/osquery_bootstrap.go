@@ -65,10 +65,7 @@ func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
 func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 	platform := strings.TrimSpace(c.Param("platform"))
 	secret, err := h.c.AnonymousEnrollmentSecret(c.Request().Context())
-	if err != nil {
-		if errors.Is(err, core.ErrEnrollmentSecretNotFound) {
-			return wrapError(http.StatusServiceUnavailable, "no active enrollment secret; an administrator must generate one from the console", err, nil)
-		}
+	if err != nil && !errors.Is(err, core.ErrEnrollmentSecretNotFound) {
 		return wrapError(http.StatusInternalServerError, "could not resolve enrollment secret", err, nil)
 	}
 	script, contentType, err := h.osqueryBootstrapScript(platform, secret)
