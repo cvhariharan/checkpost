@@ -67,12 +67,29 @@ func (q *Queries) DeleteQueryRunByUUID(ctx context.Context, runUuid uuid.UUID) (
 }
 
 const getQueryRunByUUID = `-- name: GetQueryRunByUUID :one
-SELECT id, uuid, query, targets, created_by, created_at, updated_at FROM query_runs WHERE uuid = $1
+SELECT query_runs.id, query_runs.uuid, query_runs.query, query_runs.targets, query_runs.created_by, query_runs.created_at, query_runs.updated_at, users.uuid AS dispatcher_uuid,
+       users.username AS dispatcher_username, users.name AS dispatcher_name
+FROM query_runs
+LEFT JOIN users ON users.id = query_runs.created_by
+WHERE query_runs.uuid = $1
 `
 
-func (q *Queries) GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (QueryRun, error) {
+type GetQueryRunByUUIDRow struct {
+	ID                 int64           `db:"id" json:"id"`
+	Uuid               uuid.UUID       `db:"uuid" json:"uuid"`
+	Query              string          `db:"query" json:"query"`
+	Targets            json.RawMessage `db:"targets" json:"targets"`
+	CreatedBy          sql.NullInt64   `db:"created_by" json:"created_by"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time       `db:"updated_at" json:"updated_at"`
+	DispatcherUuid     uuid.NullUUID   `db:"dispatcher_uuid" json:"dispatcher_uuid"`
+	DispatcherUsername sql.NullString  `db:"dispatcher_username" json:"dispatcher_username"`
+	DispatcherName     sql.NullString  `db:"dispatcher_name" json:"dispatcher_name"`
+}
+
+func (q *Queries) GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (GetQueryRunByUUIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getQueryRunByUUID, argUuid)
-	var i QueryRun
+	var i GetQueryRunByUUIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Uuid,
@@ -81,6 +98,9 @@ func (q *Queries) GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (Que
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DispatcherUuid,
+		&i.DispatcherUsername,
+		&i.DispatcherName,
 	)
 	return i, err
 }
@@ -260,14 +280,16 @@ func (q *Queries) ListNodeIDsByUUIDs(ctx context.Context, uuids []uuid.UUID) ([]
 
 const listQueryRuns = `-- name: ListQueryRuns :many
 WITH filtered AS (
-    SELECT query_runs.id, query_runs.uuid, query_runs.query, query_runs.targets, query_runs.created_by, query_runs.created_at, query_runs.updated_at
+    SELECT query_runs.id, query_runs.uuid, query_runs.query, query_runs.targets, query_runs.created_by, query_runs.created_at, query_runs.updated_at, users.uuid AS dispatcher_uuid,
+           users.username AS dispatcher_username, users.name AS dispatcher_name
     FROM query_runs
+    LEFT JOIN users ON users.id = query_runs.created_by
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
 SELECT
-    filtered.id, filtered.uuid, filtered.query, filtered.targets, filtered.created_by, filtered.created_at, filtered.updated_at,
+    filtered.id, filtered.uuid, filtered.query, filtered.targets, filtered.created_by, filtered.created_at, filtered.updated_at, filtered.dispatcher_uuid, filtered.dispatcher_username, filtered.dispatcher_name,
     total.total_count,
     (SELECT count(*) FROM machine_query_results m WHERE m.run_id = filtered.id) AS host_count,
     (SELECT count(*) FROM machine_query_results m WHERE m.run_id = filtered.id AND m.status = 'pending') AS pending_count,
@@ -284,18 +306,21 @@ type ListQueryRunsParams struct {
 }
 
 type ListQueryRunsRow struct {
-	ID            int64           `db:"id" json:"id"`
-	Uuid          uuid.UUID       `db:"uuid" json:"uuid"`
-	Query         string          `db:"query" json:"query"`
-	Targets       json.RawMessage `db:"targets" json:"targets"`
-	CreatedBy     sql.NullInt64   `db:"created_by" json:"created_by"`
-	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
-	TotalCount    int64           `db:"total_count" json:"total_count"`
-	HostCount     int64           `db:"host_count" json:"host_count"`
-	PendingCount  int64           `db:"pending_count" json:"pending_count"`
-	CompleteCount int64           `db:"complete_count" json:"complete_count"`
-	ErrorCount    int64           `db:"error_count" json:"error_count"`
+	ID                 int64           `db:"id" json:"id"`
+	Uuid               uuid.UUID       `db:"uuid" json:"uuid"`
+	Query              string          `db:"query" json:"query"`
+	Targets            json.RawMessage `db:"targets" json:"targets"`
+	CreatedBy          sql.NullInt64   `db:"created_by" json:"created_by"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time       `db:"updated_at" json:"updated_at"`
+	DispatcherUuid     uuid.NullUUID   `db:"dispatcher_uuid" json:"dispatcher_uuid"`
+	DispatcherUsername sql.NullString  `db:"dispatcher_username" json:"dispatcher_username"`
+	DispatcherName     sql.NullString  `db:"dispatcher_name" json:"dispatcher_name"`
+	TotalCount         int64           `db:"total_count" json:"total_count"`
+	HostCount          int64           `db:"host_count" json:"host_count"`
+	PendingCount       int64           `db:"pending_count" json:"pending_count"`
+	CompleteCount      int64           `db:"complete_count" json:"complete_count"`
+	ErrorCount         int64           `db:"error_count" json:"error_count"`
 }
 
 func (q *Queries) ListQueryRuns(ctx context.Context, arg ListQueryRunsParams) ([]ListQueryRunsRow, error) {
@@ -315,6 +340,9 @@ func (q *Queries) ListQueryRuns(ctx context.Context, arg ListQueryRunsParams) ([
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DispatcherUuid,
+			&i.DispatcherUsername,
+			&i.DispatcherName,
 			&i.TotalCount,
 			&i.HostCount,
 			&i.PendingCount,

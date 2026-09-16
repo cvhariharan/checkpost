@@ -137,6 +137,7 @@ type MachineQueryResult struct {
 	CompletedAt  sql.NullTime          `db:"completed_at" json:"completed_at"`
 	CreatedAt    time.Time             `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time             `db:"updated_at" json:"updated_at"`
+	CreatedBy    sql.NullInt64         `db:"created_by" json:"created_by"`
 }
 
 type Node struct {

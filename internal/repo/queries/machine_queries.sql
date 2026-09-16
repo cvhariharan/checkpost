@@ -3,9 +3,10 @@ INSERT INTO machine_query_results (
     uuid,
     node_id,
     query,
-    run_id
+    run_id,
+    created_by
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
 RETURNING *;
 
@@ -15,9 +16,11 @@ WITH filtered AS (
            machine_query_results.query, machine_query_results.status, machine_query_results.error,
            machine_query_results.row_count, machine_query_results.dispatched_at,
            machine_query_results.completed_at, machine_query_results.created_at,
-           machine_query_results.updated_at, machine_query_results.run_id
+           machine_query_results.updated_at, machine_query_results.run_id,
+           users.uuid AS dispatcher_uuid, users.username AS dispatcher_username, users.name AS dispatcher_name
     FROM machine_query_results
     JOIN nodes ON nodes.id = machine_query_results.node_id
+    LEFT JOIN users ON users.id = machine_query_results.created_by
     WHERE nodes.uuid = @node_uuid
 ),
 total AS (

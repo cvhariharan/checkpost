@@ -226,18 +226,26 @@ func (c *Core) ExecuteMachineQuery(ctx context.Context, req models.MachineQueryR
 		return models.MachineQueryResult{}, err
 	}
 
+	creator, err := c.queryDispatcher(ctx, req.CreatedByUUID)
+	if err != nil {
+		return models.MachineQueryResult{}, err
+	}
+
 	queryID := uuid.New()
 	created, err := c.store.CreateMachineQueryResult(ctx, repo.CreateMachineQueryResultParams{
-		Uuid:   queryID,
-		NodeID: node.ID,
-		Query:  query,
-		RunID:  sql.NullInt64{},
+		Uuid:      queryID,
+		NodeID:    node.ID,
+		Query:     query,
+		RunID:     sql.NullInt64{},
+		CreatedBy: sql.NullInt64{Int64: creator.ID, Valid: true},
 	})
 	if err != nil {
 		return models.MachineQueryResult{}, fmt.Errorf("create machine query result: %w", err)
 	}
 
-	return toModelMachineQueryResult(created), nil
+	result := toModelMachineQueryResult(created)
+	result.DispatchedBy = toModelQueryDispatcherUser(creator)
+	return result, nil
 }
 
 func (c *Core) pendingMachineQueries(ctx context.Context, node models.Node) ([]models.MachineQueryResult, error) {

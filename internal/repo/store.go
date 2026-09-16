@@ -592,10 +592,11 @@ func (s *PostgresStore) CreateQueryRunTx(ctx context.Context, params CreateQuery
 	runID := sql.NullInt64{Int64: run.ID, Valid: true}
 	for _, nodeID := range params.NodeIDs {
 		if _, err := q.CreateMachineQueryResult(ctx, CreateMachineQueryResultParams{
-			Uuid:   uuid.New(),
-			NodeID: nodeID,
-			Query:  run.Query,
-			RunID:  runID,
+			Uuid:      uuid.New(),
+			NodeID:    nodeID,
+			Query:     run.Query,
+			RunID:     runID,
+			CreatedBy: run.CreatedBy,
 		}); err != nil {
 			return QueryRun{}, fmt.Errorf("create query run execution: %w", err)
 		}

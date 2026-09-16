@@ -18,6 +18,7 @@ var discardLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 type fakePolicyStore struct {
 	repo.Store
+	user repo.User
 
 	node                      repo.Node
 	policies                  []repo.Policy
@@ -42,6 +43,13 @@ type fakePolicyStore struct {
 	deletedMachineQueries     []repo.DeleteMachineQueryResultByNodeAndUUIDParams
 	getNodeByUUIDErr          error
 	touchNodeErr              error
+}
+
+func (s *fakePolicyStore) GetUserByUUID(ctx context.Context, id uuid.UUID) (repo.User, error) {
+	if s.user.Uuid != id {
+		return repo.User{}, sql.ErrNoRows
+	}
+	return s.user, nil
 }
 
 func (s *fakePolicyStore) GetNodeByKey(ctx context.Context, nodeKey uuid.UUID) (repo.Node, error) {

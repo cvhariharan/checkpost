@@ -10,7 +10,7 @@
     type QueryRunHost,
     type AdHocQueryResults
   } from '$lib/api'
-  import { formatTimestamp } from '$lib/util'
+  import { formatQueryDispatcher, formatTimestamp } from '$lib/util'
   import { canFrom, me } from '$lib/auth'
   import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
   import SortableHeader from '$lib/components/SortableHeader.svelte'
@@ -18,6 +18,7 @@
   import DownloadResultsButton from '$lib/components/DownloadResultsButton.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
+  import Truncate from '$lib/components/Truncate.svelte'
 
   const pollIntervalMs = 3000
   const maxPollAttempts = 40
@@ -195,6 +196,9 @@
       <p class="text-light">
         {run.host_count || run.hosts?.length || 0} hosts · {statusSummary(run)} ·
         {formatTimestamp(run.created_at)}
+      </p>
+      <p class="text-light">
+        <Truncate text={`Dispatched by ${formatQueryDispatcher(run.dispatched_by)}`} />
       </p>
     </header>
 

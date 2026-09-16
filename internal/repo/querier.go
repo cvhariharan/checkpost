@@ -108,7 +108,7 @@ type Querier interface {
 	GetPolicyByID(ctx context.Context, id int64) (Policy, error)
 	GetPolicyByName(ctx context.Context, name string) (Policy, error)
 	GetPolicyByUUID(ctx context.Context, argUuid uuid.UUID) (Policy, error)
-	GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (QueryRun, error)
+	GetQueryRunByUUID(ctx context.Context, argUuid uuid.UUID) (GetQueryRunByUUIDRow, error)
 	GetQuerySchema(ctx context.Context, arg GetQuerySchemaParams) (GetQuerySchemaRow, error)
 	GetRoleBindingByUUID(ctx context.Context, argUuid uuid.UUID) (RoleBinding, error)
 	GetSavedQueryByUUID(ctx context.Context, argUuid uuid.UUID) (GetSavedQueryByUUIDRow, error)

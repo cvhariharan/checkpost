@@ -624,12 +624,13 @@ func toModelMachineQueryResultRow(row repo.ListMachineQueryResultsByNodeUUIDRow)
 	}
 
 	return models.MachineQueryResult{
-		ID:        row.Uuid.String(),
-		Query:     row.Query,
-		Status:    row.Status,
-		Timestamp: timestamp,
-		RowCount:  int(row.RowCount),
-		Error:     row.Error,
+		ID:           row.Uuid.String(),
+		DispatchedBy: toModelQueryDispatcher(row.DispatcherUuid, row.DispatcherUsername, row.DispatcherName),
+		Query:        row.Query,
+		Status:       row.Status,
+		Timestamp:    timestamp,
+		RowCount:     int(row.RowCount),
+		Error:        row.Error,
 	}
 }
 
@@ -686,9 +687,21 @@ func savedQueryCreator(name sql.NullString) string {
 	return "ghost"
 }
 
+func toModelQueryDispatcher(id uuid.NullUUID, username, name sql.NullString) *models.QueryDispatcher {
+	if !id.Valid {
+		return nil
+	}
+	return toModelQueryDispatcherUser(repo.User{Uuid: id.UUID, Username: username.String, Name: name.String})
+}
+
+func toModelQueryDispatcherUser(user repo.User) *models.QueryDispatcher {
+	return &models.QueryDispatcher{UUID: user.Uuid.String(), Username: user.Username, Name: user.Name}
+}
+
 func toModelQueryRunListRow(row repo.ListQueryRunsRow) models.QueryRun {
 	return models.QueryRun{
 		ID:            row.Uuid.String(),
+		DispatchedBy:  toModelQueryDispatcher(row.DispatcherUuid, row.DispatcherUsername, row.DispatcherName),
 		Query:         row.Query,
 		Targets:       decodeQueryTargets(row.Targets),
 		HostCount:     int(row.HostCount),
@@ -718,14 +731,15 @@ func toModelQueryRunHost(row repo.ListMachineQueryResultsByRunUUIDRow) models.Qu
 	}
 }
 
-func toModelQueryRun(run repo.QueryRun, hostRows []repo.ListMachineQueryResultsByRunUUIDRow) models.QueryRun {
+func toModelQueryRun(run repo.GetQueryRunByUUIDRow, hostRows []repo.ListMachineQueryResultsByRunUUIDRow) models.QueryRun {
 	out := models.QueryRun{
-		ID:        run.Uuid.String(),
-		Query:     run.Query,
-		Targets:   decodeQueryTargets(run.Targets),
-		HostCount: len(hostRows),
-		CreatedAt: run.CreatedAt,
-		Hosts:     make([]models.QueryRunHost, 0, len(hostRows)),
+		ID:           run.Uuid.String(),
+		DispatchedBy: toModelQueryDispatcher(run.DispatcherUuid, run.DispatcherUsername, run.DispatcherName),
+		Query:        run.Query,
+		Targets:      decodeQueryTargets(run.Targets),
+		HostCount:    len(hostRows),
+		CreatedAt:    run.CreatedAt,
+		Hosts:        make([]models.QueryRunHost, 0, len(hostRows)),
 	}
 	for _, row := range hostRows {
 		host := toModelQueryRunHost(row)

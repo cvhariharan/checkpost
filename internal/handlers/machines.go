@@ -224,11 +224,20 @@ func (h *Handler) HandleExecuteMachineQuery(c echo.Context) error {
 		return err
 	}
 
+	user, err := h.currentUser(c)
+	if err != nil {
+		return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
+	}
+
 	result, err := h.c.ExecuteMachineQuery(c.Request().Context(), models.MachineQueryRequest{
-		NodeUUID: req.ID,
-		Query:    req.Query,
+		CreatedByUUID: user.UUID,
+		NodeUUID:      req.ID,
+		Query:         req.Query,
 	})
 	if err != nil {
+		if errors.Is(err, core.ErrInvalidQueryDispatcher) {
+			return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
+		}
 		if errors.Is(err, core.ErrResultsBackendDisabled) {
 			return wrapError(http.StatusConflict, "results backend not configured", err, nil)
 		}

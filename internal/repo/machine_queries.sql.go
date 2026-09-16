@@ -22,7 +22,7 @@ SET status = CASE WHEN $1::text <> '' THEN 'error' ELSE 'complete' END,
     completed_at = now(),
     updated_at = now()
 WHERE uuid = $3
-RETURNING id, uuid, node_id, run_id, query, status, results, row_count, error, dispatched_at, completed_at, created_at, updated_at
+RETURNING id, uuid, node_id, run_id, query, status, results, row_count, error, dispatched_at, completed_at, created_at, updated_at, created_by
 `
 
 type CompleteMachineQueryResultParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) CompleteMachineQueryResult(ctx context.Context, arg CompleteMa
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -57,18 +58,20 @@ INSERT INTO machine_query_results (
     uuid,
     node_id,
     query,
-    run_id
+    run_id,
+    created_by
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
-RETURNING id, uuid, node_id, run_id, query, status, results, row_count, error, dispatched_at, completed_at, created_at, updated_at
+RETURNING id, uuid, node_id, run_id, query, status, results, row_count, error, dispatched_at, completed_at, created_at, updated_at, created_by
 `
 
 type CreateMachineQueryResultParams struct {
-	Uuid   uuid.UUID     `db:"uuid" json:"uuid"`
-	NodeID int64         `db:"node_id" json:"node_id"`
-	Query  string        `db:"query" json:"query"`
-	RunID  sql.NullInt64 `db:"run_id" json:"run_id"`
+	Uuid      uuid.UUID     `db:"uuid" json:"uuid"`
+	NodeID    int64         `db:"node_id" json:"node_id"`
+	Query     string        `db:"query" json:"query"`
+	RunID     sql.NullInt64 `db:"run_id" json:"run_id"`
+	CreatedBy sql.NullInt64 `db:"created_by" json:"created_by"`
 }
 
 func (q *Queries) CreateMachineQueryResult(ctx context.Context, arg CreateMachineQueryResultParams) (MachineQueryResult, error) {
@@ -77,6 +80,7 @@ func (q *Queries) CreateMachineQueryResult(ctx context.Context, arg CreateMachin
 		arg.NodeID,
 		arg.Query,
 		arg.RunID,
+		arg.CreatedBy,
 	)
 	var i MachineQueryResult
 	err := row.Scan(
@@ -93,6 +97,7 @@ func (q *Queries) CreateMachineQueryResult(ctx context.Context, arg CreateMachin
 		&i.CompletedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -166,15 +171,17 @@ WITH filtered AS (
            machine_query_results.query, machine_query_results.status, machine_query_results.error,
            machine_query_results.row_count, machine_query_results.dispatched_at,
            machine_query_results.completed_at, machine_query_results.created_at,
-           machine_query_results.updated_at, machine_query_results.run_id
+           machine_query_results.updated_at, machine_query_results.run_id,
+           users.uuid AS dispatcher_uuid, users.username AS dispatcher_username, users.name AS dispatcher_name
     FROM machine_query_results
     JOIN nodes ON nodes.id = machine_query_results.node_id
+    LEFT JOIN users ON users.id = machine_query_results.created_by
     WHERE nodes.uuid = $3
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.node_id, filtered.query, filtered.status, filtered.error, filtered.row_count, filtered.dispatched_at, filtered.completed_at, filtered.created_at, filtered.updated_at, filtered.run_id, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.node_id, filtered.query, filtered.status, filtered.error, filtered.row_count, filtered.dispatched_at, filtered.completed_at, filtered.created_at, filtered.updated_at, filtered.run_id, filtered.dispatcher_uuid, filtered.dispatcher_username, filtered.dispatcher_name, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -187,19 +194,22 @@ type ListMachineQueryResultsByNodeUUIDParams struct {
 }
 
 type ListMachineQueryResultsByNodeUUIDRow struct {
-	ID           int64         `db:"id" json:"id"`
-	Uuid         uuid.UUID     `db:"uuid" json:"uuid"`
-	NodeID       int64         `db:"node_id" json:"node_id"`
-	Query        string        `db:"query" json:"query"`
-	Status       string        `db:"status" json:"status"`
-	Error        string        `db:"error" json:"error"`
-	RowCount     int32         `db:"row_count" json:"row_count"`
-	DispatchedAt sql.NullTime  `db:"dispatched_at" json:"dispatched_at"`
-	CompletedAt  sql.NullTime  `db:"completed_at" json:"completed_at"`
-	CreatedAt    time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
-	RunID        sql.NullInt64 `db:"run_id" json:"run_id"`
-	TotalCount   int64         `db:"total_count" json:"total_count"`
+	ID                 int64          `db:"id" json:"id"`
+	Uuid               uuid.UUID      `db:"uuid" json:"uuid"`
+	NodeID             int64          `db:"node_id" json:"node_id"`
+	Query              string         `db:"query" json:"query"`
+	Status             string         `db:"status" json:"status"`
+	Error              string         `db:"error" json:"error"`
+	RowCount           int32          `db:"row_count" json:"row_count"`
+	DispatchedAt       sql.NullTime   `db:"dispatched_at" json:"dispatched_at"`
+	CompletedAt        sql.NullTime   `db:"completed_at" json:"completed_at"`
+	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
+	RunID              sql.NullInt64  `db:"run_id" json:"run_id"`
+	DispatcherUuid     uuid.NullUUID  `db:"dispatcher_uuid" json:"dispatcher_uuid"`
+	DispatcherUsername sql.NullString `db:"dispatcher_username" json:"dispatcher_username"`
+	DispatcherName     sql.NullString `db:"dispatcher_name" json:"dispatcher_name"`
+	TotalCount         int64          `db:"total_count" json:"total_count"`
 }
 
 func (q *Queries) ListMachineQueryResultsByNodeUUID(ctx context.Context, arg ListMachineQueryResultsByNodeUUIDParams) ([]ListMachineQueryResultsByNodeUUIDRow, error) {
@@ -224,6 +234,9 @@ func (q *Queries) ListMachineQueryResultsByNodeUUID(ctx context.Context, arg Lis
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.RunID,
+			&i.DispatcherUuid,
+			&i.DispatcherUsername,
+			&i.DispatcherName,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -270,7 +283,7 @@ func (q *Queries) ListMachineQueryUUIDsByRunUUID(ctx context.Context, runUuid uu
 }
 
 const listPendingMachineQueryResults = `-- name: ListPendingMachineQueryResults :many
-SELECT id, uuid, node_id, run_id, query, status, results, row_count, error, dispatched_at, completed_at, created_at, updated_at
+SELECT id, uuid, node_id, run_id, query, status, results, row_count, error, dispatched_at, completed_at, created_at, updated_at, created_by
 FROM machine_query_results
 WHERE node_id = $1
   AND status = 'pending'
@@ -301,6 +314,7 @@ func (q *Queries) ListPendingMachineQueryResults(ctx context.Context, nodeID int
 			&i.CompletedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}

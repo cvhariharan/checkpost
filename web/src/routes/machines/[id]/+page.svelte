@@ -28,7 +28,7 @@
     type MetricSchemas,
     type NodeMetrics
   } from '$lib/api'
-  import { formatTimestamp, isOnline, machineHostname, machineOS } from '$lib/util'
+  import { formatQueryDispatcher, formatTimestamp, isOnline, machineHostname, machineOS } from '$lib/util'
   import { sortRows, type SortAccessors, type SortState } from '$lib/tableSort'
   import SortableHeader from '$lib/components/SortableHeader.svelte'
   import { rootShape, type JSONSchema } from '$lib/metricSchema'
@@ -750,6 +750,7 @@
                       <th>Status</th>
                       <th>Rows</th>
                       <th>Executed</th>
+                      <th>Dispatched by</th>
                       <th class="col-actions"><span class="sr-only">Actions</span></th>
                     </tr>
                   </thead>
@@ -769,6 +770,7 @@
                         </td>
                         <td>{query.row_count ?? 0}</td>
                         <td class="text-light">{formatTimestamp(query.timestamp)}</td>
+                        <td><Truncate text={formatQueryDispatcher(query.dispatched_by)} /></td>
                         <td class="col-actions">
                           {#if canDeleteQueryResult}
                             <ActionsMenu label="Actions for query result">
@@ -778,7 +780,7 @@
                         </td>
                       </tr>
                     {:else}
-                      <tr><td colspan="6" class="align-center text-light">No queries executed yet</td></tr>
+                      <tr><td colspan="7" class="align-center text-light">No queries executed yet</td></tr>
                     {/each}
                   </tbody>
                 </table>
@@ -826,6 +828,7 @@
   {#if selectedQuery}
     <header>
       <h2>Query Result</h2>
+      <p class="text-light"><Truncate text={`Dispatched by ${formatQueryDispatcher(selectedQuery.dispatched_by)}`} /></p>
       <p class="hstack gap-2">
         {#if selectedQuery.status}
           <span class="badge" data-variant={statusVariant(selectedQuery)}>{selectedQuery.status}</span>

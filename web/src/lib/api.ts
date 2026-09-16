@@ -83,7 +83,14 @@ export type Machine = {
   compliance_score?: number | null
 }
 
+export type QueryDispatcher = {
+  uuid: string
+  username: string
+  name: string
+}
+
 export type MachineQueryRecord = {
+  dispatched_by?: QueryDispatcher | null
   id?: number | string
   query?: string
   status?: string
@@ -125,6 +132,7 @@ export type AdHocQueryResults = {
 }
 
 export type QueryRun = {
+  dispatched_by?: QueryDispatcher | null
   id: string
   query?: string
   targets?: QueryTargets

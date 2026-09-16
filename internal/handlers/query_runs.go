@@ -17,9 +17,9 @@ func (h *Handler) HandleCreateQueryRun(c echo.Context) error {
 		return err
 	}
 
-	var createdBy string
-	if user, err := h.currentUser(c); err == nil {
-		createdBy = user.UUID
+	user, err := h.currentUser(c)
+	if err != nil {
+		return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
 	}
 
 	run, err := h.c.CreateQueryRun(c.Request().Context(), models.QueryRunRequest{
@@ -29,9 +29,12 @@ func (h *Handler) HandleCreateQueryRun(c echo.Context) error {
 			GroupIDs:  req.GroupIDs,
 			Platforms: req.Platforms,
 		},
-		CreatedByUUID: createdBy,
+		CreatedByUUID: user.UUID,
 	})
 	if err != nil {
+		if errors.Is(err, core.ErrInvalidQueryDispatcher) {
+			return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
+		}
 		if errors.Is(err, core.ErrNoQueryTargets) || errors.Is(err, core.ErrTooManyQueryTargets) {
 			return wrapError(http.StatusBadRequest, err.Error(), err, nil)
 		}

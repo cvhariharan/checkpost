@@ -22,8 +22,10 @@ func (noopSink) Close() error                                { return nil }
 
 func TestExecuteMachineQueryPersistsPendingResult(t *testing.T) {
 	nodeUUID := uuid.New()
+	userUUID := uuid.New()
 	store := &fakePolicyStore{
 		node: repo.Node{ID: 7, Uuid: nodeUUID},
+		user: repo.User{ID: 1, Uuid: userUUID, Username: "operator"},
 	}
 	core := &Core{
 		store: store,
@@ -31,8 +33,9 @@ func TestExecuteMachineQueryPersistsPendingResult(t *testing.T) {
 	}
 
 	result, err := core.ExecuteMachineQuery(context.Background(), models.MachineQueryRequest{
-		NodeUUID: nodeUUID.String(),
-		Query:    " SELECT 1 ",
+		NodeUUID:      nodeUUID.String(),
+		CreatedByUUID: userUUID.String(),
+		Query:         " SELECT 1 ",
 	})
 	if err != nil {
 		t.Fatalf("execute machine query: %v", err)

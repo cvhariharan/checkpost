@@ -21,6 +21,8 @@ import (
 const MaxQueryRunHosts = 1000
 
 var (
+	// ErrInvalidQueryDispatcher means the submitting account cannot be authenticated.
+	ErrInvalidQueryDispatcher = errors.New("query dispatcher is not authenticated")
 	// ErrNoQueryTargets is returned when the selected targets resolve to no hosts.
 	ErrNoQueryTargets = errors.New("no hosts matched the selected targets")
 	// ErrTooManyQueryTargets is returned when the resolved host set exceeds MaxQueryRunHosts.
@@ -110,12 +112,17 @@ func (c *Core) CreateQueryRun(ctx context.Context, req models.QueryRunRequest) (
 		return models.QueryRun{}, fmt.Errorf("marshal query targets: %w", err)
 	}
 
+	creator, err := c.queryDispatcher(ctx, req.CreatedByUUID)
+	if err != nil {
+		return models.QueryRun{}, err
+	}
+
 	run, err := c.store.CreateQueryRunTx(ctx, repo.CreateQueryRunTxParams{
 		Run: repo.CreateQueryRunParams{
 			Uuid:      uuid.New(),
 			Query:     query,
 			Targets:   string(targetsJSON),
-			CreatedBy: c.resolveCreatedBy(ctx, req.CreatedByUUID),
+			CreatedBy: sql.NullInt64{Int64: creator.ID, Valid: true},
 		},
 		NodeIDs: nodeIDs,
 	})
@@ -124,6 +131,22 @@ func (c *Core) CreateQueryRun(ctx context.Context, req models.QueryRunRequest) (
 	}
 
 	return c.GetQueryRun(ctx, models.ResourceID{UUID: run.Uuid.String()})
+}
+
+// queryDispatcher resolves the authenticated account before accepting a submission.
+func (c *Core) queryDispatcher(ctx context.Context, userUUID string) (repo.User, error) {
+	id, err := uuid.Parse(userUUID)
+	if err != nil {
+		return repo.User{}, fmt.Errorf("%w: invalid user UUID", ErrInvalidQueryDispatcher)
+	}
+	user, err := c.store.GetUserByUUID(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return repo.User{}, ErrInvalidQueryDispatcher
+	}
+	if err != nil {
+		return repo.User{}, fmt.Errorf("resolve query dispatcher: %w", err)
+	}
+	return user, nil
 }
 
 // resolveCreatedBy maps the authenticated user's UUID to its row ID for audit.

@@ -1,4 +1,4 @@
-import type { Machine } from './api'
+import type { Machine, QueryDispatcher } from './api'
 
 export function formatTimestamp(value?: string | null): string {
   if (!value) return ''
@@ -64,4 +64,9 @@ export function formatUptime(seconds: number | undefined | null): string {
   if (h) parts.push(`${h}h`)
   if (m || parts.length === 0) parts.push(`${m}m`)
   return parts.join(' ')
+}
+
+export function formatQueryDispatcher(user?: QueryDispatcher | null): string {
+  if (!user) return 'Unknown'
+  return user.name?.trim() || user.username
 }

@@ -15,7 +15,7 @@
     type QueryRun,
     type SavedQuery
   } from '$lib/api'
-  import { formatTimestamp, machineHostname } from '$lib/util'
+  import { formatQueryDispatcher, formatTimestamp, machineHostname } from '$lib/util'
   import { canFrom, me } from '$lib/auth'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
   import MultiSelectDropdown from '$lib/components/MultiSelectDropdown.svelte'
@@ -398,6 +398,7 @@
               <th class="col-query">Query</th>
               <th>Hosts</th>
               <th>Created</th>
+              <th>Dispatched by</th>
               <th class="col-actions"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
@@ -410,6 +411,7 @@
                 <td class="text-light"><code class="query-cell"><Truncate text={run.query || ''} /></code></td>
                 <td>{run.host_count ?? 0}</td>
                 <td class="text-light">{formatTimestamp(run.created_at)}</td>
+                <td><Truncate text={formatQueryDispatcher(run.dispatched_by)} /></td>
                 <td class="col-actions">
                   {#if canDeleteRuns}
                     <ActionsMenu label={`Actions for query run`}>
@@ -419,7 +421,7 @@
                 </td>
               </tr>
             {:else}
-              <tr><td colspan="5" class="align-center text-light">No query runs yet</td></tr>
+              <tr><td colspan="6" class="align-center text-light">No query runs yet</td></tr>
             {/each}
           </tbody>
         </table>

@@ -10,12 +10,18 @@ INSERT INTO query_runs (
 RETURNING *;
 
 -- name: GetQueryRunByUUID :one
-SELECT * FROM query_runs WHERE uuid = $1;
+SELECT query_runs.*, users.uuid AS dispatcher_uuid,
+       users.username AS dispatcher_username, users.name AS dispatcher_name
+FROM query_runs
+LEFT JOIN users ON users.id = query_runs.created_by
+WHERE query_runs.uuid = $1;
 
 -- name: ListQueryRuns :many
 WITH filtered AS (
-    SELECT query_runs.*
+    SELECT query_runs.*, users.uuid AS dispatcher_uuid,
+           users.username AS dispatcher_username, users.name AS dispatcher_name
     FROM query_runs
+    LEFT JOIN users ON users.id = query_runs.created_by
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered

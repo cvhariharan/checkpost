@@ -480,17 +480,25 @@ type NodeIdentity struct {
 }
 
 type MachineQueryRequest struct {
-	NodeUUID string
-	Query    string
+	CreatedByUUID string
+	NodeUUID      string
+	Query         string
+}
+
+type QueryDispatcher struct {
+	UUID     string `json:"uuid"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
 }
 
 type MachineQueryResult struct {
-	ID        string    `json:"id"`
-	Query     string    `json:"query"`
-	Status    string    `json:"status"`
-	Timestamp time.Time `json:"timestamp"`
-	RowCount  int       `json:"row_count"`
-	Error     string    `json:"error,omitempty"`
+	DispatchedBy *QueryDispatcher `json:"dispatched_by"`
+	ID           string           `json:"id"`
+	Query        string           `json:"query"`
+	Status       string           `json:"status"`
+	Timestamp    time.Time        `json:"timestamp"`
+	RowCount     int              `json:"row_count"`
+	Error        string           `json:"error,omitempty"`
 }
 
 // AdHocQueryResults is one page of an ad-hoc/run query's result rows.
@@ -563,15 +571,16 @@ type QueryRunHost struct {
 // QueryRun groups one SQL submission fanned out to many hosts. Hosts is
 // populated only on the single-run (detail) view.
 type QueryRun struct {
-	ID            string         `json:"id"`
-	Query         string         `json:"query"`
-	Targets       QueryTargets   `json:"targets"`
-	HostCount     int            `json:"host_count"`
-	PendingCount  int            `json:"pending_count"`
-	CompleteCount int            `json:"complete_count"`
-	ErrorCount    int            `json:"error_count"`
-	CreatedAt     time.Time      `json:"created_at"`
-	Hosts         []QueryRunHost `json:"hosts,omitempty"`
+	DispatchedBy  *QueryDispatcher `json:"dispatched_by"`
+	ID            string           `json:"id"`
+	Query         string           `json:"query"`
+	Targets       QueryTargets     `json:"targets"`
+	HostCount     int              `json:"host_count"`
+	PendingCount  int              `json:"pending_count"`
+	CompleteCount int              `json:"complete_count"`
+	ErrorCount    int              `json:"error_count"`
+	CreatedAt     time.Time        `json:"created_at"`
+	Hosts         []QueryRunHost   `json:"hosts,omitempty"`
 }
 
 type YaraSignatureSource struct {
