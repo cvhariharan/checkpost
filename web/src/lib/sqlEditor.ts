@@ -1,6 +1,6 @@
 // CodeMirror SQL editor for SqlEditor.svelte. Separate module so CodeMirror
 // code-splits into its own lazy chunk. SQLite dialect + osquery autocompletion.
-import { EditorView, keymap, placeholder as placeholderExt, lineNumbers as lineNumbersExt } from '@codemirror/view'
+import { EditorView, drawSelection, keymap, placeholder as placeholderExt, lineNumbers as lineNumbersExt } from '@codemirror/view'
 import { Compartment, type Extension } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { sql, SQLite, type SQLNamespace } from '@codemirror/lang-sql'
@@ -128,6 +128,8 @@ export function createSqlEditor(opts: SqlEditorOptions): SqlEditorHandle {
     ]),
     langCompartment.of(buildLang()),
     autocompletion(),
+    // Use CodeMirror's measured caret, including beside an empty editor's placeholder.
+    drawSelection(),
     history(),
     closeBrackets(),
     bracketMatching(),
