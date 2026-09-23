@@ -356,6 +356,7 @@ func osqueryFlagfile(tlsHostname, secretPath string) string {
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"--config_plugin=tls",
 		"--config_tls_endpoint=/api/v1/osquery/config",
+		"--config_refresh=60",
 		"--logger_plugin=tls",
 		"--logger_tls_endpoint=/api/v1/osquery/logger",
 		"--distributed_plugin=tls",

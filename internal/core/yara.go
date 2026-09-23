@@ -394,7 +394,9 @@ func (c *Core) completeYaraResult(ctx context.Context, node models.Node, queryID
 		return true, c.store.RefreshYaraScanStats(ctx, scan.ID)
 	}
 
-	for _, row := range yaraRows(rows) {
+	fileRows := yaraRows(rows)
+	stored := 0
+	for _, row := range fileRows {
 		result, valid := yaraScanEvidence(row)
 		if !valid {
 			continue
@@ -404,7 +406,10 @@ func (c *Core) completeYaraResult(ctx context.Context, node models.Node, queryID
 		if err := c.store.InsertYaraScanMatch(ctx, result); err != nil {
 			return true, fmt.Errorf("insert yara scan match: %w", err)
 		}
+		stored++
 	}
+	c.logger.Info("processed yara scan results", "scan_uuid", scanUUID, "node_id", node.ID,
+		"received_rows", len(fileRows), "stored_rows", stored, "rejected_rows", len(fileRows)-stored)
 
 	if err := c.store.CompleteYaraScanTarget(ctx, repo.CompleteYaraScanTargetParams{
 		ScanID: scan.ID,
@@ -422,7 +427,7 @@ func yaraScanEvidence(row map[string]string) (repo.InsertYaraScanMatchParams, bo
 	path := strings.TrimSpace(row["path"])
 	matches := strings.TrimSpace(row["matches"])
 	sigURL := strings.TrimSpace(row["sigurl"])
-	if err != nil || count < 0 || path == "" || sigURL == "" || (count == 0 && matches != "") || (count > 0 && matches == "") {
+	if err != nil || count < 0 || path == "" || (count == 0 && matches != "") || (count > 0 && matches == "") {
 		return repo.InsertYaraScanMatchParams{}, false
 	}
 	return repo.InsertYaraScanMatchParams{Path: path, Count: int32(count), Matches: matches, Sigurl: sigURL}, true

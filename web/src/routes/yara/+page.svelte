@@ -288,7 +288,7 @@
     }
   }
 
-  async function loadMatches(targetPage = matchPage) {
+  async function loadMatches(pageNumber = matchPage) {
     if (!selectedScan) {
       matches = []
       matchTotal = 0
@@ -299,9 +299,9 @@
     matchesLoading = true
     matchesError = ''
     try {
-      const data = await fetchYaraScanMatches(id, { page: targetPage, countPerPage: matchCountPerPage, outcome, query: appliedSearch })
+      const data = await fetchYaraScanMatches(id, { page: pageNumber, countPerPage: matchCountPerPage, outcome, query: appliedSearch })
       if (request !== matchRequest || selectedScan?.uuid !== id) return
-      if (!data.matches?.length && targetPage > 1) {
+      if (!data.matches?.length && pageNumber > 1) {
         matchPage = 1
         await loadMatches(1)
         return
@@ -507,6 +507,10 @@
     matchPageCount = 1
     targetPageCount = 1
     targetPage = 1
+    outcome = 'matched'
+    resultSearch = ''
+    appliedSearch = ''
+    targetStatus = ''
     scanSection = 'results'
     lastRefreshed = ''
     void loadTargets()
@@ -694,7 +698,6 @@
                     <th>Paths</th>
                     <th>Group</th>
                     <th>Status</th>
-                    <th>Error</th>
                     <th class="align-right">Finished targets</th>
                     <th class="align-right">Positive results</th>
                   </tr>
@@ -709,12 +712,11 @@
                       <td>{#each scan.paths as path}<div><code>{path}</code></div>{/each}</td>
                       <td>{scanGroupLabel(scan)}</td>
                       <td>{scan.status}</td>
-                      <td>{#if scan.error}<details><summary>View error</summary><p>{scan.error}</p><button type="button" class="small outline" onclick={() => copyText(scan.error || '', 'Error')}>Copy error</button></details>{:else}—{/if}</td>
                       <td class="align-right">{scan.completed_count || 0} / {scan.target_count || 0}</td>
                       <td class="align-right">{scan.match_count || 0}</td>
                     </tr>
                   {:else}
-                    <tr><td colspan="8" class="align-center text-light">No scans yet</td></tr>
+                    <tr><td colspan="7" class="align-center text-light">No scans yet</td></tr>
                   {/each}
                 </tbody>
               </table>
@@ -749,6 +751,13 @@
               </p>
               {#if (selectedScan.target_count || 0) > 0}
                 <progress class="w-100" aria-label="Finished targets" value={selectedScan.completed_count || 0} max={selectedScan.target_count}></progress>
+              {/if}
+              {#if selectedScan.error}
+                <details>
+                  <summary>Scan error</summary>
+                  <p>{selectedScan.error}</p>
+                  <button type="button" class="small outline" onclick={() => copyText(selectedScan!.error || '', 'Error')}>Copy error</button>
+                </details>
               {/if}
               <details>
                 <summary>Scan configuration</summary>
@@ -797,25 +806,27 @@
                   <tr>
                     <th>Machine</th>
                     <th>Path</th>
-                    <th>Outcome / matching rules</th>
+                    <th>Outcome</th>
+                    <th>Matching rules</th>
                     <th class="align-right">Rule count</th>
                     <th>Rule URL / reported</th>
                   </tr>
                 </thead>
                 <tbody>
                   {#if matchesLoading && !matches.length}
-                    <tr><td colspan="5" class="align-center text-light">Loading file results...</td></tr>
+                    <tr><td colspan="6" class="align-center text-light">Loading file results...</td></tr>
                   {:else}
                     {#each matches as match}
                       <tr>
                         <td>{match.hostname || match.machine_uuid}</td>
                         <td><code>{match.path}</code></td>
-                        <td><span class="badge outline">{match.count ? 'Matched' : 'Scanned, no match'}</span>{#if match.matches}<p>{match.matches}</p>{/if}</td>
+                        <td><span class="badge outline">{match.count ? 'Matched' : 'Scanned, no match'}</span></td>
+                        <td>{match.matches || '—'}</td>
                         <td class="align-right">{match.count || 0}</td>
                         <td><div>{match.sigurl || 'Source URL not recorded'}</div><small class="text-light">{formatTimestamp(match.created_at)}</small></td>
                       </tr>
                     {:else}
-                      <tr><td colspan="5" class="align-center text-light">{matchesError ? 'File results could not be loaded.' : 'No file results for these filters. Check Targets for execution status and scan evidence.'}</td></tr>
+                      <tr><td colspan="6" class="align-center text-light">{matchesError ? 'File results could not be loaded.' : 'No file results for these filters. Check Targets for execution status and scan evidence.'}</td></tr>
                     {/each}
                   {/if}
                 </tbody>
