@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -248,7 +249,10 @@ func (c *Core) GetYaraScan(ctx context.Context, req models.ResourceID) (models.Y
 	return models.YaraScanFromRow(row), nil
 }
 
-func (c *Core) ListYaraScanMatches(ctx context.Context, req models.ResourceID, pageReq models.PageRequest) (models.Page[models.YaraScanMatch], error) {
+func (c *Core) ListYaraScanMatches(ctx context.Context, req models.ResourceID, pageReq models.PageRequest, outcome, search string) (models.Page[models.YaraScanMatch], error) {
+	if outcome == "" {
+		outcome = "matched"
+	}
 	if err := c.expireStaleYaraTargets(ctx); err != nil {
 		return models.Page[models.YaraScanMatch]{}, err
 	}
@@ -258,6 +262,8 @@ func (c *Core) ListYaraScanMatches(ctx context.Context, req models.ResourceID, p
 	}
 	page, count := normalizePage(pageReq)
 	rows, err := c.store.ListYaraScanMatches(ctx, repo.ListYaraScanMatchesParams{
+		Outcome:     outcome,
+		Search:      strings.TrimSpace(search),
 		ScanUuid:    scanUUID,
 		LimitCount:  int32(count),
 		OffsetCount: int32(page * count),
@@ -278,7 +284,7 @@ func (c *Core) ListYaraScanMatches(ctx context.Context, req models.ResourceID, p
 	}, nil
 }
 
-func (c *Core) ListYaraScanTargets(ctx context.Context, req models.ResourceID, pageReq models.PageRequest) (models.Page[models.YaraScanTarget], error) {
+func (c *Core) ListYaraScanTargets(ctx context.Context, req models.ResourceID, pageReq models.PageRequest, status string) (models.Page[models.YaraScanTarget], error) {
 	if err := c.expireStaleYaraTargets(ctx); err != nil {
 		return models.Page[models.YaraScanTarget]{}, err
 	}
@@ -288,9 +294,10 @@ func (c *Core) ListYaraScanTargets(ctx context.Context, req models.ResourceID, p
 	}
 	page, count := normalizePage(pageReq)
 	rows, err := c.store.ListYaraScanTargets(ctx, repo.ListYaraScanTargetsParams{
-		ScanUuid:    scanUUID,
-		LimitCount:  int32(count),
-		OffsetCount: int32(page * count),
+		StatusFilter: status,
+		ScanUuid:     scanUUID,
+		LimitCount:   int32(count),
+		OffsetCount:  int32(page * count),
 	})
 	if err != nil {
 		return models.Page[models.YaraScanTarget]{}, fmt.Errorf("list yara scan targets: %w", err)
@@ -350,7 +357,7 @@ func yaraFileQuery(paths []string, ruleURLs []string) string {
 	parts := make([]string, 0, len(ruleURLs))
 	for _, ruleURL := range ruleURLs {
 		parts = append(parts, fmt.Sprintf(
-			"SELECT path, matches, count, sigurl FROM yara_file WHERE (%s) AND sigurl = '%s' AND count > 0",
+			"SELECT path, matches, count, sigurl FROM yara_file WHERE (%s) AND sigurl = '%s'",
 			strings.Join(pathConditions, " OR "),
 			sqlString(strings.TrimSpace(ruleURL)),
 		))
@@ -388,18 +395,13 @@ func (c *Core) completeYaraResult(ctx context.Context, node models.Node, queryID
 	}
 
 	for _, row := range yaraRows(rows) {
-		count := int32(parseInt(row["count"]))
-		matches := strings.TrimSpace(row["matches"])
-		if count <= 0 || matches == "" {
+		result, valid := yaraScanEvidence(row)
+		if !valid {
 			continue
 		}
-		if err := c.store.InsertYaraScanMatch(ctx, repo.InsertYaraScanMatchParams{
-			ScanID:  scan.ID,
-			NodeID:  node.ID,
-			Path:    strings.TrimSpace(row["path"]),
-			Matches: matches,
-			Count:   count,
-		}); err != nil {
+		result.ScanID = scan.ID
+		result.NodeID = node.ID
+		if err := c.store.InsertYaraScanMatch(ctx, result); err != nil {
 			return true, fmt.Errorf("insert yara scan match: %w", err)
 		}
 	}
@@ -411,6 +413,19 @@ func (c *Core) completeYaraResult(ctx context.Context, node models.Node, queryID
 		return true, fmt.Errorf("complete yara scan target: %w", err)
 	}
 	return true, c.store.RefreshYaraScanStats(ctx, scan.ID)
+}
+
+// Only actual file scan rows constitute evidence; missing or malformed counts
+// must not be interpreted as successful scans with zero matching rules.
+func yaraScanEvidence(row map[string]string) (repo.InsertYaraScanMatchParams, bool) {
+	count, err := strconv.ParseInt(strings.TrimSpace(row["count"]), 10, 32)
+	path := strings.TrimSpace(row["path"])
+	matches := strings.TrimSpace(row["matches"])
+	sigURL := strings.TrimSpace(row["sigurl"])
+	if err != nil || count < 0 || path == "" || sigURL == "" || (count == 0 && matches != "") || (count > 0 && matches == "") {
+		return repo.InsertYaraScanMatchParams{}, false
+	}
+	return repo.InsertYaraScanMatchParams{Path: path, Count: int32(count), Matches: matches, Sigurl: sigURL}, true
 }
 
 func (c *Core) expireStaleYaraTargets(ctx context.Context) error {

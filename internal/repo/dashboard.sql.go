@@ -484,6 +484,7 @@ SELECT
 FROM yara_scan_matches
 JOIN yara_scans ON yara_scans.id = yara_scan_matches.scan_id
 JOIN nodes ON nodes.id = yara_scan_matches.node_id
+WHERE yara_scan_matches.count > 0
 ORDER BY yara_scan_matches.created_at DESC
 LIMIT $1
 `

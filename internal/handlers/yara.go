@@ -168,7 +168,7 @@ func (h *Handler) HandleYaraScanMatches(c echo.Context) error {
 		req.Count = MaxResultsPerPage
 	}
 
-	page, err := h.c.ListYaraScanMatches(c.Request().Context(), models.ResourceID{UUID: req.ID}, models.PageRequest{Page: req.Page, Count: req.Count})
+	page, err := h.c.ListYaraScanMatches(c.Request().Context(), models.ResourceID{UUID: req.ID}, models.PageRequest{Page: req.Page, Count: req.Count}, req.Outcome, req.Search)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting YARA scan matches %s", req.ID), err, nil)
 	}
@@ -194,7 +194,7 @@ func (h *Handler) HandleYaraScanTargets(c echo.Context) error {
 		req.Count = MaxResultsPerPage
 	}
 
-	page, err := h.c.ListYaraScanTargets(c.Request().Context(), models.ResourceID{UUID: req.ID}, models.PageRequest{Page: req.Page, Count: req.Count})
+	page, err := h.c.ListYaraScanTargets(c.Request().Context(), models.ResourceID{UUID: req.ID}, models.PageRequest{Page: req.Page, Count: req.Count}, req.Status)
 	if err != nil {
 		return wrapError(http.StatusInternalServerError, fmt.Sprintf("error getting YARA scan targets %s", req.ID), err, nil)
 	}

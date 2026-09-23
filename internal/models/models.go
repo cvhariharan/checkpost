@@ -768,6 +768,7 @@ type YaraScan struct {
 	GroupID        string     `json:"group_id,omitempty"`
 	GroupName      string     `json:"group_name,omitempty"`
 	Paths          []string   `json:"paths"`
+	RuleURLs       []string   `json:"rule_urls"`
 	Status         string     `json:"status"`
 	TargetCount    int        `json:"target_count"`
 	CompletedCount int        `json:"completed_count"`
@@ -784,18 +785,21 @@ type YaraScanMatch struct {
 	Path        string    `json:"path"`
 	Matches     string    `json:"matches"`
 	Count       int       `json:"count"`
+	SigURL      string    `json:"sigurl"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
 type YaraScanTarget struct {
-	MachineUUID  string     `json:"machine_uuid"`
-	Hostname     string     `json:"hostname"`
-	Status       string     `json:"status"`
-	DispatchedAt *time.Time `json:"dispatched_at,omitempty"`
-	CompletedAt  *time.Time `json:"completed_at,omitempty"`
-	Error        string     `json:"error,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ResultCount        int64      `json:"result_count"`
+	MatchedResultCount int64      `json:"matched_result_count"`
+	MachineUUID        string     `json:"machine_uuid"`
+	Hostname           string     `json:"hostname"`
+	Status             string     `json:"status"`
+	DispatchedAt       *time.Time `json:"dispatched_at,omitempty"`
+	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+	Error              string     `json:"error,omitempty"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 type YaraSignatureSourcesResponse struct {

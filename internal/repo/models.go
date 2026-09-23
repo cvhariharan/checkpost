@@ -352,6 +352,7 @@ type YaraScanMatch struct {
 	Matches   string    `db:"matches" json:"matches"`
 	Count     int32     `db:"count" json:"count"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Sigurl    string    `db:"sigurl" json:"sigurl"`
 }
 
 type YaraScanTarget struct {

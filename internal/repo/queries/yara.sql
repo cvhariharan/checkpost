@@ -92,6 +92,7 @@ WITH filtered AS (
         groups.uuid AS group_uuid,
         groups.name AS group_name,
         yara_scans.paths,
+        yara_scans.rule_urls,
         yara_scans.status,
         yara_scans.target_count,
         yara_scans.completed_count,
@@ -119,6 +120,7 @@ SELECT
     groups.uuid AS group_uuid,
     groups.name AS group_name,
     yara_scans.paths,
+    yara_scans.rule_urls,
     yara_scans.status,
     yara_scans.target_count,
     yara_scans.completed_count,
@@ -178,9 +180,10 @@ INSERT INTO yara_scan_matches (
     node_id,
     path,
     matches,
-    count
+    count,
+    sigurl
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 );
 
 -- name: CompleteYaraScanTarget :exec
@@ -216,6 +219,7 @@ matches AS (
     SELECT yara_scan_matches.scan_id, count(*)::integer AS match_count
     FROM yara_scan_matches
     WHERE yara_scan_matches.scan_id = $1
+      AND yara_scan_matches.count > 0
     GROUP BY yara_scan_matches.scan_id
 ),
 first_error AS (
@@ -262,18 +266,24 @@ WITH filtered AS (
         yara_scan_matches.path,
         yara_scan_matches.matches,
         yara_scan_matches.count,
+        yara_scan_matches.sigurl,
         yara_scan_matches.created_at
     FROM yara_scan_matches
     JOIN nodes ON nodes.id = yara_scan_matches.node_id
     JOIN yara_scans ON yara_scans.id = yara_scan_matches.scan_id
     WHERE yara_scans.uuid = @scan_uuid
+      AND (@outcome::text = 'all'
+           OR (@outcome::text = 'no_match' AND yara_scan_matches.count = 0)
+           OR (@outcome::text = 'matched' AND yara_scan_matches.count > 0))
+      AND (@search::text = '' OR strpos(lower(concat_ws(' ', nodes.hostname, nodes.display_name,
+           yara_scan_matches.path, yara_scan_matches.matches, yara_scan_matches.sigurl)), lower(@search::text)) > 0)
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
 SELECT filtered.*, total.total_count
 FROM filtered, total
-ORDER BY filtered.created_at DESC
+ORDER BY filtered.created_at DESC, filtered.id DESC
 LIMIT @limit_count OFFSET @offset_count;
 
 -- name: ListYaraScanTargets :many
@@ -285,19 +295,24 @@ WITH filtered AS (
         yara_scan_targets.dispatched_at,
         yara_scan_targets.completed_at,
         yara_scan_targets.error,
+        (SELECT count(*) FROM yara_scan_matches r WHERE r.scan_id = yara_scan_targets.scan_id
+            AND r.node_id = yara_scan_targets.node_id)::bigint AS result_count,
+        (SELECT count(*) FROM yara_scan_matches r WHERE r.scan_id = yara_scan_targets.scan_id
+            AND r.node_id = yara_scan_targets.node_id AND r.count > 0)::bigint AS matched_result_count,
         yara_scan_targets.created_at,
         yara_scan_targets.updated_at
     FROM yara_scan_targets
     JOIN nodes ON nodes.id = yara_scan_targets.node_id
     JOIN yara_scans ON yara_scans.id = yara_scan_targets.scan_id
     WHERE yara_scans.uuid = @scan_uuid
+      AND (@status_filter::text = '' OR yara_scan_targets.status = @status_filter::text)
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
 SELECT filtered.*, total.total_count
 FROM filtered, total
-ORDER BY filtered.created_at ASC
+ORDER BY filtered.created_at ASC, filtered.node_uuid ASC
 LIMIT @limit_count OFFSET @offset_count;
 
 -- name: ListAllNodeIDs :many

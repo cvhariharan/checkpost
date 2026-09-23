@@ -162,6 +162,7 @@ export type YaraScan = {
   group_id?: string
   group_name?: string
   paths: string[]
+  rule_urls: string[]
   status: string
   target_count?: number
   completed_count?: number
@@ -173,6 +174,7 @@ export type YaraScan = {
 }
 
 export type YaraScanMatch = {
+  sigurl?: string
   machine_uuid?: string
   hostname?: string
   path?: string
@@ -182,6 +184,8 @@ export type YaraScanMatch = {
 }
 
 export type YaraScanTarget = {
+  result_count: number
+  matched_result_count: number
   machine_uuid?: string
   hostname?: string
   status?: string
@@ -588,17 +592,21 @@ export function fetchYaraScans(opts: PageOpts = {}) {
   )
 }
 
-export function fetchYaraScanMatches(uuid: string, opts: PageOpts = {}) {
-  const { page = 1, countPerPage = 100 } = opts
+export function fetchYaraScan(uuid: string) {
+  return fetch(`${BASE_URL}/yara/scans/${encodeURIComponent(uuid)}`).then((r) => handleResponse<YaraScan>(r))
+}
+
+export function fetchYaraScanMatches(uuid: string, opts: PageOpts & { outcome?: string; query?: string } = {}) {
+  const { page = 1, countPerPage = 100, outcome = 'matched', query = '' } = opts
   return fetch(
-    apiUrl(`/yara/scans/${encodeURIComponent(uuid)}/matches`, { page, count_per_page: countPerPage })
+    apiUrl(`/yara/scans/${encodeURIComponent(uuid)}/matches`, { page, count_per_page: countPerPage, outcome, q: query })
   ).then((r) => handleResponse<Paginated<YaraScanMatch, 'matches'>>(r))
 }
 
-export function fetchYaraScanTargets(uuid: string, opts: PageOpts = {}) {
-  const { page = 1, countPerPage = 1000 } = opts
+export function fetchYaraScanTargets(uuid: string, opts: PageOpts & { status?: string } = {}) {
+  const { page = 1, countPerPage = 1000, status = '' } = opts
   return fetch(
-    apiUrl(`/yara/scans/${encodeURIComponent(uuid)}/targets`, { page, count_per_page: countPerPage })
+    apiUrl(`/yara/scans/${encodeURIComponent(uuid)}/targets`, { page, count_per_page: countPerPage, status })
   ).then((r) => handleResponse<Paginated<YaraScanTarget, 'targets'>>(r))
 }
 

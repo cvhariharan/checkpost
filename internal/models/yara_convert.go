@@ -26,6 +26,7 @@ func YaraScanFromRow(row repo.GetYaraScanByUUIDRow) YaraScan {
 		ID:             row.Uuid.String(),
 		UUID:           row.Uuid.String(),
 		Paths:          row.Paths,
+		RuleURLs:       row.RuleUrls,
 		Status:         row.Status,
 		TargetCount:    int(row.TargetCount),
 		CompletedCount: int(row.CompletedCount),
@@ -51,6 +52,7 @@ func YaraScanFromListRow(row repo.ListYaraScansRow) YaraScan {
 		ID:             row.Uuid.String(),
 		UUID:           row.Uuid.String(),
 		Paths:          row.Paths,
+		RuleURLs:       row.RuleUrls,
 		Status:         row.Status,
 		TargetCount:    int(row.TargetCount),
 		CompletedCount: int(row.CompletedCount),
@@ -78,18 +80,21 @@ func YaraScanMatchFromRow(row repo.ListYaraScanMatchesRow) YaraScanMatch {
 		Path:        row.Path,
 		Matches:     row.Matches,
 		Count:       int(row.Count),
+		SigURL:      row.Sigurl,
 		CreatedAt:   row.CreatedAt,
 	}
 }
 
 func YaraScanTargetFromRow(row repo.ListYaraScanTargetsRow) YaraScanTarget {
 	target := YaraScanTarget{
-		MachineUUID: row.NodeUuid.String(),
-		Hostname:    row.Hostname,
-		Status:      row.Status,
-		Error:       row.Error,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		ResultCount:        row.ResultCount,
+		MatchedResultCount: row.MatchedResultCount,
+		MachineUUID:        row.NodeUuid.String(),
+		Hostname:           row.Hostname,
+		Status:             row.Status,
+		Error:              row.Error,
+		CreatedAt:          row.CreatedAt,
+		UpdatedAt:          row.UpdatedAt,
 	}
 	if row.DispatchedAt.Valid {
 		target.DispatchedAt = &row.DispatchedAt.Time

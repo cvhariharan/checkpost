@@ -487,15 +487,18 @@ type YaraScansRequest struct {
 }
 
 type YaraScanMatchesRequest struct {
-	ID    string `param:"id" validate:"required,uuid"`
-	Page  int    `query:"page" validate:"gte=0"`
-	Count int    `query:"count_per_page" validate:"gte=0,lte=1000"`
+	Outcome string `query:"outcome" validate:"omitempty,oneof=all matched no_match"`
+	Search  string `query:"q" validate:"max=500"`
+	ID      string `param:"id" validate:"required,uuid"`
+	Page    int    `query:"page" validate:"gte=0"`
+	Count   int    `query:"count_per_page" validate:"gte=0,lte=1000"`
 }
 
 type YaraScanTargetsRequest struct {
-	ID    string `param:"id" validate:"required,uuid"`
-	Page  int    `query:"page" validate:"gte=0"`
-	Count int    `query:"count_per_page" validate:"gte=0,lte=1000"`
+	Status string `query:"status" validate:"omitempty,oneof=pending dispatched complete error"`
+	ID     string `param:"id" validate:"required,uuid"`
+	Page   int    `query:"page" validate:"gte=0"`
+	Count  int    `query:"count_per_page" validate:"gte=0,lte=1000"`
 }
 
 type ConfigRequest struct {

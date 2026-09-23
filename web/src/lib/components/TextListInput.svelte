@@ -5,7 +5,8 @@
     placeholder = '',
     addLabel = 'Add',
     disabled = false,
-    required = false
+    required = false,
+    splitPaste = false
   }: {
     label?: string
     value?: string[]
@@ -13,6 +14,7 @@
     addLabel?: string
     disabled?: boolean
     required?: boolean
+    splitPaste?: boolean
   } = $props()
 
   $effect(() => {
@@ -34,6 +36,16 @@
   function updateItem(index: number, next: string) {
     value = value.map((item, i) => (i === index ? next : item))
   }
+
+  function pasteItems(event: ClipboardEvent, index: number) {
+    if (!splitPaste) return
+    const text = event.clipboardData?.getData('text') || ''
+    if (!/[\r\n]/.test(text)) return
+    const items = text.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+    if (!items.length) return
+    event.preventDefault()
+    value = [...value.slice(0, index), ...items, ...value.slice(index + 1)]
+  }
 </script>
 
 <div class="text-list-input">
@@ -54,10 +66,12 @@
     {#each value as item, index}
       <div class="text-list-input-row">
         <input
+          aria-label={`${label || 'Item'} ${index + 1}`}
           value={item}
           {placeholder}
           disabled={disabled}
           oninput={(event) => updateItem(index, event.currentTarget.value)}
+          onpaste={(event) => pasteItems(event, index)}
         />
         <button
           type="button"

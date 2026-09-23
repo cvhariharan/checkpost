@@ -180,6 +180,7 @@ SELECT
     groups.uuid AS group_uuid,
     groups.name AS group_name,
     yara_scans.paths,
+    yara_scans.rule_urls,
     yara_scans.status,
     yara_scans.target_count,
     yara_scans.completed_count,
@@ -200,6 +201,7 @@ type GetYaraScanByUUIDRow struct {
 	GroupUuid      uuid.NullUUID  `db:"group_uuid" json:"group_uuid"`
 	GroupName      sql.NullString `db:"group_name" json:"group_name"`
 	Paths          []string       `db:"paths" json:"paths"`
+	RuleUrls       []string       `db:"rule_urls" json:"rule_urls"`
 	Status         string         `db:"status" json:"status"`
 	TargetCount    int32          `db:"target_count" json:"target_count"`
 	CompletedCount int32          `db:"completed_count" json:"completed_count"`
@@ -220,6 +222,7 @@ func (q *Queries) GetYaraScanByUUID(ctx context.Context, argUuid uuid.UUID) (Get
 		&i.GroupUuid,
 		&i.GroupName,
 		pq.Array(&i.Paths),
+		pq.Array(&i.RuleUrls),
 		&i.Status,
 		&i.TargetCount,
 		&i.CompletedCount,
@@ -258,9 +261,10 @@ INSERT INTO yara_scan_matches (
     node_id,
     path,
     matches,
-    count
+    count,
+    sigurl
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6
 )
 `
 
@@ -270,6 +274,7 @@ type InsertYaraScanMatchParams struct {
 	Path    string `db:"path" json:"path"`
 	Matches string `db:"matches" json:"matches"`
 	Count   int32  `db:"count" json:"count"`
+	Sigurl  string `db:"sigurl" json:"sigurl"`
 }
 
 func (q *Queries) InsertYaraScanMatch(ctx context.Context, arg InsertYaraScanMatchParams) error {
@@ -279,6 +284,7 @@ func (q *Queries) InsertYaraScanMatch(ctx context.Context, arg InsertYaraScanMat
 		arg.Path,
 		arg.Matches,
 		arg.Count,
+		arg.Sigurl,
 	)
 	return err
 }
@@ -479,18 +485,24 @@ WITH filtered AS (
         yara_scan_matches.path,
         yara_scan_matches.matches,
         yara_scan_matches.count,
+        yara_scan_matches.sigurl,
         yara_scan_matches.created_at
     FROM yara_scan_matches
     JOIN nodes ON nodes.id = yara_scan_matches.node_id
     JOIN yara_scans ON yara_scans.id = yara_scan_matches.scan_id
     WHERE yara_scans.uuid = $3
+      AND ($4::text = 'all'
+           OR ($4::text = 'no_match' AND yara_scan_matches.count = 0)
+           OR ($4::text = 'matched' AND yara_scan_matches.count > 0))
+      AND ($5::text = '' OR strpos(lower(concat_ws(' ', nodes.hostname, nodes.display_name,
+           yara_scan_matches.path, yara_scan_matches.matches, yara_scan_matches.sigurl)), lower($5::text)) > 0)
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.node_uuid, filtered.hostname, filtered.path, filtered.matches, filtered.count, filtered.created_at, total.total_count
+SELECT filtered.id, filtered.node_uuid, filtered.hostname, filtered.path, filtered.matches, filtered.count, filtered.sigurl, filtered.created_at, total.total_count
 FROM filtered, total
-ORDER BY filtered.created_at DESC
+ORDER BY filtered.created_at DESC, filtered.id DESC
 LIMIT $2 OFFSET $1
 `
 
@@ -498,6 +510,8 @@ type ListYaraScanMatchesParams struct {
 	OffsetCount int32     `db:"offset_count" json:"offset_count"`
 	LimitCount  int32     `db:"limit_count" json:"limit_count"`
 	ScanUuid    uuid.UUID `db:"scan_uuid" json:"scan_uuid"`
+	Outcome     string    `db:"outcome" json:"outcome"`
+	Search      string    `db:"search" json:"search"`
 }
 
 type ListYaraScanMatchesRow struct {
@@ -507,12 +521,19 @@ type ListYaraScanMatchesRow struct {
 	Path       string    `db:"path" json:"path"`
 	Matches    string    `db:"matches" json:"matches"`
 	Count      int32     `db:"count" json:"count"`
+	Sigurl     string    `db:"sigurl" json:"sigurl"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	TotalCount int64     `db:"total_count" json:"total_count"`
 }
 
 func (q *Queries) ListYaraScanMatches(ctx context.Context, arg ListYaraScanMatchesParams) ([]ListYaraScanMatchesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listYaraScanMatches, arg.OffsetCount, arg.LimitCount, arg.ScanUuid)
+	rows, err := q.db.QueryContext(ctx, listYaraScanMatches,
+		arg.OffsetCount,
+		arg.LimitCount,
+		arg.ScanUuid,
+		arg.Outcome,
+		arg.Search,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -527,6 +548,7 @@ func (q *Queries) ListYaraScanMatches(ctx context.Context, arg ListYaraScanMatch
 			&i.Path,
 			&i.Matches,
 			&i.Count,
+			&i.Sigurl,
 			&i.CreatedAt,
 			&i.TotalCount,
 		); err != nil {
@@ -552,42 +574,55 @@ WITH filtered AS (
         yara_scan_targets.dispatched_at,
         yara_scan_targets.completed_at,
         yara_scan_targets.error,
+        (SELECT count(*) FROM yara_scan_matches r WHERE r.scan_id = yara_scan_targets.scan_id
+            AND r.node_id = yara_scan_targets.node_id)::bigint AS result_count,
+        (SELECT count(*) FROM yara_scan_matches r WHERE r.scan_id = yara_scan_targets.scan_id
+            AND r.node_id = yara_scan_targets.node_id AND r.count > 0)::bigint AS matched_result_count,
         yara_scan_targets.created_at,
         yara_scan_targets.updated_at
     FROM yara_scan_targets
     JOIN nodes ON nodes.id = yara_scan_targets.node_id
     JOIN yara_scans ON yara_scans.id = yara_scan_targets.scan_id
     WHERE yara_scans.uuid = $3
+      AND ($4::text = '' OR yara_scan_targets.status = $4::text)
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.node_uuid, filtered.hostname, filtered.status, filtered.dispatched_at, filtered.completed_at, filtered.error, filtered.created_at, filtered.updated_at, total.total_count
+SELECT filtered.node_uuid, filtered.hostname, filtered.status, filtered.dispatched_at, filtered.completed_at, filtered.error, filtered.result_count, filtered.matched_result_count, filtered.created_at, filtered.updated_at, total.total_count
 FROM filtered, total
-ORDER BY filtered.created_at ASC
+ORDER BY filtered.created_at ASC, filtered.node_uuid ASC
 LIMIT $2 OFFSET $1
 `
 
 type ListYaraScanTargetsParams struct {
-	OffsetCount int32     `db:"offset_count" json:"offset_count"`
-	LimitCount  int32     `db:"limit_count" json:"limit_count"`
-	ScanUuid    uuid.UUID `db:"scan_uuid" json:"scan_uuid"`
+	OffsetCount  int32     `db:"offset_count" json:"offset_count"`
+	LimitCount   int32     `db:"limit_count" json:"limit_count"`
+	ScanUuid     uuid.UUID `db:"scan_uuid" json:"scan_uuid"`
+	StatusFilter string    `db:"status_filter" json:"status_filter"`
 }
 
 type ListYaraScanTargetsRow struct {
-	NodeUuid     uuid.UUID    `db:"node_uuid" json:"node_uuid"`
-	Hostname     string       `db:"hostname" json:"hostname"`
-	Status       string       `db:"status" json:"status"`
-	DispatchedAt sql.NullTime `db:"dispatched_at" json:"dispatched_at"`
-	CompletedAt  sql.NullTime `db:"completed_at" json:"completed_at"`
-	Error        string       `db:"error" json:"error"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt    time.Time    `db:"updated_at" json:"updated_at"`
-	TotalCount   int64        `db:"total_count" json:"total_count"`
+	NodeUuid           uuid.UUID    `db:"node_uuid" json:"node_uuid"`
+	Hostname           string       `db:"hostname" json:"hostname"`
+	Status             string       `db:"status" json:"status"`
+	DispatchedAt       sql.NullTime `db:"dispatched_at" json:"dispatched_at"`
+	CompletedAt        sql.NullTime `db:"completed_at" json:"completed_at"`
+	Error              string       `db:"error" json:"error"`
+	ResultCount        int64        `db:"result_count" json:"result_count"`
+	MatchedResultCount int64        `db:"matched_result_count" json:"matched_result_count"`
+	CreatedAt          time.Time    `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time    `db:"updated_at" json:"updated_at"`
+	TotalCount         int64        `db:"total_count" json:"total_count"`
 }
 
 func (q *Queries) ListYaraScanTargets(ctx context.Context, arg ListYaraScanTargetsParams) ([]ListYaraScanTargetsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listYaraScanTargets, arg.OffsetCount, arg.LimitCount, arg.ScanUuid)
+	rows, err := q.db.QueryContext(ctx, listYaraScanTargets,
+		arg.OffsetCount,
+		arg.LimitCount,
+		arg.ScanUuid,
+		arg.StatusFilter,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -602,6 +637,8 @@ func (q *Queries) ListYaraScanTargets(ctx context.Context, arg ListYaraScanTarge
 			&i.DispatchedAt,
 			&i.CompletedAt,
 			&i.Error,
+			&i.ResultCount,
+			&i.MatchedResultCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalCount,
@@ -628,6 +665,7 @@ WITH filtered AS (
         groups.uuid AS group_uuid,
         groups.name AS group_name,
         yara_scans.paths,
+        yara_scans.rule_urls,
         yara_scans.status,
         yara_scans.target_count,
         yara_scans.completed_count,
@@ -642,7 +680,7 @@ WITH filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.group_id, filtered.group_uuid, filtered.group_name, filtered.paths, filtered.status, filtered.target_count, filtered.completed_count, filtered.match_count, filtered.error, filtered.created_at, filtered.updated_at, filtered.completed_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.group_id, filtered.group_uuid, filtered.group_name, filtered.paths, filtered.rule_urls, filtered.status, filtered.target_count, filtered.completed_count, filtered.match_count, filtered.error, filtered.created_at, filtered.updated_at, filtered.completed_at, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -660,6 +698,7 @@ type ListYaraScansRow struct {
 	GroupUuid      uuid.NullUUID  `db:"group_uuid" json:"group_uuid"`
 	GroupName      sql.NullString `db:"group_name" json:"group_name"`
 	Paths          []string       `db:"paths" json:"paths"`
+	RuleUrls       []string       `db:"rule_urls" json:"rule_urls"`
 	Status         string         `db:"status" json:"status"`
 	TargetCount    int32          `db:"target_count" json:"target_count"`
 	CompletedCount int32          `db:"completed_count" json:"completed_count"`
@@ -687,6 +726,7 @@ func (q *Queries) ListYaraScans(ctx context.Context, arg ListYaraScansParams) ([
 			&i.GroupUuid,
 			&i.GroupName,
 			pq.Array(&i.Paths),
+			pq.Array(&i.RuleUrls),
 			&i.Status,
 			&i.TargetCount,
 			&i.CompletedCount,
@@ -837,6 +877,7 @@ matches AS (
     SELECT yara_scan_matches.scan_id, count(*)::integer AS match_count
     FROM yara_scan_matches
     WHERE yara_scan_matches.scan_id = $1
+      AND yara_scan_matches.count > 0
     GROUP BY yara_scan_matches.scan_id
 ),
 first_error AS (
