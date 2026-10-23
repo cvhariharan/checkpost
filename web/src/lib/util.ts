@@ -68,6 +68,5 @@ export function formatUptime(seconds: number | undefined | null): string {
 
 export function formatQueryDispatcher(user?: QueryDispatcher | null): string {
   if (!user) return 'Unknown'
-  if (user.type === 'service') return `${user.name || user.username} (service account)`
   return user.name?.trim() || user.username
 }
