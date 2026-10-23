@@ -11,7 +11,7 @@ RETURNING *;
 
 -- name: GetQueryRunByUUID :one
 SELECT query_runs.*, users.uuid AS dispatcher_uuid,
-       users.username AS dispatcher_username, users.name AS dispatcher_name
+       users.username AS dispatcher_username, users.name AS dispatcher_name, users.type AS dispatcher_type
 FROM query_runs
 LEFT JOIN users ON users.id = query_runs.created_by
 WHERE query_runs.uuid = $1;
@@ -19,7 +19,7 @@ WHERE query_runs.uuid = $1;
 -- name: ListQueryRuns :many
 WITH filtered AS (
     SELECT query_runs.*, users.uuid AS dispatcher_uuid,
-           users.username AS dispatcher_username, users.name AS dispatcher_name
+           users.username AS dispatcher_username, users.name AS dispatcher_name, users.type AS dispatcher_type
     FROM query_runs
     LEFT JOIN users ON users.id = query_runs.created_by
 ),

@@ -486,6 +486,7 @@ type MachineQueryRequest struct {
 }
 
 type QueryDispatcher struct {
+	Type     string `json:"type,omitempty"`
 	UUID     string `json:"uuid"`
 	Username string `json:"username"`
 	Name     string `json:"name"`
@@ -612,6 +613,9 @@ type YaraScanRequest struct {
 // AUTHENTICATION & AUTHORIZATION ------------------------------------------
 
 const (
+	UserTypeUser    = "user"
+	UserTypeService = "service"
+
 	LoginTypeStandard = "standard"
 	LoginTypeOIDC     = "oidc"
 
@@ -619,8 +623,9 @@ const (
 	UserGroupSourceOIDC   = "oidc"
 )
 
-// User is a human account. SSO users have LoginType "oidc" and no password.
+// User represents a normal user or service account.
 type User struct {
+	Type        string     `json:"type"`
 	ID          int64      `json:"-"`
 	UUID        string     `json:"uuid"`
 	Username    string     `json:"username"`
@@ -635,6 +640,7 @@ type User struct {
 
 // SessionUser is the minimal user identity stored in the session cookie store.
 type SessionUser struct {
+	Type      string `json:"type"`
 	UUID      string `json:"uuid"`
 	Username  string `json:"username"`
 	Name      string `json:"name"`
@@ -675,6 +681,8 @@ type EnrollmentSecret struct {
 }
 
 type CreateUser struct {
+	Type  string
+	Role  string
 	Name  string
 	Email string
 }

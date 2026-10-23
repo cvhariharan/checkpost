@@ -17,7 +17,7 @@ WITH filtered AS (
            machine_query_results.row_count, machine_query_results.dispatched_at,
            machine_query_results.completed_at, machine_query_results.created_at,
            machine_query_results.updated_at, machine_query_results.run_id,
-           users.uuid AS dispatcher_uuid, users.username AS dispatcher_username, users.name AS dispatcher_name
+           users.uuid AS dispatcher_uuid, users.username AS dispatcher_username, users.name AS dispatcher_name, users.type AS dispatcher_type
     FROM machine_query_results
     JOIN nodes ON nodes.id = machine_query_results.node_id
     LEFT JOIN users ON users.id = machine_query_results.created_by

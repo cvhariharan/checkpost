@@ -309,6 +309,7 @@ type User struct {
 	LastLoginAt  sql.NullTime   `db:"last_login_at" json:"last_login_at"`
 	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
+	Type         string         `db:"type" json:"type"`
 }
 
 type UserGroup struct {

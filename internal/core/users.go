@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	ErrInvalidUser = errors.New("users require a valid email; service accounts require a name and built-in role")
 	// ErrUserDisabled is returned when a disabled account attempts to log in.
 	ErrUserDisabled = errors.New("user is disabled")
 	// ErrInvalidLoginMethod is returned when the wrong auth method is used.
@@ -96,7 +97,7 @@ func (c *Core) AuthenticatePassword(ctx context.Context, username, password stri
 		}
 		return models.User{}, fmt.Errorf("get user: %w", err)
 	}
-	if user.LoginType != models.LoginTypeStandard {
+	if user.Type == models.UserTypeService || user.LoginType != models.LoginTypeStandard {
 		return models.User{}, ErrInvalidLoginMethod
 	}
 	if !strings.EqualFold(user.Username, strings.TrimSpace(c.adminUsername)) {
@@ -156,6 +157,9 @@ func (c *Core) ResolveOIDCUser(ctx context.Context, claims models.OIDCClaims, oi
 		return models.User{}, ErrUserDisabled
 	}
 
+	if user.Type == models.UserTypeService {
+		return models.User{}, ErrInvalidLoginMethod
+	}
 	if err := c.SyncUserGroupsFromClaims(ctx, user.ID, claims.Groups); err != nil {
 		return models.User{}, fmt.Errorf("sync user groups: %w", err)
 	}
@@ -201,23 +205,41 @@ func (c *Core) isSystemUser(user repo.User) bool {
 	return user.LoginType == models.LoginTypeStandard && strings.EqualFold(user.Username, strings.TrimSpace(c.adminUsername))
 }
 
-// CreateUser provisions an SSO-only user. The bootstrap admin is the only
-// password user and is managed through EnsureAdminUser.
+// CreateUser provisions a normal SSO user or an API-only service account.
 func (c *Core) CreateUser(ctx context.Context, req models.CreateUser) (models.User, error) {
-	email := strings.TrimSpace(strings.ToLower(req.Email))
-	if email == "" {
-		return models.User{}, errors.New("email cannot be empty")
+	if req.Type == "" {
+		req.Type = models.UserTypeUser
 	}
-	user, err := c.store.CreateUser(ctx, repo.CreateUserParams{
-		Username:     email,
-		Name:         strings.TrimSpace(req.Name),
-		Email:        email,
-		PasswordHash: sql.NullString{},
-		LoginType:    models.LoginTypeOIDC,
-		Disabled:     false,
-	})
+	name := strings.TrimSpace(req.Name)
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	username := email
+	if req.Type == models.UserTypeService {
+		if name == "" || !IsBuiltinRole(req.Role) {
+			return models.User{}, ErrInvalidUser
+		}
+		username = "svc:" + uuid.NewString()
+		email = ""
+	} else if req.Type != models.UserTypeUser || email == "" {
+		return models.User{}, ErrInvalidUser
+	}
+	if req.Role != "" && !IsBuiltinRole(req.Role) {
+		return models.User{}, ErrInvalidUser
+	}
+	params := repo.CreateUserParams{Username: username, Name: name, Email: email, LoginType: models.LoginTypeOIDC, UserType: sql.NullString{String: req.Type, Valid: true}}
+	var user repo.User
+	var err error
+	if req.Role == "" {
+		user, err = c.store.CreateUser(ctx, params)
+	} else {
+		user, err = c.store.CreateUserWithRoleTx(ctx, repo.CreateUserWithRoleTxParams{User: params, Role: req.Role})
+	}
 	if err != nil {
 		return models.User{}, fmt.Errorf("create user: %w", err)
+	}
+	if req.Role != "" {
+		if err := c.SyncPolicies(ctx); err != nil {
+			return models.User{}, fmt.Errorf("synchronize user role: %w", err)
+		}
 	}
 	return toModelUser(user), nil
 }
@@ -246,6 +268,7 @@ func (c *Core) ListUsers(ctx context.Context, req models.PageRequest) (models.Pa
 	for _, row := range rows {
 		out = append(out, models.User{
 			ID:          row.ID,
+			Type:        row.Type,
 			UUID:        row.Uuid.String(),
 			Username:    row.Username,
 			Name:        row.Name,
@@ -321,6 +344,7 @@ func (c *Core) DeleteUser(ctx context.Context, userUUID string) error {
 // SessionUserFor builds the minimal session identity from a model user.
 func SessionUserFor(u models.User) models.SessionUser {
 	return models.SessionUser{
+		Type:      u.Type,
 		UUID:      u.UUID,
 		Username:  u.Username,
 		Name:      u.Name,

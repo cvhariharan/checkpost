@@ -699,6 +699,7 @@ func (c *Core) EffectivePermissions(ctx context.Context, userUUID string) (model
 
 	return models.EffectivePermissions{
 		User: models.SessionUser{
+			Type:      user.Type,
 			UUID:      user.Uuid.String(),
 			Username:  user.Username,
 			Name:      user.Name,

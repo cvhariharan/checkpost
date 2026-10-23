@@ -20,11 +20,12 @@ INSERT INTO users (
     email,
     password_hash,
     login_type,
-    disabled
+    disabled,
+    type
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, COALESCE($7::text, 'user')
 )
-RETURNING id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at
+RETURNING id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at, type
 `
 
 type CreateUserParams struct {
@@ -34,6 +35,7 @@ type CreateUserParams struct {
 	PasswordHash sql.NullString `db:"password_hash" json:"password_hash"`
 	LoginType    string         `db:"login_type" json:"login_type"`
 	Disabled     bool           `db:"disabled" json:"disabled"`
+	UserType     sql.NullString `db:"user_type" json:"user_type"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -44,6 +46,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.PasswordHash,
 		arg.LoginType,
 		arg.Disabled,
+		arg.UserType,
 	)
 	var i User
 	err := row.Scan(
@@ -58,6 +61,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Type,
 	)
 	return i, err
 }
@@ -75,7 +79,7 @@ func (q *Queries) DeleteUserByUUID(ctx context.Context, argUuid uuid.UUID) (int6
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at FROM users WHERE id = $1
+SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at, type FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
@@ -93,12 +97,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Type,
 	)
 	return i, err
 }
 
 const getUserByUUID = `-- name: GetUserByUUID :one
-SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at FROM users WHERE uuid = $1
+SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at, type FROM users WHERE uuid = $1
 `
 
 func (q *Queries) GetUserByUUID(ctx context.Context, argUuid uuid.UUID) (User, error) {
@@ -116,12 +121,13 @@ func (q *Queries) GetUserByUUID(ctx context.Context, argUuid uuid.UUID) (User, e
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Type,
 	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at FROM users WHERE lower(username) = lower($1)
+SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at, type FROM users WHERE lower(username) = lower($1)
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -139,18 +145,19 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Type,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
 WITH filtered AS (
-    SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at FROM users
+    SELECT id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at, type FROM users
 ),
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.username, filtered.name, filtered.email, filtered.password_hash, filtered.login_type, filtered.disabled, filtered.last_login_at, filtered.created_at, filtered.updated_at, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.username, filtered.name, filtered.email, filtered.password_hash, filtered.login_type, filtered.disabled, filtered.last_login_at, filtered.created_at, filtered.updated_at, filtered.type, total.total_count
 FROM filtered CROSS JOIN total
 ORDER BY filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -173,6 +180,7 @@ type ListUsersRow struct {
 	LastLoginAt  sql.NullTime   `db:"last_login_at" json:"last_login_at"`
 	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
+	Type         string         `db:"type" json:"type"`
 	TotalCount   int64          `db:"total_count" json:"total_count"`
 }
 
@@ -197,6 +205,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 			&i.LastLoginAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Type,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err
@@ -248,7 +257,7 @@ UPDATE users SET
     disabled = $4,
     updated_at = now()
 WHERE uuid = $1
-RETURNING id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at
+RETURNING id, uuid, username, name, email, password_hash, login_type, disabled, last_login_at, created_at, updated_at, type
 `
 
 type UpdateUserByUUIDParams struct {
@@ -278,6 +287,7 @@ func (q *Queries) UpdateUserByUUID(ctx context.Context, arg UpdateUserByUUIDPara
 		&i.LastLoginAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Type,
 	)
 	return i, err
 }

@@ -1,0 +1,278 @@
+<script lang="ts">
+  import { onMount } from 'svelte'
+  import {
+    fetchAPITokens,
+    createAPIToken,
+    revokeAPIToken,
+    fetchUserTokens,
+    createUserToken,
+    revokeUserToken,
+    type User,
+    type APIToken,
+    type IssuedAPIToken
+  } from '$lib/api'
+  import { isAdmin } from '$lib/auth'
+  import { formatTimestamp, toast } from '$lib/util'
+  import ErrorMessage from '$lib/components/ErrorMessage.svelte'
+  import Spinner from '$lib/components/Spinner.svelte'
+  import ActionsMenu from '$lib/components/ActionsMenu.svelte'
+  import SelectDropdown from '$lib/components/SelectDropdown.svelte'
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
+  import Plus from '@lucide/svelte/icons/plus'
+  import Copy from '@lucide/svelte/icons/copy'
+
+  let { serviceUser = null }: { serviceUser?: User | null } = $props()
+
+  let tokens = $state<APIToken[]>([])
+  let loading = $state(true)
+  let error = $state('')
+
+  // Create form.
+  let createDialog = $state<HTMLDialogElement>()
+  let name = $state('')
+  let expiresInDays = $state(7)
+  let role = $state('')
+  let saving = $state(false)
+  let formError = $state('')
+
+  const ROLE_OPTIONS = ['admin', 'operator', 'analyst', 'viewer']
+
+  // One-time secret reveal.
+  let secretDialog = $state<HTMLDialogElement>()
+  let issued = $state<IssuedAPIToken | null>(null)
+
+  // Revoke confirmation.
+  let revokeOpen = $state(false)
+  let selected = $state<APIToken | null>(null)
+  let revoking = $state(false)
+
+  type TokenStatus = { label: string; variant: 'success' | 'danger' | 'warning' }
+
+  function statusOf(token: APIToken): TokenStatus {
+    if (token.revoked_at) return { label: 'Revoked', variant: 'danger' }
+    if (token.expires_at && new Date(token.expires_at).getTime() < Date.now()) {
+      return { label: 'Expired', variant: 'warning' }
+    }
+    return { label: 'Active', variant: 'success' }
+  }
+
+  onMount(() => {
+    void load()
+  })
+
+  async function load() {
+    loading = true
+    error = ''
+    try {
+      tokens = (await (serviceUser ? fetchUserTokens(serviceUser.uuid) : fetchAPITokens())) || []
+    } catch (err) {
+      error = (err as Error).message || 'Failed to load tokens'
+    } finally {
+      loading = false
+    }
+  }
+
+  function openCreate() {
+    name = ''
+    expiresInDays = 7
+    role = ''
+    saving = false
+    formError = ''
+    createDialog?.showModal()
+  }
+
+  async function save(event: SubmitEvent) {
+    event.preventDefault()
+    saving = true
+    formError = ''
+    try {
+      const token = serviceUser ? await createUserToken(serviceUser.uuid, { name, expires_in_days: expiresInDays }) : await createAPIToken({
+        name,
+        expires_in_days: expiresInDays,
+        role: $isAdmin && role ? role : undefined
+      })
+      createDialog?.close()
+      issued = token
+      secretDialog?.showModal()
+      await load()
+    } catch (err) {
+      formError = (err as Error).message || 'Failed to create token'
+    } finally {
+      saving = false
+    }
+  }
+
+  async function copySecret() {
+    if (!issued) return
+    try {
+      await navigator.clipboard.writeText(issued.secret)
+      toast('Token copied to clipboard', 'API Token', { variant: 'success' })
+    } catch {
+      toast('Could not copy token', 'Clipboard', { variant: 'danger' })
+    }
+  }
+
+  function closeSecret() {
+    secretDialog?.close()
+    issued = null
+  }
+
+  function confirmRevoke(token: APIToken) {
+    selected = token
+    revokeOpen = true
+  }
+
+  async function doRevoke() {
+    if (!selected) return
+    revoking = true
+    try {
+      await (serviceUser ? revokeUserToken(serviceUser.uuid, selected.uuid) : revokeAPIToken(selected.uuid))
+      revokeOpen = false
+      selected = null
+      await load()
+    } catch (err) {
+      error = (err as Error).message || 'Failed to revoke token'
+    } finally {
+      revoking = false
+    }
+  }
+</script>
+
+<section class="vstack gap-4">
+  <header class="hstack justify-between mb-4">
+    <div>
+      <svelte:element this={serviceUser ? 'h2' : 'h1'} class="mb-2">{serviceUser ? `${serviceUser.name} · API Tokens` : 'API Tokens'}</svelte:element>
+      <p class="text-light">
+        {#if serviceUser}Tokens use this service account's current role bindings.{:else}Bearer tokens for the CLI and scripts. A token acts as you, with your permissions.{#if $isAdmin}{' '}
+          Admins can scope a token to a specific role.{/if}{/if}
+      </p>
+    </div>
+    <button type="button" class="gap-1" onclick={openCreate}>
+      <Plus size={16} aria-hidden="true" />
+      Create token
+    </button>
+  </header>
+
+  <ErrorMessage message={error} onClose={() => (error = '')} />
+
+  {#if loading}
+    <Spinner fill />
+  {:else}
+    <div class="table">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            {#if !serviceUser}<th>Role</th>{/if}
+            <th>Status</th>
+            <th>Last used</th>
+            <th>Expires</th>
+            <th>Created</th>
+            <th class="align-right"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each tokens as token}
+            {@const status = statusOf(token)}
+            <tr>
+              <td><strong>{token.name || 'Unnamed token'}</strong></td>
+              {#if !serviceUser}<td>{token.role || 'Acts as you'}</td>{/if}
+              <td><span class="badge" data-variant={status.variant}>{status.label}</span></td>
+              <td>{token.last_used_at ? formatTimestamp(token.last_used_at) : 'Never'}</td>
+              <td>{token.expires_at ? formatTimestamp(token.expires_at) : 'Never'}</td>
+              <td>{formatTimestamp(token.created_at)}</td>
+              <td class="align-right">
+                {#if token.revoked_at}
+                  <span class="text-light">—</span>
+                {:else}
+                  <ActionsMenu label={`Actions for ${token.name || 'token'}`}>
+                    <button role="menuitem" type="button" onclick={() => confirmRevoke(token)}>
+                      Revoke
+                    </button>
+                  </ActionsMenu>
+                {/if}
+              </td>
+            </tr>
+          {:else}
+            <tr><td colspan={serviceUser ? 6 : 7} class="align-center text-light">No API tokens yet</td></tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+</section>
+
+<!-- Create token -->
+<dialog bind:this={createDialog} closedby="any">
+  <form onsubmit={save}>
+    <header><h2>Create API token</h2></header>
+    <ErrorMessage message={formError} onClose={() => (formError = '')} />
+    <div class="vstack">
+      <label data-field>
+        Name
+        <input bind:value={name} placeholder="cli@laptop" />
+      </label>
+      <label data-field>
+        Expires in (days) <span class="req" aria-hidden="true">*</span>
+        <input type="number" min="1" max="106751" bind:value={expiresInDays} required />
+      </label>
+      {#if $isAdmin && !serviceUser}
+        <SelectDropdown
+          label="Role"
+          options={[
+            { value: '', label: 'Acts as you' },
+            ...ROLE_OPTIONS.map((r) => ({ value: r, label: r }))
+          ]}
+          bind:value={role}
+        />
+      {/if}
+    </div>
+    <footer>
+      <button type="button" class="outline" onclick={() => createDialog?.close()}>Cancel</button>
+      <button type="submit" class="gap-1" disabled={saving} aria-busy={saving ? 'true' : undefined} data-spinner="small">
+        {saving ? 'Creating...' : 'Create'}
+      </button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- One-time secret reveal -->
+<dialog bind:this={secretDialog} closedby="any" onclose={closeSecret}>
+  <form method="dialog">
+    <header><h2>Copy your token</h2></header>
+    <div class="vstack gap-3">
+      <div role="alert" data-variant="warning">
+        <p>This is the only time the token is shown. Copy it now and store it securely.</p>
+      </div>
+      <div class="hstack gap-2 items-center">
+        <code class="token-secret">{issued?.secret}</code>
+        <button type="button" class="small gap-1" onclick={copySecret}>
+          <Copy size={14} aria-hidden="true" />
+          Copy
+        </button>
+      </div>
+    </div>
+    <footer>
+      <button type="button" onclick={closeSecret}>Done</button>
+    </footer>
+  </form>
+</dialog>
+
+<ConfirmDialog
+  bind:open={revokeOpen}
+  title="Revoke token"
+  message="Revoke this token? Any CLI or script using it will immediately lose access."
+  confirmLabel="Revoke"
+  confirmingLabel="Revoking..."
+  confirming={revoking}
+  onConfirm={doRevoke}
+  onCancel={() => (selected = null)}
+/>
+
+<style>
+  .token-secret {
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+</style>

@@ -60,7 +60,7 @@ func (h *Handler) acquireSession(c echo.Context) (*simplesessions.Session, error
 // OIDC tokens, and re-checks the disabled flag before allowing the request through.
 func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		// Bearer API tokens authenticate as the owning user; a generic 401 hides why.
+		// Bearer tokens authenticate as their owning user or service account.
 		if secret, ok := bearerToken(c.Request()); ok {
 			user, err := h.c.AuthenticateToken(c.Request().Context(), secret)
 			if err != nil {
@@ -113,11 +113,15 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 		if err != nil {
 			return wrapError(http.StatusUnauthorized, "user no longer exists", err, nil)
 		}
+		if dbUser.Type == models.UserTypeService {
+			return wrapError(http.StatusUnauthorized, "service accounts cannot use interactive sessions", nil, nil)
+		}
 		if dbUser.Disabled {
 			_ = sess.Destroy()
 			return wrapError(http.StatusUnauthorized, "user is disabled", nil, nil)
 		}
 
+		user.Type = dbUser.Type
 		c.Set(contextUserKey, user)
 		c.Set(contextAuthMethodKey, authMethodSession)
 		return next(c)

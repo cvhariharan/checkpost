@@ -19,6 +19,7 @@
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import SelectDropdown from '$lib/components/SelectDropdown.svelte'
   import { canFrom, me } from '$lib/auth'
+  import APITokenManager from '$lib/components/APITokenManager.svelte'
   import Plus from '@lucide/svelte/icons/plus'
 
   let users = $state<User[]>([])
@@ -35,6 +36,9 @@
   let editing = $state<User | null>(null)
   let name = $state('')
   let email = $state('')
+  let serviceAccount = $state(false)
+  let tokenDialog = $state<HTMLDialogElement>()
+  let tokenUser = $state<User | null>(null)
   let disabled = $state(false)
   let saving = $state(false)
   let formError = $state('')
@@ -109,7 +113,7 @@
   }
 
   function isSystemUser(user: User) {
-    return user.login_type === 'standard'
+    return user.type !== 'service' && user.login_type === 'standard'
   }
 
   function openCreate() {
@@ -117,6 +121,7 @@
     editing = null
     name = ''
     email = ''
+    serviceAccount = false
     disabled = false
     roleBindings = []
     selectedRole = 'viewer'
@@ -130,6 +135,7 @@
     editing = user
     name = user.name || ''
     email = user.email || ''
+    serviceAccount = user.type === 'service'
     disabled = !!user.disabled
     roleBindings = []
     selectedRole = ''
@@ -162,9 +168,14 @@
         saved = await updateUser(editing.uuid, { name, email, disabled })
       } else {
         if (!canCreateUser) return
-        saved = await createUser({ name, email })
+        saved = await createUser({
+          name,
+          email: serviceAccount ? undefined : email,
+          type: serviceAccount ? 'service' : 'user',
+          role: selectedRole || undefined
+        })
       }
-      await syncRole(saved.uuid)
+      if (editing) await syncRole(saved.uuid)
       dialog?.close()
       await load()
     } catch (err) {
@@ -212,7 +223,7 @@
   <header class="hstack justify-between mb-4">
     <div>
       <h1 class="mb-2">Users</h1>
-      <p class="text-light">SSO accounts and the bootstrap admin</p>
+      <p class="text-light">User and service accounts</p>
     </div>
     {#if canCreateUser}
       <button type="button" class="gap-1" onclick={openCreate}>
@@ -253,7 +264,7 @@
                 {/if}
               </td>
               <td>{user.name || ''}</td>
-              <td>{user.login_type || ''}</td>
+              <td>{user.type === 'service' ? 'service account' : user.login_type || ''}</td>
               {#if canViewRoleBindings}<td>{userRoles[user.uuid] || 'No role'}</td>{/if}
               <td>{user.disabled ? 'Disabled' : 'Active'}</td>
               <td>{user.last_login_at ? formatTimestamp(user.last_login_at) : 'Never'}</td>
@@ -264,6 +275,9 @@
                   <span class="text-light">—</span>
                 {:else}
                   <ActionsMenu label={`Actions for ${user.username}`}>
+                    {#if canUpdateUser && user.type === 'service'}
+                      <button role="menuitem" type="button" onclick={() => { tokenUser = user; tokenDialog?.showModal() }}>API tokens</button>
+                    {/if}
                     {#if canUpdateUser}
                       <button role="menuitem" type="button" onclick={() => openEdit(user)}>Edit</button>
                     {/if}
@@ -289,23 +303,31 @@
     <header><h2>{editing ? 'Edit User' : 'Create User'}</h2></header>
     <ErrorMessage message={formError} onClose={() => (formError = '')} />
     <div class="vstack">
+      {#if !editing}
+        <label data-field class="hstack gap-2">
+          <input type="checkbox" role="switch" bind:checked={serviceAccount} onchange={(event) => { if (event.currentTarget.checked && !selectedRole) selectedRole = 'viewer' }} />
+          Service account
+        </label>
+      {/if}
       <label data-field>
         Name
-        <input bind:value={name} placeholder="Full name" />
+        <input bind:value={name} placeholder={serviceAccount ? 'Automation name' : 'Full name'} required={serviceAccount} />
       </label>
-      <label data-field>
-        Email {#if editing?.login_type !== 'standard'}<span class="req" aria-hidden="true">*</span>{/if}
-        <input
-          type="email"
-          bind:value={email}
-          required={editing?.login_type !== 'standard'}
-          placeholder="user@example.com"
-        />
-      </label>
+      {#if !serviceAccount}
+        <label data-field>
+          Email {#if editing?.login_type !== 'standard'}<span class="req" aria-hidden="true">*</span>{/if}
+          <input
+            type="email"
+            bind:value={email}
+            required={editing?.login_type !== 'standard'}
+            placeholder="user@example.com"
+          />
+        </label>
+      {/if}
       {#if canManageRoleBindings}
         <SelectDropdown
           label="Role"
-          options={[{ value: '', label: 'No role' }, ...roleOptions.map((role) => ({ value: role, label: role }))]}
+          options={[...(!serviceAccount ? [{ value: '', label: 'No role' }] : []), ...roleOptions.map((role) => ({ value: role, label: role }))]}
           bind:value={selectedRole}
           disabled={loadingRole}
         />
@@ -335,3 +357,16 @@
   onConfirm={doDelete}
   onCancel={() => (selected = null)}
 />
+
+<dialog bind:this={tokenDialog} class="tokens-dialog" closedby="any" onclose={() => (tokenUser = null)}>
+  {#if tokenUser}
+    {#key tokenUser.uuid}<APITokenManager serviceUser={tokenUser} />{/key}
+  {/if}
+  <footer><button type="button" onclick={() => tokenDialog?.close()}>Close</button></footer>
+</dialog>
+
+<style>
+  .tokens-dialog {
+    width: min(64rem, 94vw);
+  }
+</style>

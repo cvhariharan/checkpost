@@ -172,7 +172,7 @@ WITH filtered AS (
            machine_query_results.row_count, machine_query_results.dispatched_at,
            machine_query_results.completed_at, machine_query_results.created_at,
            machine_query_results.updated_at, machine_query_results.run_id,
-           users.uuid AS dispatcher_uuid, users.username AS dispatcher_username, users.name AS dispatcher_name
+           users.uuid AS dispatcher_uuid, users.username AS dispatcher_username, users.name AS dispatcher_name, users.type AS dispatcher_type
     FROM machine_query_results
     JOIN nodes ON nodes.id = machine_query_results.node_id
     LEFT JOIN users ON users.id = machine_query_results.created_by
@@ -181,7 +181,7 @@ WITH filtered AS (
 total AS (
     SELECT count(*) AS total_count FROM filtered
 )
-SELECT filtered.id, filtered.uuid, filtered.node_id, filtered.query, filtered.status, filtered.error, filtered.row_count, filtered.dispatched_at, filtered.completed_at, filtered.created_at, filtered.updated_at, filtered.run_id, filtered.dispatcher_uuid, filtered.dispatcher_username, filtered.dispatcher_name, total.total_count
+SELECT filtered.id, filtered.uuid, filtered.node_id, filtered.query, filtered.status, filtered.error, filtered.row_count, filtered.dispatched_at, filtered.completed_at, filtered.created_at, filtered.updated_at, filtered.run_id, filtered.dispatcher_uuid, filtered.dispatcher_username, filtered.dispatcher_name, filtered.dispatcher_type, total.total_count
 FROM filtered, total
 ORDER BY filtered.created_at DESC
 LIMIT $2 OFFSET $1
@@ -209,6 +209,7 @@ type ListMachineQueryResultsByNodeUUIDRow struct {
 	DispatcherUuid     uuid.NullUUID  `db:"dispatcher_uuid" json:"dispatcher_uuid"`
 	DispatcherUsername sql.NullString `db:"dispatcher_username" json:"dispatcher_username"`
 	DispatcherName     sql.NullString `db:"dispatcher_name" json:"dispatcher_name"`
+	DispatcherType     sql.NullString `db:"dispatcher_type" json:"dispatcher_type"`
 	TotalCount         int64          `db:"total_count" json:"total_count"`
 }
 
@@ -237,6 +238,7 @@ func (q *Queries) ListMachineQueryResultsByNodeUUID(ctx context.Context, arg Lis
 			&i.DispatcherUuid,
 			&i.DispatcherUsername,
 			&i.DispatcherName,
+			&i.DispatcherType,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

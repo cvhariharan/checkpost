@@ -611,7 +611,7 @@ type ProvidersResponse struct {
 
 type IssueTokenRequest struct {
 	Name          string `json:"name"`
-	ExpiresInDays int    `json:"expires_in_days" validate:"gte=0"`
+	ExpiresInDays int    `json:"expires_in_days" validate:"gte=0,lte=106751"`
 	// Role scopes the token to a built-in role (admin-only); empty acts as the owner.
 	Role string `json:"role" validate:"omitempty,oneof=admin operator analyst viewer"`
 }
@@ -624,8 +624,10 @@ type MeResponse struct {
 }
 
 type CreateUserRequest struct {
-	Name  string `json:"name"`
-	Email string `json:"email" validate:"required,email"`
+	Type  string `json:"type" validate:"omitempty,oneof=user service"`
+	Name  string `json:"name" validate:"required_if=Type service"`
+	Email string `json:"email" validate:"required_unless=Type service,omitempty,email"`
+	Role  string `json:"role" validate:"required_if=Type service,omitempty,oneof=admin operator analyst viewer"`
 }
 
 type UpdateUserRequest struct {

@@ -121,7 +121,9 @@ func (c *Core) AuthenticateToken(ctx context.Context, secret string) (models.Ses
 
 	c.touchTokenLastUsed(ctx, row)
 	su := SessionUserFor(toModelUser(user))
-	su.TokenRole = row.Role.String
+	if user.Type != models.UserTypeService {
+		su.TokenRole = row.Role.String
+	}
 	return su, nil
 }
 

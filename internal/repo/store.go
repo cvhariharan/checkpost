@@ -11,6 +11,7 @@ import (
 )
 
 type Store interface {
+	CreateUserWithRoleTx(ctx context.Context, params CreateUserWithRoleTxParams) (User, error)
 	Querier
 
 	CreatePolicyTx(ctx context.Context, params CreatePolicyTxParams) (Policy, error)
@@ -644,4 +645,29 @@ func loadNodesTx(ctx context.Context, q *Queries, nodeUUIDs []uuid.UUID) ([]Node
 		nodes = append(nodes, node)
 	}
 	return nodes, nil
+}
+
+type CreateUserWithRoleTxParams struct {
+	User CreateUserParams
+	Role string
+}
+
+func (s *PostgresStore) CreateUserWithRoleTx(ctx context.Context, params CreateUserWithRoleTxParams) (User, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, fmt.Errorf("begin create user transaction: %w", err)
+	}
+	defer tx.Rollback()
+	q := s.Queries.WithTx(tx)
+	user, err := q.CreateUser(ctx, params.User)
+	if err != nil {
+		return User{}, fmt.Errorf("create user: %w", err)
+	}
+	if _, err := q.CreateRoleBinding(ctx, CreateRoleBindingParams{UserID: sql.NullInt64{Int64: user.ID, Valid: true}, Role: params.Role}); err != nil {
+		return User{}, fmt.Errorf("create user role: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return User{}, fmt.Errorf("commit create user transaction: %w", err)
+	}
+	return user, nil
 }

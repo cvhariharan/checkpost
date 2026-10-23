@@ -556,6 +556,7 @@ func toModelNodeFromOwnerRow(row repo.ListNodesByOwnerRow) models.Node {
 
 func toModelUser(u repo.User) models.User {
 	return models.User{
+		Type:        u.Type,
 		ID:          u.ID,
 		UUID:        u.Uuid.String(),
 		Username:    u.Username,
@@ -625,7 +626,7 @@ func toModelMachineQueryResultRow(row repo.ListMachineQueryResultsByNodeUUIDRow)
 
 	return models.MachineQueryResult{
 		ID:           row.Uuid.String(),
-		DispatchedBy: toModelQueryDispatcher(row.DispatcherUuid, row.DispatcherUsername, row.DispatcherName),
+		DispatchedBy: toModelQueryDispatcher(row.DispatcherUuid, row.DispatcherUsername, row.DispatcherName, row.DispatcherType),
 		Query:        row.Query,
 		Status:       row.Status,
 		Timestamp:    timestamp,
@@ -687,21 +688,21 @@ func savedQueryCreator(name sql.NullString) string {
 	return "ghost"
 }
 
-func toModelQueryDispatcher(id uuid.NullUUID, username, name sql.NullString) *models.QueryDispatcher {
+func toModelQueryDispatcher(id uuid.NullUUID, username, name, userType sql.NullString) *models.QueryDispatcher {
 	if !id.Valid {
 		return nil
 	}
-	return toModelQueryDispatcherUser(repo.User{Uuid: id.UUID, Username: username.String, Name: name.String})
+	return toModelQueryDispatcherUser(repo.User{Uuid: id.UUID, Username: username.String, Name: name.String, Type: userType.String})
 }
 
 func toModelQueryDispatcherUser(user repo.User) *models.QueryDispatcher {
-	return &models.QueryDispatcher{UUID: user.Uuid.String(), Username: user.Username, Name: user.Name}
+	return &models.QueryDispatcher{UUID: user.Uuid.String(), Username: user.Username, Name: user.Name, Type: user.Type}
 }
 
 func toModelQueryRunListRow(row repo.ListQueryRunsRow) models.QueryRun {
 	return models.QueryRun{
 		ID:            row.Uuid.String(),
-		DispatchedBy:  toModelQueryDispatcher(row.DispatcherUuid, row.DispatcherUsername, row.DispatcherName),
+		DispatchedBy:  toModelQueryDispatcher(row.DispatcherUuid, row.DispatcherUsername, row.DispatcherName, row.DispatcherType),
 		Query:         row.Query,
 		Targets:       decodeQueryTargets(row.Targets),
 		HostCount:     int(row.HostCount),
@@ -734,7 +735,7 @@ func toModelQueryRunHost(row repo.ListMachineQueryResultsByRunUUIDRow) models.Qu
 func toModelQueryRun(run repo.GetQueryRunByUUIDRow, hostRows []repo.ListMachineQueryResultsByRunUUIDRow) models.QueryRun {
 	out := models.QueryRun{
 		ID:           run.Uuid.String(),
-		DispatchedBy: toModelQueryDispatcher(run.DispatcherUuid, run.DispatcherUsername, run.DispatcherName),
+		DispatchedBy: toModelQueryDispatcher(run.DispatcherUuid, run.DispatcherUsername, run.DispatcherName, run.DispatcherType),
 		Query:        run.Query,
 		Targets:      decodeQueryTargets(run.Targets),
 		HostCount:    len(hostRows),

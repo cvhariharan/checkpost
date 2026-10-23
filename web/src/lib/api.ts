@@ -84,6 +84,7 @@ export type Machine = {
 }
 
 export type QueryDispatcher = {
+ type?: 'user' | 'service'
   uuid: string
   username: string
   name: string
@@ -902,6 +903,7 @@ export function fetchOsquerySchema(): Promise<OsquerySchema> {
 // Authentication & authorization ------------------------------------------
 
 export type SessionUser = {
+ type?: 'user' | 'service'
   uuid: string
   username?: string
   name?: string
@@ -922,6 +924,7 @@ export type Providers = {
 }
 
 export type User = {
+ type?: 'user' | 'service'
   uuid: string
   username: string
   name?: string
@@ -1032,6 +1035,19 @@ export function revokeAPIToken(uuid: string) {
   )
 }
 
+// Admin management of tokens owned by service users.
+export function fetchUserTokens(uuid: string) {
+  return fetch(`${BASE_URL}/users/${encodeURIComponent(uuid)}/tokens`).then((r) => handleResponse<APIToken[]>(r))
+}
+
+export function createUserToken(uuid: string, payload: { name: string; expires_in_days: number }) {
+  return jsonRequest<IssuedAPIToken>(`/users/${encodeURIComponent(uuid)}/tokens`, 'POST', payload)
+}
+
+export function revokeUserToken(uuid: string, tokenUUID: string) {
+  return fetch(`${BASE_URL}/users/${encodeURIComponent(uuid)}/tokens/${encodeURIComponent(tokenUUID)}`, { method: 'DELETE' }).then((r) => handleResponse<unknown>(r))
+}
+
 // Enrollment secrets (tracked registry).
 export type EnrollmentSecret = {
   uuid: string
@@ -1077,7 +1093,9 @@ export function fetchUsers(opts: PageOpts = {}) {
 
 export function createUser(payload: {
   name?: string
-  email: string
+  email?: string
+  type?: 'user' | 'service'
+  role?: string
 }) {
   return jsonRequest<User>('/users', 'POST', payload)
 }

@@ -47,11 +47,26 @@ func (h *Handler) HandleCreateUser(c echo.Context) error {
 	if err := h.bindAndValidate(c, &req, nil); err != nil {
 		return err
 	}
+	if req.Role != "" {
+		user, err := h.currentUser(c)
+		if err != nil {
+			return wrapError(http.StatusUnauthorized, "authentication required", err, nil)
+		}
+		allowed, err := h.c.Can(c.Request().Context(), user.UUID, core.ResourceRoleBinding, core.ActionCreate)
+		if err != nil {
+			return wrapError(http.StatusInternalServerError, "could not check permissions", err, nil)
+		}
+		if !allowed {
+			return wrapError(http.StatusForbidden, "assigning a role requires role binding permissions", nil, nil)
+		}
+	}
 	user, err := h.c.CreateUser(c.Request().Context(), models.CreateUser{
-		Name:  req.Name,
-		Email: req.Email,
+		Name: req.Name, Email: req.Email, Type: req.Type, Role: req.Role,
 	})
 	if err != nil {
+		if errors.Is(err, core.ErrInvalidUser) {
+			return wrapError(http.StatusBadRequest, err.Error(), err, nil)
+		}
 		return wrapError(http.StatusInternalServerError, "could not create user", err, nil)
 	}
 	return c.JSON(http.StatusCreated, user)

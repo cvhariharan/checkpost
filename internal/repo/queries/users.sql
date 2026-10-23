@@ -5,9 +5,10 @@ INSERT INTO users (
     email,
     password_hash,
     login_type,
-    disabled
+    disabled,
+    type
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, COALESCE(sqlc.narg(user_type)::text, 'user')
 )
 RETURNING *;
 

@@ -293,6 +293,9 @@ func runServer(flags *rootFlags) error {
 
 	api.GET("/users", h.HandleListUsers, h.Authorize(core.ResourceUser, core.ActionView))
 	api.POST("/users", h.HandleCreateUser, h.Authorize(core.ResourceUser, core.ActionCreate))
+	api.GET("/users/:id/tokens", h.HandleListUserTokens, h.SessionOnly, h.Authorize(core.ResourceUser, core.ActionView))
+	api.POST("/users/:id/tokens", h.HandleIssueUserToken, h.SessionOnly, h.Authorize(core.ResourceUser, core.ActionUpdate))
+	api.DELETE("/users/:id/tokens/:token_id", h.HandleRevokeUserToken, h.SessionOnly, h.Authorize(core.ResourceUser, core.ActionUpdate))
 	api.PUT("/users/:id", h.HandleUpdateUser, h.Authorize(core.ResourceUser, core.ActionUpdate))
 	api.DELETE("/users/:id", h.HandleDeleteUser, h.Authorize(core.ResourceUser, core.ActionDelete))
 
