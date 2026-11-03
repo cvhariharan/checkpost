@@ -137,7 +137,7 @@ func runServer(flags *rootFlags) error {
 			return fmt.Errorf("could not initialize smtp notifier: %w", err)
 		}
 		alerts.RegisterNotifier(smtpNotifier)
-		alerts.RegisterNotifier(alerts.NewWebhookNotifier())
+		alerts.RegisterNotifier(alerts.NewWebhookNotifier(cfg.AppConfig.RootURL))
 
 		alertEngine := alerts.NewEngine(store, logger)
 		alertEngine.Start()
