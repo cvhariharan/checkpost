@@ -25,6 +25,7 @@ type webhookPayloadOwner struct {
 
 type webhookPayloadRule struct {
 	UUID        string `json:"uuid,omitempty"`
+	URL         string `json:"url,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Source      string `json:"source"`
@@ -50,12 +51,14 @@ type webhookPayload struct {
 
 // WebhookNotifier sends alert groups as JSON POST requests to per-target URLs.
 type WebhookNotifier struct {
-	client *http.Client
+	client  *http.Client
+	rootURL string
 }
 
-func NewWebhookNotifier() *WebhookNotifier {
+func NewWebhookNotifier(rootURL string) *WebhookNotifier {
 	return &WebhookNotifier{
-		client: &http.Client{Timeout: 10 * time.Second},
+		client:  &http.Client{Timeout: 10 * time.Second},
+		rootURL: rootURL,
 	}
 }
 
@@ -93,9 +96,10 @@ func (w *WebhookNotifier) Send(ctx context.Context, kind EventKind, target Targe
 
 	// One request per host preserves per-device delivery and unambiguous owner
 	// attribution in the payload.
+	ruleURL := w.ruleURL(rule.UUID)
 	var errs []error
 	for _, group := range groupByHost(alerts, rule.UUID) {
-		if err := w.post(ctx, c.URL, buildWebhookPayload(kind, rule, group)); err != nil {
+		if err := w.post(ctx, c.URL, buildWebhookPayload(kind, rule, group, ruleURL)); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -128,12 +132,13 @@ func (w *WebhookNotifier) post(ctx context.Context, endpoint string, payload web
 	return nil
 }
 
-func buildWebhookPayload(kind EventKind, rule Rule, alerts []Alert) webhookPayload {
+func buildWebhookPayload(kind EventKind, rule Rule, alerts []Alert, ruleURL string) webhookPayload {
 	payload := webhookPayload{
 		Kind:   kind,
 		Status: kindLabel(kind),
 		Rule: webhookPayloadRule{
 			UUID:        rule.UUID,
+			URL:         ruleURL,
 			Name:        rule.Name,
 			Description: rule.Description,
 			Source:      rule.Source,
@@ -153,6 +158,20 @@ func buildWebhookPayload(kind EventKind, rule Rule, alerts []Alert) webhookPaylo
 		})
 	}
 	return payload
+}
+
+func (w *WebhookNotifier) ruleURL(uuid string) string {
+	if w.rootURL == "" || uuid == "" {
+		return ""
+	}
+	u, err := url.Parse(w.rootURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return ""
+	}
+	u = u.JoinPath("alerts")
+	u.RawQuery = url.Values{"rule": {uuid}}.Encode()
+	u.Fragment = ""
+	return u.String()
 }
 
 // machineFromAlerts returns the machine details of the first alert

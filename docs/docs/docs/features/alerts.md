@@ -20,6 +20,10 @@ The **Rules** tab defines what to watch. Checkpost currently supports two source
 
 The **Targets** tab configures webhook or SMTP delivery. SMTP uses the global relay under `[alerts.smtp]`. A target's recipients may be literal addresses, `user-group:<name>`, or `owner`, which resolves to the affected machine owner's email.
 
+### Webhook rule links
+
+Firing and resolved webhook notifications include `rule.url`, a link to the rule's alert instances at `<app.root_url>/alerts?rule=<rule UUID>`. Set `app.root_url` to the public URL of your Checkpost installation so recipients can open the link. The field is omitted when the root URL or rule UUID is unavailable.
+
 ## How evaluation works
 
 The engine wakes on a short internal tick and evaluates each rule that is due according to its **evaluation interval**. On every evaluation it re-runs the rule's source query. The current set of matches is then reconciled against the rule's persisted state:
