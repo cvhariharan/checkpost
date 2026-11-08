@@ -197,14 +197,8 @@ export type YaraScanTarget = {
   updated_at?: string
 }
 
-export type MachinePolicyPosture = {
-  uuid?: string
-  name?: string
-  title?: string
-  description?: string
-  severity?: string
+export type MachinePolicyPosture = Policy & {
   response?: 'passing' | 'failing' | 'unknown' | string
-  resolution?: string
   stale?: boolean
   last_error?: string
   checked_at?: string

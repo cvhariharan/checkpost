@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createPolicy, fetchGroups, updatePolicy, type Group, type Policy } from '$lib/api'
+  import { canFrom, me } from '$lib/auth'
   import ErrorMessage from './ErrorMessage.svelte'
   import MultiSelectDropdown from './MultiSelectDropdown.svelte'
   import SelectDropdown from './SelectDropdown.svelte'
@@ -17,6 +18,8 @@
     onClose?: () => void
     onSaved?: () => void
   } = $props()
+
+  const readonly = $derived(!canFrom($me, 'policy', policy ? 'update' : 'create'))
 
   const platformOptions = [
     { value: 'all', label: 'All' },
@@ -48,7 +51,7 @@
     if (preparedFor !== key) {
       loadForm(policy)
       preparedFor = key
-      loadGroups()
+      if (!readonly) loadGroups()
     }
     if (!dialog.open) dialog.showModal()
   })
@@ -87,6 +90,7 @@
 
   async function savePolicy(event: SubmitEvent) {
     event.preventDefault()
+    if (readonly) return
     isSubmitting = true
     error = ''
     if (!query.trim()) {
@@ -111,7 +115,7 @@
 <dialog bind:this={dialog} onclose={handleClose} closedby="any">
   <form bind:this={formEl} onsubmit={savePolicy}>
     <header>
-      <h2>{policy ? 'Edit Policy' : 'Create Policy'}</h2>
+      <h2>{readonly ? 'View Policy' : policy ? 'Edit Policy' : 'Create Policy'}</h2>
     </header>
 
     <ErrorMessage message={error} onClose={() => (error = '')} />
@@ -119,13 +123,14 @@
     <div class="vstack">
       <label data-field>
         Name <span class="req" aria-hidden="true">*</span>
-        <input bind:value={title} required placeholder="Policy name" />
+        <input bind:value={title} {readonly} required placeholder="Policy name" />
       </label>
 
       <label data-field>
         Query <span class="req" aria-hidden="true">*</span>
         <SqlEditor
           bind:value={query}
+          disabled={readonly}
           minLines={7}
           placeholder="SELECT 1 FROM disk_encryption WHERE encrypted = 1;"
           ariaLabel="Policy SQL query"
@@ -138,20 +143,20 @@
 
       <label data-field>
         Description
-        <textarea bind:value={description} rows="3" placeholder="What this policy checks"></textarea>
+        <textarea bind:value={description} {readonly} rows="3" placeholder="What this policy checks"></textarea>
       </label>
 
       <label data-field>
         Resolution
-        <textarea bind:value={resolution} rows="3" placeholder="How to resolve failing machines"></textarea>
+        <textarea bind:value={resolution} {readonly} rows="3" placeholder="How to resolve failing machines"></textarea>
       </label>
 
       <div class="row">
         <div data-field class="col-6">
-          <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} />
+          <SelectDropdown label="Platform" options={platformOptions} bind:value={platform} disabled={readonly} />
         </div>
         <div data-field class="col-6">
-          <SelectDropdown label="Severity" options={severityOptions} bind:value={severity} />
+          <SelectDropdown label="Severity" options={severityOptions} bind:value={severity} disabled={readonly} />
         </div>
       </div>
 
@@ -160,33 +165,45 @@
         <small data-hint
           >{groupIds.length === 0 ? 'All machines for this platform' : `${groupIds.length} groups selected`}</small
         >
-        <MultiSelectDropdown
-          label="Groups"
-          options={availableGroups}
-          bind:value={groupIds}
-          placeholder="All machines for this platform"
-          searchPlaceholder="Search groups..."
-          emptyLabel="No groups available yet"
-        />
+        {#if readonly}
+          {#if policy?.groups?.length}
+            <ul>
+              {#each policy.groups as group}
+                <li>{group.name}</li>
+              {/each}
+            </ul>
+          {/if}
+        {:else}
+          <MultiSelectDropdown
+            label="Groups"
+            options={availableGroups}
+            bind:value={groupIds}
+            placeholder="All machines for this platform"
+            searchPlaceholder="Search groups..."
+            emptyLabel="No groups available yet"
+          />
+        {/if}
       </div>
 
       <label>
-        <input type="checkbox" bind:checked={enabled} />
+        <input type="checkbox" bind:checked={enabled} disabled={readonly} />
         Enabled
       </label>
     </div>
 
     <footer>
-      <button type="button" class="outline" onclick={() => dialog?.close()}>Cancel</button>
-      <button type="submit" class="gap-1" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined} data-spinner="small">
-        {isSubmitting
-          ? policy
-            ? 'Updating...'
-            : 'Creating...'
-          : policy
-            ? 'Update'
-            : 'Create'}
-      </button>
+      <button type="button" class="outline" onclick={() => dialog?.close()}>{readonly ? 'Close' : 'Cancel'}</button>
+      {#if !readonly}
+        <button type="submit" class="gap-1" disabled={isSubmitting} aria-busy={isSubmitting ? 'true' : undefined} data-spinner="small">
+          {isSubmitting
+            ? policy
+              ? 'Updating...'
+              : 'Creating...'
+            : policy
+              ? 'Update'
+              : 'Create'}
+        </button>
+      {/if}
     </footer>
   </form>
 </dialog>

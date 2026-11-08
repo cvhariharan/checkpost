@@ -38,6 +38,7 @@
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte'
   import ErrorMessage from '$lib/components/ErrorMessage.svelte'
   import Pagination from '$lib/components/Pagination.svelte'
+  import PolicyFormDialog from '$lib/components/PolicyFormDialog.svelte'
   import Spinner from '$lib/components/Spinner.svelte'
   import BadgeList from '$lib/components/BadgeList.svelte'
   import SqlEditor from '$lib/components/SqlEditor.svelte'
@@ -64,6 +65,8 @@
   let queryResults = $state<AdHocQueryResults | null>(null)
   let queryResultsLoading = $state(false)
   let policyPosture = $state<MachinePolicyPosture[]>([])
+  let selectedPolicy = $state<MachinePolicyPosture | null>(null)
+  let policyOpen = $state(false)
   let loading = $state(true)
   let historyLoading = $state(false)
   let executing = $state(false)
@@ -139,10 +142,22 @@
 
   function switchMachine(id: string) {
     loadedMachineId = id
+    policyOpen = false
+    selectedPolicy = null
     stopPolling()
     editing = false
     currentQueryPage = 1
     loadMachine()
+  }
+
+  function openPolicyDetails(policy: MachinePolicyPosture) {
+    selectedPolicy = policy
+    policyOpen = true
+  }
+
+  async function handlePolicySaved() {
+    policyOpen = false
+    await loadMachine()
   }
 
   async function loadMachine() {
@@ -676,7 +691,9 @@
                 <tr>
                   <td>
                     <span class="policy-title">
-                      <strong>{policy.name || policy.title}</strong>
+                      <button type="button" class="cell-link" onclick={() => openPolicyDetails(policy)}>
+                        {policy.name || policy.title}
+                      </button>
                       <span class="severity-pill" data-severity={policy.severity || 'medium'}>{policy.severity || 'medium'}</span>
                     </span>
                     {#if policy.description}<p class="text-light">{policy.description}</p>{/if}
@@ -803,6 +820,13 @@
     </ot-tabs>
   {/if}
 </section>
+
+<PolicyFormDialog
+  open={policyOpen}
+  policy={selectedPolicy}
+  onClose={() => (policyOpen = false)}
+  onSaved={handlePolicySaved}
+/>
 
 <ConfirmDialog
   bind:open={deleteDialogOpen}

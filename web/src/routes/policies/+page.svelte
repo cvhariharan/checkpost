@@ -115,8 +115,7 @@
     formOpen = true
   }
 
-  function openEdit(policy: Policy) {
-    if (!canUpdatePolicy) return
+  function openDetails(policy: Policy) {
     editingPolicy = policy
     formOpen = true
   }
@@ -169,7 +168,7 @@
 
   async function openPolicyByUuid(uuid: string) {
     try {
-      openMachinesModal(await fetchPolicy(uuid))
+      openDetails(await fetchPolicy(uuid))
     } catch (err) {
       error = (err as Error).message || 'Failed to load policy'
       clearDeepLink()
@@ -230,7 +229,7 @@
           {#each sortedPolicies as policy}
             <tr>
               <td>
-                <button type="button" class="cell-link" onclick={() => openMachinesModal(policy)}>
+                <button type="button" class="cell-link" onclick={() => openDetails(policy)}>
                   {policy.name || policy.title || 'Untitled'}
                 </button>
                 {#if policy.uuid}
@@ -255,17 +254,16 @@
               <td class="align-right">{policy.unknown_count || 0}</td>
               <td>{formatTimestamp(policy.last_count_updated_at)}</td>
               <td class="align-right">
-                {#if canUpdatePolicy || canDeletePolicy}
-                  <ActionsMenu label={`Actions for ${policy.name || policy.title || 'policy'}`}>
-                    {#if canUpdatePolicy}
-                      <button role="menuitem" type="button" onclick={() => openEdit(policy)}>Edit</button>
-                    {/if}
-                    {#if canUpdatePolicy && canDeletePolicy}<hr />{/if}
-                    {#if canDeletePolicy}
-                      <button role="menuitem" type="button" onclick={() => confirmDelete(policy)}>Delete</button>
-                    {/if}
-                  </ActionsMenu>
-                {/if}
+                <ActionsMenu label={`Actions for ${policy.name || policy.title || 'policy'}`}>
+                  <button role="menuitem" type="button" onclick={() => openMachinesModal(policy)}>Summary</button>
+                  {#if canUpdatePolicy}
+                    <button role="menuitem" type="button" onclick={() => openDetails(policy)}>Edit</button>
+                  {/if}
+                  {#if canDeletePolicy}<hr />{/if}
+                  {#if canDeletePolicy}
+                    <button role="menuitem" type="button" onclick={() => confirmDelete(policy)}>Delete</button>
+                  {/if}
+                </ActionsMenu>
               </td>
             </tr>
           {:else}
@@ -290,7 +288,10 @@
 <PolicyFormDialog
   open={formOpen}
   policy={editingPolicy}
-  onClose={() => (formOpen = false)}
+  onClose={() => {
+    formOpen = false
+    clearDeepLink()
+  }}
   onSaved={handleSaved}
 />
 
@@ -299,7 +300,6 @@
   policy={machinesPolicy}
   onClose={() => {
     machinesPolicy = null
-    clearDeepLink()
   }}
 />
 
