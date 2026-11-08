@@ -21,14 +21,10 @@ import (
 
 const testOwnerUUID = "11111111-1111-1111-1111-111111111111"
 
-// fakeEnrollStore satisfies repo.Store, serving the active anonymous and owned
-// enrollment secrets the bootstrap handlers read; all other methods are unused.
+// fakeEnrollStore satisfies repo.Store, serving the active owned enrollment
+// secret the bootstrap handlers read; all other methods are unused.
 type fakeEnrollStore struct {
 	repo.Store
-}
-
-func (fakeEnrollStore) GetActiveAnonymousEnrollmentSecret(context.Context) (repo.EnrollmentSecret, error) {
-	return repo.EnrollmentSecret{ID: 1, SecretID: make([]byte, 16), Type: "anonymous"}, nil
 }
 
 func (fakeEnrollStore) GetUserByUUID(context.Context, uuid.UUID) (repo.User, error) {
@@ -139,7 +135,7 @@ func TestOsqueryBootstrapScript(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"TLS_HOSTNAME='checkpost.example.com'",
-		"ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-'" + core.EnrollmentSecretPrefix,
+		"ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-''}",
 		"--enroll_tls_endpoint=/api/v1/osquery/enroll",
 		"install_osquery_if_missing",
 		"TARBALL_AMD64_URL='https://packages.example/osquery'",

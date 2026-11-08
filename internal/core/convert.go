@@ -774,6 +774,7 @@ func toModelEnrollmentSecret(row repo.ListEnrollmentSecretsRow) models.Enrollmen
 		UUID:         row.Uuid.String(),
 		SecretID:     hex.EncodeToString(row.SecretID),
 		Type:         row.Type,
+		Name:         row.Name.String,
 		GeneratedBy:  row.GeneratedBy,
 		MachineCount: int(row.MachineCount),
 		RevokedAt:    timePtrFromNull(row.RevokedAt),

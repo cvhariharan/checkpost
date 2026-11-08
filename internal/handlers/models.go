@@ -177,6 +177,10 @@ type GetRequest struct {
 	ID string `param:"id" validate:"required,uuid"`
 }
 
+type CreateBulkEnrollmentSecretRequest struct {
+	Name string `json:"name" validate:"required,max=255"`
+}
+
 type UpdateMachineRequest struct {
 	ID          string `param:"id" validate:"required,uuid"`
 	DisplayName string `json:"display_name" validate:"max=255"`
@@ -547,13 +551,9 @@ type OsqueryBootstrapResponse struct {
 	CheckpostURL string   `json:"checkpost_url"`
 	TLSHostname  string   `json:"tls_hostname"`
 	Warnings     []string `json:"warnings"`
-	// Owner, when set, is the user the install command is attributed to. Nil for
-	// an anonymous install.
+	// Owner, when set, is the user the install command is attributed to.
 	Owner     *OsqueryBootstrapOwner     `json:"owner,omitempty"`
 	Platforms []OsqueryBootstrapPlatform `json:"platforms"`
-	// AnonymousAvailable reports whether an active anonymous secret exists, so the
-	// generic (shareable) command can actually enroll.
-	AnonymousAvailable bool `json:"anonymous_available"`
 }
 
 // OsqueryBootstrapOwner identifies the user an owner-bound install registers to.
@@ -566,8 +566,7 @@ type OsqueryBootstrapPlatform struct {
 	Key     string `json:"key"`
 	Label   string `json:"label"`
 	Command string `json:"command"`
-	// GenericCommand is the install command with no owner secret, suitable for
-	// sharing. Equals Command for an anonymous profile.
+	// GenericCommand has no embedded secret; the operator supplies a bulk token.
 	GenericCommand    string                    `json:"generic_command"`
 	ScriptURL         string                    `json:"script_url"`
 	VerifyCommand     string                    `json:"verify_command"`

@@ -18,18 +18,20 @@ INSERT INTO enrollment_secrets (
     secret_id,
     type,
     owner_user_uuid,
-    created_by
+    created_by,
+    name
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
-RETURNING id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at
+RETURNING id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at, name
 `
 
 type CreateEnrollmentSecretParams struct {
-	SecretID      []byte        `db:"secret_id" json:"secret_id"`
-	Type          string        `db:"type" json:"type"`
-	OwnerUserUuid uuid.NullUUID `db:"owner_user_uuid" json:"owner_user_uuid"`
-	CreatedBy     sql.NullInt64 `db:"created_by" json:"created_by"`
+	SecretID      []byte         `db:"secret_id" json:"secret_id"`
+	Type          string         `db:"type" json:"type"`
+	OwnerUserUuid uuid.NullUUID  `db:"owner_user_uuid" json:"owner_user_uuid"`
+	CreatedBy     sql.NullInt64  `db:"created_by" json:"created_by"`
+	Name          sql.NullString `db:"name" json:"name"`
 }
 
 func (q *Queries) CreateEnrollmentSecret(ctx context.Context, arg CreateEnrollmentSecretParams) (EnrollmentSecret, error) {
@@ -38,6 +40,7 @@ func (q *Queries) CreateEnrollmentSecret(ctx context.Context, arg CreateEnrollme
 		arg.Type,
 		arg.OwnerUserUuid,
 		arg.CreatedBy,
+		arg.Name,
 	)
 	var i EnrollmentSecret
 	err := row.Scan(
@@ -50,6 +53,7 @@ func (q *Queries) CreateEnrollmentSecret(ctx context.Context, arg CreateEnrollme
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Name,
 	)
 	return i, err
 }
@@ -71,31 +75,8 @@ func (q *Queries) DeleteUnusedOwnedEnrollmentSecrets(ctx context.Context, cutoff
 	return result.RowsAffected()
 }
 
-const getActiveAnonymousEnrollmentSecret = `-- name: GetActiveAnonymousEnrollmentSecret :one
-SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at FROM enrollment_secrets
-WHERE type = 'anonymous' AND revoked_at IS NULL
-LIMIT 1
-`
-
-func (q *Queries) GetActiveAnonymousEnrollmentSecret(ctx context.Context) (EnrollmentSecret, error) {
-	row := q.db.QueryRowContext(ctx, getActiveAnonymousEnrollmentSecret)
-	var i EnrollmentSecret
-	err := row.Scan(
-		&i.ID,
-		&i.Uuid,
-		&i.SecretID,
-		&i.Type,
-		&i.OwnerUserUuid,
-		&i.CreatedBy,
-		&i.RevokedAt,
-		&i.RevokedBy,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getActiveOwnedEnrollmentSecret = `-- name: GetActiveOwnedEnrollmentSecret :one
-SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at FROM enrollment_secrets
+SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at, name FROM enrollment_secrets
 WHERE type = 'owned' AND owner_user_uuid = $1 AND revoked_at IS NULL
 LIMIT 1
 `
@@ -113,12 +94,13 @@ func (q *Queries) GetActiveOwnedEnrollmentSecret(ctx context.Context, ownerUserU
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Name,
 	)
 	return i, err
 }
 
 const getEnrollmentSecretBySecretID = `-- name: GetEnrollmentSecretBySecretID :one
-SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at FROM enrollment_secrets WHERE secret_id = $1
+SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at, name FROM enrollment_secrets WHERE secret_id = $1
 `
 
 func (q *Queries) GetEnrollmentSecretBySecretID(ctx context.Context, secretID []byte) (EnrollmentSecret, error) {
@@ -134,12 +116,13 @@ func (q *Queries) GetEnrollmentSecretBySecretID(ctx context.Context, secretID []
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Name,
 	)
 	return i, err
 }
 
 const getEnrollmentSecretByUUID = `-- name: GetEnrollmentSecretByUUID :one
-SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at FROM enrollment_secrets WHERE uuid = $1
+SELECT id, uuid, secret_id, type, owner_user_uuid, created_by, revoked_at, revoked_by, created_at, name FROM enrollment_secrets WHERE uuid = $1
 `
 
 func (q *Queries) GetEnrollmentSecretByUUID(ctx context.Context, argUuid uuid.UUID) (EnrollmentSecret, error) {
@@ -155,13 +138,14 @@ func (q *Queries) GetEnrollmentSecretByUUID(ctx context.Context, argUuid uuid.UU
 		&i.RevokedAt,
 		&i.RevokedBy,
 		&i.CreatedAt,
+		&i.Name,
 	)
 	return i, err
 }
 
 const listEnrollmentSecrets = `-- name: ListEnrollmentSecrets :many
 SELECT
-    enrollment_secrets.id, enrollment_secrets.uuid, enrollment_secrets.secret_id, enrollment_secrets.type, enrollment_secrets.owner_user_uuid, enrollment_secrets.created_by, enrollment_secrets.revoked_at, enrollment_secrets.revoked_by, enrollment_secrets.created_at,
+    enrollment_secrets.id, enrollment_secrets.uuid, enrollment_secrets.secret_id, enrollment_secrets.type, enrollment_secrets.owner_user_uuid, enrollment_secrets.created_by, enrollment_secrets.revoked_at, enrollment_secrets.revoked_by, enrollment_secrets.created_at, enrollment_secrets.name,
     COALESCE(NULLIF(generator.email, ''), NULLIF(generator.name, ''), generator.username, '') AS generated_by,
     (SELECT count(*) FROM nodes WHERE nodes.enrollment_secret_id = enrollment_secrets.id) AS machine_count
 FROM enrollment_secrets
@@ -170,17 +154,18 @@ ORDER BY enrollment_secrets.created_at DESC
 `
 
 type ListEnrollmentSecretsRow struct {
-	ID            int64         `db:"id" json:"id"`
-	Uuid          uuid.UUID     `db:"uuid" json:"uuid"`
-	SecretID      []byte        `db:"secret_id" json:"secret_id"`
-	Type          string        `db:"type" json:"type"`
-	OwnerUserUuid uuid.NullUUID `db:"owner_user_uuid" json:"owner_user_uuid"`
-	CreatedBy     sql.NullInt64 `db:"created_by" json:"created_by"`
-	RevokedAt     sql.NullTime  `db:"revoked_at" json:"revoked_at"`
-	RevokedBy     sql.NullInt64 `db:"revoked_by" json:"revoked_by"`
-	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
-	GeneratedBy   string        `db:"generated_by" json:"generated_by"`
-	MachineCount  int64         `db:"machine_count" json:"machine_count"`
+	ID            int64          `db:"id" json:"id"`
+	Uuid          uuid.UUID      `db:"uuid" json:"uuid"`
+	SecretID      []byte         `db:"secret_id" json:"secret_id"`
+	Type          string         `db:"type" json:"type"`
+	OwnerUserUuid uuid.NullUUID  `db:"owner_user_uuid" json:"owner_user_uuid"`
+	CreatedBy     sql.NullInt64  `db:"created_by" json:"created_by"`
+	RevokedAt     sql.NullTime   `db:"revoked_at" json:"revoked_at"`
+	RevokedBy     sql.NullInt64  `db:"revoked_by" json:"revoked_by"`
+	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
+	Name          sql.NullString `db:"name" json:"name"`
+	GeneratedBy   string         `db:"generated_by" json:"generated_by"`
+	MachineCount  int64          `db:"machine_count" json:"machine_count"`
 }
 
 func (q *Queries) ListEnrollmentSecrets(ctx context.Context) ([]ListEnrollmentSecretsRow, error) {
@@ -202,6 +187,7 @@ func (q *Queries) ListEnrollmentSecrets(ctx context.Context) ([]ListEnrollmentSe
 			&i.RevokedAt,
 			&i.RevokedBy,
 			&i.CreatedAt,
+			&i.Name,
 			&i.GeneratedBy,
 			&i.MachineCount,
 		); err != nil {
@@ -298,6 +284,25 @@ type RevokeEnrollmentSecretByUUIDParams struct {
 
 func (q *Queries) RevokeEnrollmentSecretByUUID(ctx context.Context, arg RevokeEnrollmentSecretByUUIDParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, revokeEnrollmentSecretByUUID, arg.RevokedBy, arg.Uuid)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const revokeOwnedEnrollmentSecretByID = `-- name: RevokeOwnedEnrollmentSecretByID :execrows
+UPDATE enrollment_secrets
+SET revoked_at = now(), revoked_by = $1
+WHERE id = $2 AND type = 'owned' AND revoked_at IS NULL
+`
+
+type RevokeOwnedEnrollmentSecretByIDParams struct {
+	RevokedBy sql.NullInt64 `db:"revoked_by" json:"revoked_by"`
+	ID        int64         `db:"id" json:"id"`
+}
+
+func (q *Queries) RevokeOwnedEnrollmentSecretByID(ctx context.Context, arg RevokeOwnedEnrollmentSecretByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeOwnedEnrollmentSecretByID, arg.RevokedBy, arg.ID)
 	if err != nil {
 		return 0, err
 	}

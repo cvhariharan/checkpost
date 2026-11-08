@@ -3,6 +3,7 @@ set -euo pipefail
 
 TLS_HOSTNAME={{ sh .TLSHostname }}
 ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-{{ sh .EnrollmentKey }}}
+ENROLL_GROUPS="${CHECKPOST_GROUPS:-}"
 PACKAGE_URL={{ sh .MacOSPKGUniversalURL }}
 PACKAGE_SHA256={{ sh .MacOSPKGUniversalSHA256 }}
 FLAGS_PATH="/private/var/osquery/osquery.flags"
@@ -65,7 +66,11 @@ install_osquery_if_missing() {
 
 write_checkpost_config() {
   mkdir -p /private/var/osquery
-  printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
+  if [ -n "${ENROLL_GROUPS}" ]; then
+    printf '%s|groups=%s' "${ENROLL_SECRET}" "${ENROLL_GROUPS}" > "${SECRET_PATH}"
+  else
+    printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
+  fi
   chmod 600 "${SECRET_PATH}"
 
   cat > "${FLAGS_PATH}" <<EOF

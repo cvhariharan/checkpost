@@ -43,7 +43,14 @@ Requires Docker. Starts Checkpost + Postgres:
 docker compose up
 ```
 
-Open http://localhost:1323 and log in with the default credentials (`checkpost_admin` / `checkpost_password`). Enrollment key defaults to `secret-key`.
+Open http://localhost:1323 and log in with the default credentials (`checkpost_admin` / `checkpost_password`). To enroll hosts, create a bulk enrollment key under Settings → Enrollment keys and run its install command (optionally with `CHECKPOST_GROUPS=<group>` to auto-join existing groups at enrollment).
+
+In the dev stack (`make dev`), each osquery container prompts for that key. Attach and paste it at the prompt (detach with Ctrl-P Ctrl-Q):
+
+```sh
+docker compose -f dev/docker-compose.yml attach osquery-debian
+docker compose -f dev/docker-compose.yml attach osquery-fedora
+```
 
 ### TLS
 

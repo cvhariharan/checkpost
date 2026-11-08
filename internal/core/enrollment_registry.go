@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,17 +18,19 @@ import (
 )
 
 const (
-	enrollmentTypeAnonymous = "anonymous"
-	enrollmentTypeOwned     = "owned"
+	enrollmentTypeOwned = "owned"
+	enrollmentTypeBulk  = "bulk"
 )
 
-var ErrEnrollmentSecretNotFound = errors.New("enrollment secret not found")
+var (
+	ErrEnrollmentSecretNotFound = errors.New("enrollment secret not found")
+	ErrEnrollmentSecretName     = errors.New("enrollment secret name required")
+)
 
-func (c *Core) GenerateAnonymousEnrollmentSecret(ctx context.Context, createdByUserUUID string) error {
-	if _, err := c.store.GetActiveAnonymousEnrollmentSecret(ctx); err == nil {
-		return nil
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("get anonymous enrollment secret: %w", err)
+func (c *Core) CreateBulkEnrollmentSecret(ctx context.Context, name, createdByUserUUID string) (models.EnrollmentSecret, string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return models.EnrollmentSecret{}, "", ErrEnrollmentSecretName
 	}
 
 	var createdBy sql.NullInt64
@@ -38,26 +42,41 @@ func (c *Core) GenerateAnonymousEnrollmentSecret(ctx context.Context, createdByU
 
 	nonce, err := randomNonce()
 	if err != nil {
-		return err
+		return models.EnrollmentSecret{}, "", err
 	}
-	if _, err := c.store.CreateEnrollmentSecret(ctx, repo.CreateEnrollmentSecretParams{
+	row, err := c.store.CreateEnrollmentSecret(ctx, repo.CreateEnrollmentSecretParams{
 		SecretID:  nonce,
-		Type:      enrollmentTypeAnonymous,
+		Type:      enrollmentTypeBulk,
 		CreatedBy: createdBy,
-	}); err != nil {
-		return fmt.Errorf("create anonymous enrollment secret: %w", err)
+		Name:      sql.NullString{String: name, Valid: true},
+	})
+	if err != nil {
+		return models.EnrollmentSecret{}, "", fmt.Errorf("create bulk enrollment secret: %w", err)
 	}
-	return nil
+
+	token := c.serializeEnrollmentSecret(row.SecretID, uuid.Nil)
+	return models.EnrollmentSecret{
+		UUID:     row.Uuid.String(),
+		SecretID: hex.EncodeToString(row.SecretID),
+		Type:     row.Type,
+		Name:     name,
+	}, token, nil
 }
 
-// AnonymousEnrollmentSecret returns the active anonymous secret without creating one.
-func (c *Core) AnonymousEnrollmentSecret(ctx context.Context) (string, error) {
-	row, err := c.store.GetActiveAnonymousEnrollmentSecret(ctx)
+func (c *Core) EnrollmentSecretToken(ctx context.Context, secretUUID string) (string, error) {
+	sid, err := uuid.Parse(secretUUID)
+	if err != nil {
+		return "", ErrEnrollmentSecretNotFound
+	}
+	row, err := c.store.GetEnrollmentSecretByUUID(ctx, sid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrEnrollmentSecretNotFound
 	}
 	if err != nil {
-		return "", fmt.Errorf("get anonymous enrollment secret: %w", err)
+		return "", fmt.Errorf("get enrollment secret: %w", err)
+	}
+	if row.Type != enrollmentTypeBulk || row.RevokedAt.Valid {
+		return "", ErrEnrollmentSecretNotFound
 	}
 	return c.serializeEnrollmentSecret(row.SecretID, uuid.Nil), nil
 }

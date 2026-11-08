@@ -296,7 +296,6 @@ export type OsqueryBootstrapProfile = {
   warnings?: string[]
   owner?: OsqueryBootstrapOwner
   platforms?: OsqueryBootstrapPlatform[]
-  anonymous_available?: boolean
 }
 
 type PageOpts = { page?: number; countPerPage?: number }
@@ -1052,11 +1051,18 @@ export function revokeUserToken(uuid: string, tokenUUID: string) {
 export type EnrollmentSecret = {
   uuid: string
   secret_id: string
-  type: 'anonymous' | 'owned'
+  type: 'owned' | 'bulk'
+  name?: string
   generated_by?: string
   machine_count: number
   revoked_at?: string
   created_at: string
+}
+
+// Per-platform install commands for a bulk key.
+export type EnrollmentKeyBootstrap = {
+  token: string
+  commands: Record<string, string>
 }
 
 export function fetchEnrollmentSecrets() {
@@ -1065,9 +1071,18 @@ export function fetchEnrollmentSecrets() {
   )
 }
 
-export function generateAnonymousEnrollmentSecret() {
-  return fetch(apiUrl('/enrollment-secrets'), { method: 'POST' }).then((r) =>
-    handleResponse<unknown>(r)
+export function createBulkEnrollmentSecret(name: string) {
+  return jsonRequest<EnrollmentKeyBootstrap & { enrollment_secret: EnrollmentSecret }>(
+    '/enrollment-secrets',
+    'POST',
+    { name }
+  )
+}
+
+export function fetchEnrollmentSecretBootstrap(uuid: string, groups?: string) {
+  const params = groups ? { groups } : undefined
+  return fetch(apiUrl(`/enrollment-secrets/${encodeURIComponent(uuid)}/bootstrap`, params)).then(
+    (r) => handleResponse<EnrollmentKeyBootstrap>(r)
   )
 }
 

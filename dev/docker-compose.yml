@@ -4,14 +4,25 @@ x-osquery-agent: &osquery-agent
   depends_on:
     checkpost:
       condition: service_started
+  # Keep stdin open with a TTY so the enrollment-key prompt below can be pasted
+  # into after attaching:  docker compose -f dev/docker-compose.yml attach <service>
+  stdin_open: true
+  tty: true
   command:
     - bash
     - -c
     - |
+      # Create a bulk key under Settings -> Enrollment keys, attach to this
+      # container, and paste it at the prompt. Append "|groups=<group>" to the
+      # key to auto-join an existing group at enrollment.
+      ENROLL_SECRET=""
+      while [ -z "$$ENROLL_SECRET" ]; do
+        read -rp "Paste the enrollment key and press Enter: " ENROLL_SECRET
+      done
       until curl --cacert /etc/osquery-tls/server.pem -fsS -o /dev/null https://checkpost:1323/bootstrap/linux.sh; do
         echo "waiting for checkpost..."; sleep 2;
       done
-      curl --cacert /etc/osquery-tls/server.pem -fsSL https://checkpost:1323/bootstrap/linux.sh | bash || true
+      curl --cacert /etc/osquery-tls/server.pem -fsSL https://checkpost:1323/bootstrap/linux.sh | CHECKPOST_ENROLL_SECRET="$$ENROLL_SECRET" bash || true
       sed -i 's|^--tls_hostname=.*|--tls_hostname=checkpost:1323|' /etc/osquery/osquery.flags
       echo '--tls_server_certs=/etc/osquery-tls/server.pem' >> /etc/osquery/osquery.flags
       # No init system in these containers, so the installer only stages osquery and

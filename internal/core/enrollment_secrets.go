@@ -11,6 +11,23 @@ import (
 
 const EnrollmentSecretPrefix = "chkpt_enroll_"
 
+const enrollGroupsDelim = "|groups="
+
+func ParseEnrollSecret(raw string) (token string, groups []string) {
+	raw = strings.TrimSpace(raw)
+	tok, rest, found := strings.Cut(raw, enrollGroupsDelim)
+	token = strings.TrimSpace(tok)
+	if !found {
+		return token, nil
+	}
+	for _, name := range strings.Split(rest, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			groups = append(groups, name)
+		}
+	}
+	return token, groups
+}
+
 const (
 	enrollmentNonceLen  = 16
 	enrollmentExpiryLen = 8

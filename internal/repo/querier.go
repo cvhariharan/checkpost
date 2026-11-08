@@ -84,7 +84,6 @@ type Querier interface {
 	FindRoleBinding(ctx context.Context, arg FindRoleBindingParams) (RoleBinding, error)
 	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
 	GetAPITokenByUUID(ctx context.Context, argUuid uuid.UUID) (ApiToken, error)
-	GetActiveAnonymousEnrollmentSecret(ctx context.Context) (EnrollmentSecret, error)
 	GetActiveOwnedEnrollmentSecret(ctx context.Context, ownerUserUuid uuid.NullUUID) (EnrollmentSecret, error)
 	GetAlertRuleByName(ctx context.Context, name string) (AlertRule, error)
 	GetAlertRuleByUUID(ctx context.Context, argUuid uuid.UUID) (AlertRule, error)
@@ -198,6 +197,7 @@ type Querier interface {
 	RevokeAPITokenForUser(ctx context.Context, arg RevokeAPITokenForUserParams) (int64, error)
 	RevokeEnrollmentSecretByID(ctx context.Context, arg RevokeEnrollmentSecretByIDParams) (int64, error)
 	RevokeEnrollmentSecretByUUID(ctx context.Context, arg RevokeEnrollmentSecretByUUIDParams) (int64, error)
+	RevokeOwnedEnrollmentSecretByID(ctx context.Context, arg RevokeOwnedEnrollmentSecretByIDParams) (int64, error)
 	SetUserLastLoginByID(ctx context.Context, id int64) error
 	SetUserPasswordHashByID(ctx context.Context, arg SetUserPasswordHashByIDParams) error
 	TimeoutStaleYaraScanTargets(ctx context.Context, timeout string) ([]int64, error)

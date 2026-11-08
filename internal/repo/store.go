@@ -117,9 +117,8 @@ type DeleteNodeTxParams struct {
 	RevokedBy sql.NullInt64
 }
 
-// DeleteNodeTx deletes a node and, atomically, revokes the enrollment secret it
-// enrolled with so it cannot re-enroll. Returns the number of node rows deleted
-// (0 when the node is missing).
+// DeleteNodeTx deletes a node and atomically revokes its enrollment secret only
+// when that secret is owned. Returns the number of node rows deleted.
 func (s *PostgresStore) DeleteNodeTx(ctx context.Context, params DeleteNodeTxParams) (int64, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -146,7 +145,7 @@ func (s *PostgresStore) DeleteNodeTx(ctx context.Context, params DeleteNodeTxPar
 	}
 
 	if node.EnrollmentSecretID.Valid {
-		if _, err := q.RevokeEnrollmentSecretByID(ctx, RevokeEnrollmentSecretByIDParams{
+		if _, err := q.RevokeOwnedEnrollmentSecretByID(ctx, RevokeOwnedEnrollmentSecretByIDParams{
 			ID:        node.EnrollmentSecretID.Int64,
 			RevokedBy: params.RevokedBy,
 		}); err != nil {

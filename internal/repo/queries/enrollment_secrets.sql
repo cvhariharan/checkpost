@@ -3,16 +3,12 @@ INSERT INTO enrollment_secrets (
     secret_id,
     type,
     owner_user_uuid,
-    created_by
+    created_by,
+    name
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 )
 RETURNING *;
-
--- name: GetActiveAnonymousEnrollmentSecret :one
-SELECT * FROM enrollment_secrets
-WHERE type = 'anonymous' AND revoked_at IS NULL
-LIMIT 1;
 
 -- name: GetActiveOwnedEnrollmentSecret :one
 SELECT * FROM enrollment_secrets
@@ -34,6 +30,11 @@ WHERE uuid = @uuid AND revoked_at IS NULL;
 UPDATE enrollment_secrets
 SET revoked_at = now(), revoked_by = @revoked_by
 WHERE id = @id AND revoked_at IS NULL;
+
+-- name: RevokeOwnedEnrollmentSecretByID :execrows
+UPDATE enrollment_secrets
+SET revoked_at = now(), revoked_by = @revoked_by
+WHERE id = @id AND type = 'owned' AND revoked_at IS NULL;
 
 -- name: ListEnrollmentSecrets :many
 SELECT

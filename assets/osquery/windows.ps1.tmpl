@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $TlsHostname = {{ ps .TLSHostname }}
 $EnrollSecret = if ($env:CHECKPOST_ENROLL_SECRET) { $env:CHECKPOST_ENROLL_SECRET } else { {{ ps .EnrollmentKey }} }
+$EnrollGroups = if ($env:CHECKPOST_GROUPS) { $env:CHECKPOST_GROUPS } else { "" }
 $PackageUrl = {{ ps .WindowsMSIAMD64URL }}
 $PackageSha256 = {{ ps .WindowsMSIAMD64SHA256 }}
 $BaseDir = "C:\ProgramData\Checkpost\osquery"
@@ -61,7 +62,8 @@ function Install-OsqueryIfMissing {
 function Write-CheckpostConfig {
   New-Item -ItemType Directory -Force -Path $BaseDir | Out-Null
   icacls $BaseDir /inheritance:r /grant:r "Administrators:(OI)(CI)F" "SYSTEM:(OI)(CI)F" | Out-Null
-  Set-Content -Path $SecretPath -Value $EnrollSecret -NoNewline
+  $SecretValue = if ($EnrollGroups) { "$EnrollSecret|groups=$EnrollGroups" } else { $EnrollSecret }
+  Set-Content -Path $SecretPath -Value $SecretValue -NoNewline
 
 @"
 --host_identifier=uuid

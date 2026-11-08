@@ -34,14 +34,16 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 		return err
 	}
 
-	owner, secretRowID, ok, err := h.c.AuthorizeEnrollmentSecret(c.Request().Context(), req.EnrollSecret)
+	token, groups := core.ParseEnrollSecret(req.EnrollSecret)
+
+	owner, secretRowID, ok, err := h.c.AuthorizeEnrollmentSecret(c.Request().Context(), token)
 	if err != nil {
 		return wrapError(http.StatusServiceUnavailable, "could not verify enrollment secret", err, nil)
 	}
 	if !ok {
 		if h.logger.Enabled(c.Request().Context(), slog.LevelDebug) {
 			email := "unknown"
-			if ownerUUID, decoded := h.c.DecodeEnrollmentSecretOwner(req.EnrollSecret); decoded {
+			if ownerUUID, decoded := h.c.DecodeEnrollmentSecretOwner(token); decoded {
 				if user, err := h.c.GetUserByUUIDRepo(c.Request().Context(), ownerUUID.String()); err == nil {
 					email = user.Email
 				}
@@ -53,6 +55,7 @@ func (h *Handler) HandleEnrollment(c echo.Context) error {
 
 	node := req.ToNodeModel()
 	node.OwnerUserUUID = owner
+	node.Groups = groups
 
 	creds, err := h.c.EnrollNode(c.Request().Context(), node, secretRowID)
 	if err != nil {

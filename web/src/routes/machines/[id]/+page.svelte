@@ -817,7 +817,7 @@
 <ConfirmDialog
   bind:open={deleteMachineDialogOpen}
   title="Delete host"
-  message="Deleting this host removes it and all of its collected data, and revokes the enrollment secret it used so it cannot re-enroll. Any other host that enrolled with the same secret — including the shared anonymous secret — will also be blocked from enrolling until a new secret is generated. This cannot be undone."
+  message="Deleting this host removes it and all of its collected data. If it enrolled with a per-user (owned) secret, that secret is revoked so it cannot re-enroll; shared bulk enrollment keys are left active so other hosts keep working. This cannot be undone."
   confirmLabel="Delete host"
   confirming={deletingMachine}
   confirmingLabel="Deleting..."

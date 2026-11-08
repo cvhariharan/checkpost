@@ -3,6 +3,7 @@ set -euo pipefail
 
 TLS_HOSTNAME={{ sh .TLSHostname }}
 ENROLL_SECRET=${CHECKPOST_ENROLL_SECRET:-{{ sh .EnrollmentKey }}}
+ENROLL_GROUPS="${CHECKPOST_GROUPS:-}"
 FLAGS_PATH="/etc/osquery/osquery.flags"
 SECRET_PATH="/etc/osquery/enroll_secret"
 SERVICE_PATH="/etc/systemd/system/osqueryd.service"
@@ -258,7 +259,11 @@ install_nftables_extension() {
 
 write_checkpost_config() {
   mkdir -p /etc/osquery
-  printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
+  if [ -n "${ENROLL_GROUPS}" ]; then
+    printf '%s|groups=%s' "${ENROLL_SECRET}" "${ENROLL_GROUPS}" > "${SECRET_PATH}"
+  else
+    printf '%s' "${ENROLL_SECRET}" > "${SECRET_PATH}"
+  fi
   chmod 600 "${SECRET_PATH}"
 
   cat > "${FLAGS_PATH}" <<EOF

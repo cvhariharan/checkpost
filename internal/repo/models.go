@@ -97,15 +97,16 @@ type DeviceOwner struct {
 }
 
 type EnrollmentSecret struct {
-	ID            int64         `db:"id" json:"id"`
-	Uuid          uuid.UUID     `db:"uuid" json:"uuid"`
-	SecretID      []byte        `db:"secret_id" json:"secret_id"`
-	Type          string        `db:"type" json:"type"`
-	OwnerUserUuid uuid.NullUUID `db:"owner_user_uuid" json:"owner_user_uuid"`
-	CreatedBy     sql.NullInt64 `db:"created_by" json:"created_by"`
-	RevokedAt     sql.NullTime  `db:"revoked_at" json:"revoked_at"`
-	RevokedBy     sql.NullInt64 `db:"revoked_by" json:"revoked_by"`
-	CreatedAt     time.Time     `db:"created_at" json:"created_at"`
+	ID            int64          `db:"id" json:"id"`
+	Uuid          uuid.UUID      `db:"uuid" json:"uuid"`
+	SecretID      []byte         `db:"secret_id" json:"secret_id"`
+	Type          string         `db:"type" json:"type"`
+	OwnerUserUuid uuid.NullUUID  `db:"owner_user_uuid" json:"owner_user_uuid"`
+	CreatedBy     sql.NullInt64  `db:"created_by" json:"created_by"`
+	RevokedAt     sql.NullTime   `db:"revoked_at" json:"revoked_at"`
+	RevokedBy     sql.NullInt64  `db:"revoked_by" json:"revoked_by"`
+	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
+	Name          sql.NullString `db:"name" json:"name"`
 }
 
 type Group struct {

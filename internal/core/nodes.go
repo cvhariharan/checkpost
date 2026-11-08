@@ -36,7 +36,32 @@ func (c *Core) EnrollNode(ctx context.Context, node models.NodeEnrollment, secre
 		}
 	}
 
+	if len(node.Groups) > 0 {
+		c.linkNodeGroups(ctx, created.ID, node.Groups)
+	}
+
 	return models.NodeCredentials{NodeKey: created.NodeKey.String()}, nil
+}
+
+// linkNodeGroups joins a host to each existing group named at enrollment. Unknown names are skipped
+func (c *Core) linkNodeGroups(ctx context.Context, nodeID int64, names []string) {
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		group, err := c.store.GetGroupByName(ctx, name)
+		if err != nil {
+			c.logger.Warn("skipping unknown enrollment group", "node_id", nodeID, "group", name, "error", err)
+			continue
+		}
+		if err := c.store.CreateGroupMembership(ctx, repo.CreateGroupMembershipParams{
+			GroupID: group.ID,
+			NodeID:  nodeID,
+		}); err != nil {
+			c.logger.Warn("could not add enrolled node to group", "node_id", nodeID, "group", name, "error", err)
+		}
+	}
 }
 
 func (c *Core) linkNodeOwner(ctx context.Context, nodeID int64, userUUID uuid.UUID) error {
@@ -183,9 +208,8 @@ func (c *Core) UpdateNode(ctx context.Context, req models.UpdateNode) (models.No
 	return out, nil
 }
 
-// DeleteNode deletes a node and revokes the enrollment secret it used, so it
-// cannot re-enroll. Revoking a shared secret also blocks other hosts that
-// enrolled with it, including the anonymous secret.
+// DeleteNode deletes a node and revokes its enrollment secret only when that
+// secret is per-host (owned); shared bulk secrets are left active.
 func (c *Core) DeleteNode(ctx context.Context, req models.ResourceID, revokedByUserUUID string) error {
 	id, err := uuid.Parse(req.UUID)
 	if err != nil {

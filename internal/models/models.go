@@ -120,9 +120,11 @@ type NodeEnrollment struct {
 	HostIdentifier string
 	HostDetails    HostDetailsInfo
 
-	// OwnerUserUUID is the checkpost user embedded in an owner-bound enrollment
-	// secret. uuid.Nil for anonymous/legacy enrollments.
+	// OwnerUserUUID is the checkpost user embedded in an owner-bound secret; Nil otherwise.
 	OwnerUserUUID uuid.UUID
+
+	// Groups are host-asserted group names from CHECKPOST_GROUPS at enrollment.
+	Groups []string
 }
 
 type NodeCredentials struct {
@@ -673,7 +675,8 @@ type IssuedAPIToken struct {
 type EnrollmentSecret struct {
 	UUID         string     `json:"uuid"`
 	SecretID     string     `json:"secret_id"` // hex-encoded nonce
-	Type         string     `json:"type"`      // 'anonymous' | 'owned'
+	Type         string     `json:"type"`      // 'owned' | 'bulk'
+	Name         string     `json:"name,omitempty"`
 	GeneratedBy  string     `json:"generated_by"`
 	MachineCount int        `json:"machine_count"`
 	RevokedAt    *time.Time `json:"revoked_at,omitempty"`

@@ -192,9 +192,10 @@ func runServer(flags *rootFlags) error {
 	api.DELETE("/auth/tokens/:id", h.HandleRevokeToken)
 
 	api.GET("/enrollment-secrets", h.HandleListEnrollmentSecrets, h.Authorize(core.ResourceSetting, core.ActionView))
-	api.POST("/enrollment-secrets", h.HandleGenerateEnrollmentSecret, h.Authorize(core.ResourceSetting, core.ActionUpdate))
+	api.POST("/enrollment-secrets", h.HandleCreateBulkEnrollmentSecret, h.Authorize(core.ResourceSetting, core.ActionUpdate))
 	api.POST("/enrollment-secrets/:id/revoke", h.HandleRevokeEnrollmentSecret, h.Authorize(core.ResourceSetting, core.ActionUpdate))
 	api.GET("/enrollment-secrets/:id/machines", h.HandleEnrollmentSecretMachines, h.Authorize(core.ResourceSetting, core.ActionView))
+	api.GET("/enrollment-secrets/:id/bootstrap", h.HandleEnrollmentSecretBootstrap, h.Authorize(core.ResourceSetting, core.ActionView))
 
 	api.POST("/schedules", h.HandleCreateSchedule, h.Authorize(core.ResourceSchedule, core.ActionCreate))
 	api.GET("/schedules", h.HandleSchedulesPagination, h.Authorize(core.ResourceSchedule, core.ActionView))

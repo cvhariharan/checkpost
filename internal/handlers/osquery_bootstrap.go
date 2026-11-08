@@ -3,7 +3,6 @@ package handlers
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"text/template"
 
 	"github.com/cvhariharan/checkpost/internal/config"
-	"github.com/cvhariharan/checkpost/internal/core"
 	"github.com/cvhariharan/checkpost/internal/models"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -46,9 +44,8 @@ type bootstrapTemplateData struct {
 }
 
 func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
-	// The authenticated profile is always owner-bound to the session user, so
-	// their machine enrolls attributed to them. Anonymous enrollment is only via
-	// the public /bootstrap/:platform script (curl ... | sudo bash).
+	// The authenticated profile is owner-bound to the session user; bulk enrollment
+	// uses named keys from the enrollment-keys page.
 	var owner models.SessionUser
 	if user, err := h.currentUser(c); err == nil {
 		owner = user
@@ -64,11 +61,8 @@ func (h *Handler) HandleOsqueryBootstrap(c echo.Context) error {
 
 func (h *Handler) HandleOsqueryBootstrapScript(c echo.Context) error {
 	platform := strings.TrimSpace(c.Param("platform"))
-	secret, err := h.c.AnonymousEnrollmentSecret(c.Request().Context())
-	if err != nil && !errors.Is(err, core.ErrEnrollmentSecretNotFound) {
-		return wrapError(http.StatusInternalServerError, "could not resolve enrollment secret", err, nil)
-	}
-	script, contentType, err := h.osqueryBootstrapScript(platform, secret)
+	// No embedded secret; the operator supplies a bulk token via CHECKPOST_ENROLL_SECRET.
+	script, contentType, err := h.osqueryBootstrapScript(platform, "")
 	if err != nil {
 		return wrapError(http.StatusNotFound, fmt.Sprintf("osquery bootstrap script %s not found", platform), err, nil)
 	}
@@ -91,15 +85,6 @@ func (h *Handler) osqueryBootstrapProfile(ctx context.Context, owner models.Sess
 	}
 	ownerInfo := &OsqueryBootstrapOwner{Name: owner.Name, Email: owner.Email}
 	commandSecret := secret
-
-	anonymousAvailable := true
-	if _, err := h.c.AnonymousEnrollmentSecret(ctx); err != nil {
-		if errors.Is(err, core.ErrEnrollmentSecretNotFound) {
-			anonymousAvailable = false
-		} else {
-			return OsqueryBootstrapResponse{}, err
-		}
-	}
 
 	scripts := make(map[string]string, 3)
 	for _, platform := range []string{"linux.sh", "macos.sh", "windows.ps1"} {
@@ -171,13 +156,12 @@ func (h *Handler) osqueryBootstrapProfile(ctx context.Context, owner models.Sess
 	}
 
 	return OsqueryBootstrapResponse{
-		Ready:              h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
-		CheckpostURL:       checkpostURL,
-		TLSHostname:        tlsHostname,
-		Warnings:           warnings,
-		Owner:              ownerInfo,
-		Platforms:          platforms,
-		AnonymousAvailable: anonymousAvailable,
+		Ready:        h.cfg.OsqueryBootstrap.Enabled && len(warnings) == 0,
+		CheckpostURL: checkpostURL,
+		TLSHostname:  tlsHostname,
+		Warnings:     warnings,
+		Owner:        ownerInfo,
+		Platforms:    platforms,
 	}, nil
 }
 
@@ -342,6 +326,29 @@ func bootstrapCommand(checkpostURL, platform, secret string) string {
 			return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"iwr -useb %s | iex\"", url)
 		}
 		inner := fmt.Sprintf("$env:CHECKPOST_ENROLL_SECRET=%s; iwr -useb %s | iex", powershellQuote(secret), url)
+		return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"%s\"", inner)
+	default:
+		return ""
+	}
+}
+
+func bulkBootstrapCommand(checkpostURL, platform, secret, groups string) string {
+	groups = strings.TrimSpace(groups)
+	switch platform {
+	case "linux", "macos":
+		script := platform + ".sh"
+		env := "CHECKPOST_ENROLL_SECRET=" + shellQuote(secret)
+		if groups != "" {
+			env += " CHECKPOST_GROUPS=" + shellQuote(groups)
+		}
+		return fmt.Sprintf("curl -fsSL %s | sudo %s bash", bootstrapScriptURL(checkpostURL, script), env)
+	case "windows":
+		url := bootstrapScriptURL(checkpostURL, "windows.ps1")
+		inner := "$env:CHECKPOST_ENROLL_SECRET=" + powershellQuote(secret) + "; "
+		if groups != "" {
+			inner += "$env:CHECKPOST_GROUPS=" + powershellQuote(groups) + "; "
+		}
+		inner += fmt.Sprintf("iwr -useb %s | iex", url)
 		return fmt.Sprintf("powershell -NoProfile -ExecutionPolicy Bypass -Command \"%s\"", inner)
 	default:
 		return ""

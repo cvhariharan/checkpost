@@ -34,9 +34,6 @@
     const platforms = $derived(profile?.platforms || []);
     const canBulk = $derived(canFrom($me, "setting", "update"));
 
-    // Generic mode shows the secret-less, shareable command. It is only
-    // meaningful when the profile is owner-bound; for anonymous profiles the
-    // command already carries no secret.
     function activeCommand(platform: OsqueryBootstrapPlatform): string {
         return showGeneric ? platform.generic_command : platform.command;
     }
@@ -152,9 +149,11 @@
             {#if profile.owner}
                 <p class="attribution text-light">
                     {#if showGeneric}
-                        Showing a <strong>generic</strong> command with no owner
-                        attribution. Share it to let anyone enroll a machine,
-                        then assign an owner in Inventory.
+                        Showing a <strong>generic</strong> command with no
+                        embedded secret. Supply a bulk key token via
+                        <code>CHECKPOST_ENROLL_SECRET</code> (create one in
+                        Settings → Enrollment keys), then assign an owner in
+                        Inventory.
                     {:else}
                         This install registers the machine to
                         <strong
@@ -222,15 +221,6 @@
                                         />
                                         Generic command
                                     </label>
-                                    {#if showGeneric && !profile.anonymous_available}
-                                        <div role="alert" data-variant="warning">
-                                            <p>
-                                                No active anonymous enrollment secret. This generic
-                                                command won't enroll machines until you generate one
-                                                in Settings → Enrollment secrets.
-                                            </p>
-                                        </div>
-                                    {/if}
                                 {/if}
                                 <pre data-code={commandLanguage(platform)}><code
                                         >{activeCommand(platform)}</code
